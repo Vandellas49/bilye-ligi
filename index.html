@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bilye Ligi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Figtree:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ece7f6; --surface:#ffffff; --panel:rgba(255,255,255,.93); --ink:#1f1a2e; --muted:#5f5975;
+  --line:#d4cde6; --accent:#5b3fd9; --accent-ink:#ffffff; --chip:#f3f0fa;
+  --team-a:#ffcf3a; --team-b:#3fd0e8;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14111d; --surface:#211c30; --panel:rgba(30,25,45,.93); --ink:#f2eeff; --muted:#a7a0c2;
+    --line:#3a3356; --accent:#a08bff; --accent-ink:#160f2c; --chip:#2b2540; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14111d; --surface:#211c30; --panel:rgba(30,25,45,.93); --ink:#f2eeff; --muted:#a7a0c2;
+  --line:#3a3356; --accent:#a08bff; --accent-ink:#160f2c; --chip:#2b2540; color-scheme:dark;
+}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:Figtree,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex;flex-direction:column;overflow:hidden;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:8px 14px;min-height:54px}
+.brand{font-family:"Bagel Fat One",Figtree,system-ui,sans-serif;font-size:22px;letter-spacing:.01em;white-space:nowrap}
+.tools{display:flex;justify-content:flex-end;gap:6px}
+.icon-btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;height:38px;min-width:38px;padding:0 10px;cursor:pointer;font-size:15px;font-weight:600}
+.icon-btn:hover{border-color:var(--accent)}
+
+.score{display:flex;align-items:center;gap:10px;font-family:"Bagel Fat One",Figtree,system-ui,sans-serif;visibility:hidden}
+.score.on{visibility:visible}
+.score .team{display:flex;align-items:center;gap:8px;font-size:15px;font-family:Figtree,system-ui,sans-serif;font-weight:800}
+.score .dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,0,0,.35)}
+.score .num{font-size:30px;min-width:24px;text-align:center;line-height:1}
+.score .clock{font-family:Figtree,system-ui,sans-serif;font-weight:800;font-variant-numeric:tabular-nums;
+  background:var(--ink);color:var(--bg);border-radius:10px;padding:5px 10px;font-size:15px;min-width:64px;text-align:center}
+.score .clock.ot{background:#e8455c;color:#fff}
+
+main{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0;padding:0 10px 10px}
+canvas{display:block;border-radius:18px;touch-action:none}
+
+.overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:14px;overflow:auto}
+.overlay.on{display:flex}
+.panel{background:var(--panel);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid var(--line);border-radius:24px;padding:22px 24px;width:min(520px,100%);max-height:100%;overflow:auto;
+  box-shadow:0 20px 60px rgba(20,10,50,.28)}
+.panel h1{font-family:"Bagel Fat One",Figtree,system-ui,sans-serif;font-weight:400;font-size:44px;line-height:1;margin:0 0 6px}
+.panel h2{font-family:"Bagel Fat One",Figtree,system-ui,sans-serif;font-weight:400;font-size:34px;line-height:1.05;margin:0 0 8px}
+.panel p{margin:0 0 14px;color:var(--muted);line-height:1.45}
+fieldset{border:0;margin:0 0 12px;padding:0}
+legend{font-weight:800;font-size:14px;margin-bottom:6px;padding:0}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;background:var(--chip);border:1px solid var(--line);
+  cursor:pointer;font-weight:600;font-size:14px;user-select:none}
+.seg input:checked+label{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.seg input:focus-visible+label{outline:3px solid var(--accent);outline-offset:2px}
+.seg input:disabled+label{opacity:.45;cursor:not-allowed}
+.sw{width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
+.note{font-size:13px;color:var(--muted);margin:-4px 0 10px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.btn{border:0;border-radius:14px;padding:13px 20px;font-weight:800;font-size:16px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
+.keys{font-size:13px;color:var(--muted);line-height:1.6;margin-top:14px}
+kbd{font-family:inherit;font-weight:800;font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;background:var(--surface);color:var(--ink)}
+
+/* touch controls */
+#touch{position:absolute;inset:0;pointer-events:none;display:none;touch-action:none;user-select:none;-webkit-user-select:none}
+#touch *{touch-action:none}
+body.touch #touch.on{display:block}
+#stickZone{position:absolute;left:0;top:0;bottom:0;width:55%;pointer-events:auto}
+#stick{position:absolute;width:120px;height:120px;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);
+  display:none;transform:translate(-50%,-50%)}
+#knob{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.75);transform:translate(-50%,-50%)}
+#kickBtn{position:absolute;right:max(18px,env(safe-area-inset-right,0px));bottom:22px;width:86px;height:86px;border-radius:50%;
+  border:3px solid rgba(255,255,255,.85);background:rgba(25,18,45,.45);color:#fff;font-weight:800;font-size:16px;pointer-events:auto;
+  text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.spBtn{position:absolute;width:58px;height:58px;border-radius:50%;pointer-events:auto;color:#fff;font-weight:800;font-size:11px;
+  border:2px solid rgba(255,255,255,.8);text-shadow:0 1px 3px rgba(0,0,0,.6);
+  background:conic-gradient(var(--c) calc(var(--p,1)*360deg), rgba(25,18,45,.55) 0)}
+.spBtn.down{transform:scale(.93)}
+.spBtn.wait{opacity:.6}
+#passBtn{position:absolute;right:196px;bottom:34px;width:64px;height:64px;border-radius:50%;pointer-events:auto;color:#fff;font-weight:800;font-size:14px;
+  border:2px solid rgba(255,255,255,.85);background:rgba(25,18,45,.45);text-shadow:0 1px 3px rgba(0,0,0,.6)}
+#holdBtn{position:absolute;right:270px;bottom:34px;width:64px;height:64px;border-radius:50%;pointer-events:auto;color:#fff;font-weight:800;font-size:14px;
+  border:2px solid rgba(255,255,255,.85);background:rgba(25,18,45,.45);text-shadow:0 1px 3px rgba(0,0,0,.6)}
+#holdBtn.down{background:rgba(25,18,45,.75);transform:scale(.93)}
+#passBtn.down{background:rgba(25,18,45,.75);transform:scale(.93)}
+body.nospecial .spBtn{display:none}
+body.nospecial #passBtn{right:120px;bottom:30px}
+#sp-falso{right:118px;bottom:108px}
+#sp-fuze{right:28px;bottom:122px}
+#sp-asirtma{right:126px;bottom:24px}
+#kickBtn.down{background:rgba(25,18,45,.75);transform:scale(.94)}
+.rotate-hint{display:none;font-size:13px;color:var(--muted);text-align:center;padding:0 12px 8px}
+@media (orientation:portrait) and (pointer:coarse){ .rotate-hint{display:block} }
+@media (max-width:560px){
+  header{grid-template-columns:auto 1fr auto;padding:6px 8px}
+  .brand{font-size:17px}
+  .score .team span.nm{display:none}
+  .score .num{font-size:24px}
+  body.playing .brand{display:none}
+  .panel{padding:18px}
+  .panel h1{font-size:36px}
+}
+/* çevrimiçi, lobi ve turnuva ekranları */
+.panel.wide{width:min(760px,100%)}
+.panel h3{font-size:16px;margin:0}
+.status{font-weight:700;color:var(--ink);margin:0 0 12px}
+.status:empty{display:none}
+.field{display:flex;flex-direction:column;gap:5px;font-weight:800;font-size:14px;margin-bottom:12px;flex:1;min-width:180px}
+.field input{font:inherit;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.field input:focus-visible{border-color:var(--accent)}
+.field-row{display:flex;gap:10px;flex-wrap:wrap}
+.btn.small{padding:7px 12px;font-size:14px;border-radius:10px}
+.row-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 8px}
+.rooms{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.rooms .empty{color:var(--muted);font-size:14px;padding:6px 0}
+.room{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--chip);border:1px solid var(--line);border-radius:14px;padding:8px 10px}
+.room .rn{font-weight:800;flex:1;min-width:120px;overflow-wrap:anywhere}
+.room .rm{color:var(--muted);font-size:13px}
+.room input{font:inherit;width:120px;border:1px solid var(--line);border-radius:10px;padding:6px 8px;background:var(--surface);color:var(--ink)}
+details{border:1px solid var(--line);border-radius:16px;padding:10px 14px;margin-bottom:12px;background:var(--surface)}
+summary{font-weight:800;cursor:pointer}
+details[open] summary{margin-bottom:12px}
+.teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.tcol{background:var(--chip);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:6px}
+.tcol.mine{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.tcol h4{margin:0;font-size:15px;display:flex;align-items:center;gap:6px}
+.tcol h4 .cnt{margin-left:auto;font-weight:600;color:var(--muted);font-size:12px}
+.tcol ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:14px;min-height:20px}
+.tcol li.off{color:var(--muted)}
+.tcol li.bot{color:var(--muted);font-style:italic}
+.bracket{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px}
+.bround{display:flex;flex-direction:column;justify-content:space-around;gap:8px;min-width:150px;flex:1}
+.bround .bn{font-weight:800;font-size:13px;color:var(--muted)}
+.bm{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.bm.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.bt{display:flex;justify-content:space-between;gap:8px;padding:5px 9px;font-size:14px}
+.bt + .bt{border-top:1px solid var(--line)}
+.bt.win{font-weight:800}
+.bt.lose{color:var(--muted)}
+.bt.me span::after{content:" (sen)";color:var(--accent);font-weight:800}
+.bt.tbd{color:var(--muted);font-style:italic}
+.bt small{color:var(--muted);font-weight:600}
+@media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Bilye Ligi</div>
+  <div class="score" id="score">
+    <div class="team"><span class="dot" style="background:var(--team-a)"></span><span class="nm" id="nmA">Limon</span></div>
+    <div class="num" id="sA">0</div>
+    <div class="clock" id="clock">2:00</div>
+    <div class="num" id="sB">0</div>
+    <div class="team"><span class="nm" id="nmB">Buz</span><span class="dot" style="background:var(--team-b)"></span></div>
+  </div>
+  <div class="tools">
+    <button class="icon-btn" id="muteBtn" aria-label="Sesi kapat" title="Ses">🔊</button>
+    <button class="icon-btn" id="pauseBtn" aria-label="Duraklat" title="Duraklat (Esc)" hidden>❚❚</button>
+  </div>
+</header>
+<div class="rotate-hint">Telefonu yan çevirirsen saha büyür.</div>
+<main id="stage">
+  <canvas id="cv" aria-label="Oyun sahası"></canvas>
+
+  <div id="touch">
+    <div id="stickZone"><div id="stick"><div id="knob"></div></div></div>
+    <button id="kickBtn" aria-label="Şut">ŞUT</button>
+    <button id="holdBtn" aria-label="Topu tut">TUT</button>
+    <button id="passBtn" aria-label="Pas iste">PAS</button>
+    <button class="spBtn" id="sp-falso" data-shot="falso" style="--c:#c86bff">Falso</button>
+    <button class="spBtn" id="sp-fuze" data-shot="fuze" style="--c:#ff7a1f">Füze</button>
+    <button class="spBtn" id="sp-asirtma" data-shot="asirtma" style="--c:#4fc3e8">Aşırtma</button>
+  </div>
+
+  <div class="overlay on" id="menu">
+    <form class="panel" id="setup" onsubmit="return false">
+      <h1>Bilye Ligi</h1>
+      <p>Yuvarlak oyuncunu sür, topa dokun, şutla kaleye gönder.</p>
+
+      <fieldset>
+        <legend>Mod</legend>
+        <div class="seg">
+          <input type="radio" name="mode" id="m1" value="match" checked><label for="m1">Tek maç</label>
+          <input type="radio" name="mode" id="m2" value="tour"><label for="m2">Turnuva</label>
+        </div>
+      </fieldset>
+
+      <fieldset id="tourField" hidden>
+        <legend>Turnuva</legend>
+        <div class="seg">
+          <input type="radio" name="tsize" id="ts4" value="4" checked><label for="ts4">4 takım</label>
+          <input type="radio" name="tsize" id="ts8" value="8"><label for="ts8">8 takım</label>
+        </div>
+      </fieldset>
+      <div class="note" id="tourNote" hidden>Eleme usulü. Rakipler her turda zorlaşır, beraberlikte altın gol.</div>
+
+      <fieldset>
+        <legend>Kadro</legend>
+        <div class="seg">
+          <input type="radio" name="size" id="s1" value="1"><label for="s1">1’e 1</label>
+          <input type="radio" name="size" id="s2" value="2"><label for="s2">2’ye 2</label>
+          <input type="radio" name="size" id="s3" value="3" checked><label for="s3">3’e 3</label>
+        </div>
+      </fieldset>
+
+      <fieldset id="oppField">
+        <legend>Rakip</legend>
+        <div class="seg">
+          <input type="radio" name="opp" id="o1" value="cpu" checked><label for="o1">Bilgisayar</label>
+          <input type="radio" name="opp" id="o2" value="friend"><label for="o2">Arkadaşın (aynı klavye)</label>
+        </div>
+      </fieldset>
+      <div class="note" id="friendNote" hidden>İki kişilik maç için klavye gerekiyor.</div>
+
+      <fieldset id="diffField">
+        <legend>Bot seviyesi</legend>
+        <div class="seg">
+          <input type="radio" name="diff" id="d1" value="0"><label for="d1">Kolay</label>
+          <input type="radio" name="diff" id="d2" value="1" checked><label for="d2">Orta</label>
+          <input type="radio" name="diff" id="d3" value="2"><label for="d3">Zor</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Saha</legend>
+        <div class="seg" id="arenaSeg"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Hava</legend>
+        <div class="seg">
+          <input type="radio" name="weather" id="w1" value="kar" checked><label for="w1">❄ Kar yağsın</label>
+          <input type="radio" name="weather" id="w2" value="parilti"><label for="w2">✦ Parıltı</label>
+          <input type="radio" name="weather" id="w3" value="sade"><label for="w3">Sade</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Süre</legend>
+        <div class="seg">
+          <input type="radio" name="time" id="t1" value="2" checked><label for="t1">2 dk</label>
+          <input type="radio" name="time" id="t2" value="3"><label for="t2">3 dk</label>
+          <input type="radio" name="time" id="t3" value="5"><label for="t3">5 dk</label>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button class="btn" id="startBtn" type="button">Maça başla</button>
+        <button class="btn ghost" id="onlineBtn" type="button">Çevrimiçi oyna</button>
+      </div>
+      <div class="keys" id="keysHelp">
+        Hareket: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ya da ok tuşları. Şut: <kbd>Boşluk</kbd> veya <kbd>X</kbd>.<br>
+        Depar: <kbd>Shift</kbd> basılı tut. Dayanıklılık çubuğu biterse yorulur, bir süre yavaş koşarsın.<br>
+        Topu tut ve koru: <kbd>C</kbd> basılı tut. Gelen topu yakalar, rakip yaklaşınca topu vücudunla saklarsın.<br>
+        Top kapma: rakip toptayken yanına git, <kbd>Boşluk</kbd> ile müdahale et. Topun olduğu taraftan girersen şansın artar, ıskalarsan bir an sendelersin.<br>
+        Pas iste: <kbd>F</kbd>. Takım arkadaşın topu sana atar, yol kapalıysa duvardan sektirir. Sen de duvardan sektirip pas verebilirsin, arkadaşın topun geleceği yere koşar.<br>
+        Yana koşarken şut çekersen top hafif falso alır. Özel şutlar: <kbd>Q</kbd> sert falso, <kbd>E</kbd> füze, <kbd>R</kbd> aşırtma.<br>
+        İki kişi: 1. oyuncu <kbd>WASD</kbd> + <kbd>Boşluk</kbd>, pas isteme <kbd>F</kbd>, özel şutlar <kbd>Q</kbd><kbd>E</kbd><kbd>R</kbd>. 2. oyuncu ok tuşları + <kbd>Enter</kbd>, pas isteme <kbd>H</kbd>, depar sağ <kbd>Shift</kbd>, topu tutma <kbd>U</kbd>, özel şutlar <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd>.<br>
+        Duraklatmak için <kbd>Esc</kbd>.
+      </div>
+    </form>
+  </div>
+
+  <div class="overlay" id="pauseOv">
+    <div class="panel" style="width:min(380px,100%)">
+      <h2 id="pauseTitle">Mola</h2>
+      <p id="pauseText">Maç durduruldu.</p>
+      <div class="actions">
+        <button class="btn" id="resumeBtn">Devam et</button>
+        <button class="btn ghost" id="quitBtn">Menüye dön</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="endOv">
+    <div class="panel" style="width:min(420px,100%)">
+      <h2 id="endTitle">Maç bitti</h2>
+      <p id="endText"></p>
+      <div class="actions">
+        <button class="btn" id="againBtn">Bir maç daha</button>
+        <button class="btn ghost" id="menuBtn">Ayarları değiştir</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="tourOv">
+    <div class="panel wide">
+      <h2 id="tourTitle">Turnuva</h2>
+      <p id="tourText"></p>
+      <div id="tourBracket"></div>
+      <div class="actions">
+        <button class="btn" id="tourNext">Maça çık</button>
+        <button class="btn ghost" id="tourQuit">Menüye dön</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="onlineOv">
+    <div class="panel wide">
+      <h2>Çevrimiçi</h2>
+      <p class="status" id="netStatus" role="status">Bağlanıyor…</p>
+      <label class="field">Adın
+        <input id="netName" maxlength="16" autocomplete="nickname" placeholder="Oyuncu">
+      </label>
+      <div class="row-head"><h3>Odalar</h3><button class="btn ghost small" id="refreshRooms" type="button">Yenile</button></div>
+      <div id="roomList" class="rooms"></div>
+
+      <details id="createBox">
+        <summary>Oda kur</summary>
+        <form id="createForm" onsubmit="return false">
+          <div class="field-row">
+            <label class="field">Oda adı <input id="crName" maxlength="24" placeholder="Benim odam"></label>
+            <label class="field">Şifre (isteğe bağlı) <input id="crPass" maxlength="24" autocomplete="off"></label>
+          </div>
+          <fieldset>
+            <legend>Tür</legend>
+            <div class="seg">
+              <input type="radio" name="crType" id="crT1" value="match" checked><label for="crT1">Maç</label>
+              <input type="radio" name="crType" id="crT2" value="tournament"><label for="crT2">Turnuva</label>
+            </div>
+          </fieldset>
+          <fieldset id="crTourField" hidden>
+            <legend>Takım sayısı</legend>
+            <div class="seg">
+              <input type="radio" name="crTSize" id="crTs4" value="4" checked><label for="crTs4">4 takım</label>
+              <input type="radio" name="crTSize" id="crTs8" value="8"><label for="crTs8">8 takım</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Kadro (takım başına)</legend>
+            <div class="seg">
+              <input type="radio" name="crSize" id="crS1" value="1"><label for="crS1">1’e 1</label>
+              <input type="radio" name="crSize" id="crS2" value="2"><label for="crS2">2’ye 2</label>
+              <input type="radio" name="crSize" id="crS3" value="3" checked><label for="crS3">3’e 3</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Boş yerlere gelen botlar</legend>
+            <div class="seg">
+              <input type="radio" name="crDiff" id="crD0" value="0"><label for="crD0">Kolay</label>
+              <input type="radio" name="crDiff" id="crD1" value="1" checked><label for="crD1">Orta</label>
+              <input type="radio" name="crDiff" id="crD2" value="2"><label for="crD2">Zor</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Saha</legend>
+            <div class="seg" id="crArenaSeg"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Süre</legend>
+            <div class="seg">
+              <input type="radio" name="crTime" id="crM2" value="2" checked><label for="crM2">2 dk</label>
+              <input type="radio" name="crTime" id="crM3" value="3"><label for="crM3">3 dk</label>
+              <input type="radio" name="crTime" id="crM5" value="5"><label for="crM5">5 dk</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Özel şutlar</legend>
+            <div class="seg">
+              <input type="radio" name="crSp" id="crSp1" value="1" checked><label for="crSp1">Açık</label>
+              <input type="radio" name="crSp" id="crSp0" value="0"><label for="crSp0">Kapalı</label>
+            </div>
+          </fieldset>
+          <div class="actions"><button class="btn" id="createBtn" type="button">Oda kur</button></div>
+        </form>
+      </details>
+
+      <div class="actions">
+        <button class="btn ghost" id="netBack" type="button">Ana menüye dön</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="lobbyOv">
+    <div class="panel wide">
+      <h2 id="lobbyName">Oda</h2>
+      <p class="note" id="lobbyInfo"></p>
+      <p class="status" id="lobbyStatus" role="status"></p>
+      <div id="lobbyTeams" class="teams"></div>
+      <div id="lobbyBracket"></div>
+      <div class="actions">
+        <button class="btn" id="lobbyStart" type="button">Maçı başlat</button>
+        <button class="btn ghost" id="lobbyLeave" type="button">Odadan çık</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // ES modülleri file:// üzerinden yüklenmez; yerel sunucu gerektiğini menüde söyle
+  if (location.protocol === 'file:') document.getElementById('setup').insertAdjacentHTML('afterbegin',
+    '<p class="note" style="color:#e8455c">Oyun modüllerden oluşuyor, dosyayı doğrudan açınca çalışmaz. Klasörde <kbd>npm start</kbd> çalıştırıp tarayıcıda o adresi aç.</p>');
+</script>
+<script type="module" src="client/main.js"></script>
+</body>
+</html>

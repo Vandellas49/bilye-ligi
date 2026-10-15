@@ -1,0 +1,370 @@
+/* ---------- Bilye Ligi sunucusu ----------
+   Statik istemciyi servis eder ve /ws üzerinden çok oyunculu odaları yönetir.
+   Maçlar sunucuda 60 Hz simüle edilir (sunucu otoriteli), istemcilere 30 Hz
+   anlık görüntü ve olay listesi gönderilir. İstemciden yalnızca girdi kabul edilir.
+
+   Çalıştırma:  npm start   (PORT ortam değişkeni, varsayılan 8080) */
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { WebSocketServer } from 'ws';
+import { TICK, ARENAS, TEAM_NAME } from '../shared/constants.js';
+import { randomSeed } from '../shared/rng.js';
+import { createMatch, step, sanitizeInput } from '../shared/sim.js';
+import { roster, snapshot, matchInfo } from '../shared/net.js';
+import { createTournament, nextMatch, recordResult, simulateMatch, roundName, TOUR_TEAMS } from '../shared/tournament.js';
+
+const PORT = +process.env.PORT || 8080;
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const SNAP_EVERY = 2;            // her 2 tick'te bir anlık görüntü (30 Hz)
+const RECONNECT_MS = 60_000;     // kopan oyuncunun geri dönmesi için süre
+const BETWEEN_MS = 7_000;        // turnuvada maçlar arası bekleme
+const MAX_ROOMS = 100;
+const MSG_PER_SEC = 120;         // bunun üstündeki mesajlar yok sayılır
+const KICK_PER_SEC = 600;        // bunun üstünde bağlantı kapatılır
+
+/* ---------- statik dosyalar ---------- */
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json' };
+const server = http.createServer((req, res) => {
+  let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (p === '/') p = '/index.html';
+  if (p === '/favicon.ico'){ res.writeHead(204); res.end(); return; }
+  // yalnızca istemcinin ihtiyaç duyduğu dosyalar
+  const ok = p === '/index.html' || /^\/(client|shared)\/[\w.-]+\.js$/.test(p);
+  const file = path.join(ROOT, p);
+  if (!ok || !file.startsWith(ROOT)){ res.writeHead(404); res.end('Bulunamadı'); return; }
+  fs.readFile(file, (err, data) => {
+    if (err){ res.writeHead(404); res.end('Bulunamadı'); return; }
+    res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
+    res.end(data);
+  });
+});
+
+/* ---------- bağlantılar ---------- */
+const clients = new Map();    // id -> istemci
+const sessions = new Map();   // oturum anahtarı -> istemci
+const rooms = new Map();      // oda id -> oda
+let nextClientId = 1;
+
+const cleanText = (s, max, def) => {
+  const t = String(s ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, max);
+  return t || def;
+};
+
+function send(c, type, data = {}){
+  if (c && c.connected && c.ws.readyState === 1) c.ws.send(JSON.stringify({ type, ...data }));
+}
+
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 4096 });
+wss.on('connection', ws => {
+  let client = null;
+  const rate = { n: 0, t: Date.now() };
+  ws.isAlive = true;
+  ws.on('pong', () => ws.isAlive = true);
+  ws.on('message', raw => {
+    const now = Date.now();
+    if (now - rate.t > 1000){ rate.t = now; rate.n = 0; }
+    if (++rate.n > KICK_PER_SEC){ ws.close(1008, 'çok fazla mesaj'); return; }
+    if (rate.n > MSG_PER_SEC) return;
+    let msg;
+    try { msg = JSON.parse(raw); } catch(e){ return; }
+    if (!msg || typeof msg.type !== 'string') return;
+    if (msg.type === 'hello'){ client = hello(ws, msg, client); return; }
+    if (client && client.ws === ws) handle(client, msg);
+  });
+  ws.on('close', () => { if (client && client.ws === ws) disconnected(client); });
+});
+// ölü bağlantıları temizle
+setInterval(() => {
+  for (const ws of wss.clients){
+    if (!ws.isAlive){ ws.terminate(); continue; }
+    ws.isAlive = false; ws.ping();
+  }
+}, 15_000);
+
+function hello(ws, msg, current){
+  const name = cleanText(msg.name, 16, 'Oyuncu');
+  let c = typeof msg.sessionKey === 'string' ? sessions.get(msg.sessionKey) : null;
+  if (c){
+    // aynı oturumla geri dönüş: eski bağlantıyı bırak
+    if (c.ws !== ws && c.ws.readyState === 1) c.ws.close(4000, 'başka bağlantı açıldı');
+    c.ws = ws; c.connected = true; c.goneAt = 0; c.name = name;
+  } else {
+    if (current) return current;
+    c = { id: nextClientId++, key: crypto.randomBytes(16).toString('hex'), name, ws, connected: true, goneAt: 0, room: null, input: null };
+    clients.set(c.id, c); sessions.set(c.key, c);
+  }
+  send(c, 'welcome', { id: c.id, sessionKey: c.key, name: c.name });
+  const room = c.room && rooms.get(c.room);
+  if (room){
+    setControl(room, c, true);
+    send(c, 'roomState', { room: roomPublic(room) });
+    if (room.match) send(c, 'matchStart', matchStartMsg(room));
+    broadcastRoom(room);
+  } else send(c, 'rooms', { rooms: roomList() });
+  return c;
+}
+
+function disconnected(c){
+  c.connected = false; c.goneAt = Date.now(); c.input = null;
+  const room = c.room && rooms.get(c.room);
+  if (room){ setControl(room, c, false); broadcastRoom(room); }
+}
+// geri dönmeyen oyuncuları sil
+setInterval(() => {
+  const now = Date.now();
+  for (const c of clients.values()){
+    if (c.connected || now - c.goneAt < RECONNECT_MS) continue;
+    leaveRoom(c);
+    clients.delete(c.id); sessions.delete(c.key);
+  }
+}, 5_000);
+
+/* ---------- mesajlar ---------- */
+function handle(c, m){
+  const room = c.room && rooms.get(c.room);
+  switch (m.type){
+    case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); break;
+    case 'listRooms': send(c, 'rooms', { rooms: roomList() }); break;
+    case 'createRoom': {
+      if (room) leaveRoom(c);
+      if (rooms.size >= MAX_ROOMS) return send(c, 'error', { message: 'Sunucuda yer yok, biraz sonra dene.' });
+      const r = {
+        id: crypto.randomBytes(3).toString('hex'),
+        name: cleanText(m.name, 24, `${c.name} odası`),
+        password: cleanText(m.password, 24, ''),
+        settings: cleanSettings(m.settings), hostId: c.id,
+        members: [], teams: new Map(), phase: 'lobby',
+        match: null, tour: null, lastResult: null, nextAt: 0, timer: null,
+      };
+      rooms.set(r.id, r);
+      joinRoom(c, r);
+      broadcastRoomList();
+      break;
+    }
+    case 'joinRoom': {
+      const r = rooms.get(m.roomId);
+      if (!r) return send(c, 'error', { message: 'Oda bulunamadı.' });
+      if (r.password && m.password !== r.password) return send(c, 'error', { message: 'Şifre yanlış.' });
+      if (room && room !== r) leaveRoom(c);
+      joinRoom(c, r);
+      broadcastRoomList();
+      break;
+    }
+    case 'setTeam': {
+      if (!room) return;
+      if (room.phase === 'playing' || room.phase === 'between') return send(c, 'error', { message: 'Maç sürerken takım değiştirilemez.' });
+      const t = m.team === null ? null : Math.floor(+m.team);
+      if (t !== null){
+        if (!(t >= 0 && t < teamCount(room))) return;
+        const n = room.members.filter(id => room.teams.get(id) === t).length;
+        if (room.teams.get(c.id) !== t && n >= room.settings.size) return send(c, 'error', { message: 'Bu takım dolu.' });
+      }
+      room.teams.set(c.id, t);
+      broadcastRoom(room);
+      break;
+    }
+    case 'start': {
+      if (!room || room.hostId !== c.id) return;
+      if (room.phase !== 'lobby' && room.phase !== 'done') return;
+      room.lastResult = null;
+      if (room.settings.type === 'tournament'){
+        room.tour = createTournament({ size: room.settings.tSize, names: TOUR_TEAMS });
+        advanceTournament(room);
+      } else {
+        room.tour = null;
+        startLiveMatch(room, { sides: [0, 1], names: TEAM_NAME.slice(), diff: room.settings.diff });
+      }
+      broadcastRoomList();
+      break;
+    }
+    case 'input': c.input = sanitizeInput(m); break;
+    case 'leave': leaveRoom(c); send(c, 'left'); send(c, 'rooms', { rooms: roomList() }); break;
+  }
+}
+
+function cleanSettings(s){
+  s = s && typeof s === 'object' ? s : {};
+  const pick = (v, list, def) => list.includes(v) ? v : def;
+  const arena = s.arena === 'r' ? 'r' : Number.isInteger(+s.arena) && +s.arena >= 0 && +s.arena < ARENAS.length ? +s.arena : 'r';
+  return {
+    type: pick(s.type, ['match', 'tournament'], 'match'),
+    tSize: pick(+s.tSize, [4, 8], 4),
+    size: pick(+s.size, [1, 2, 3], 3),
+    minutes: pick(+s.minutes, [2, 3, 5], 2),
+    diff: pick(+s.diff, [0, 1, 2], 1),
+    specials: s.specials !== false,
+    weather: pick(s.weather, ['kar', 'parilti', 'sade'], 'kar'),
+    arena,
+  };
+}
+const teamCount = room => room.settings.type === 'tournament' ? room.settings.tSize : 2;
+
+/* ---------- odalar ---------- */
+function roomList(){
+  return [...rooms.values()].map(r => ({
+    id: r.id, name: r.name, locked: !!r.password, type: r.settings.type, tSize: r.settings.tSize, size: r.settings.size,
+    players: r.members.length, phase: r.phase,
+  }));
+}
+function broadcastRoomList(){
+  const list = roomList();
+  for (const c of clients.values()) if (!c.room) send(c, 'rooms', { rooms: list });
+}
+
+function roomPublic(r){
+  const m = r.match;
+  return {
+    id: r.id, name: r.name, locked: !!r.password, hostId: r.hostId, settings: r.settings, phase: r.phase,
+    members: r.members.map(id => { const c = clients.get(id); return { id, name: c.name, team: r.teams.get(id) ?? null, connected: c.connected }; }),
+    tour: r.tour, lastResult: r.lastResult,
+    current: m ? { names: m.S.teamNames, label: m.label, round: m.round, index: m.index } : null,
+    nextIn: r.phase === 'between' ? Math.max(0, r.nextAt - Date.now()) : 0,
+  };
+}
+function broadcastRoom(r, type = 'roomState', data){
+  const payload = data || { room: roomPublic(r) };
+  for (const id of r.members) send(clients.get(id), type, payload);
+}
+
+function joinRoom(c, r){
+  if (!r.members.includes(c.id)) r.members.push(c.id);
+  if (!r.teams.has(c.id)){
+    // ilk boş takıma yerleştir, yer yoksa izleyici
+    let team = null;
+    if (r.phase === 'lobby' || r.phase === 'done'){
+      for (let t = 0; t < teamCount(r) && team === null; t++){
+        if (r.members.filter(id => r.teams.get(id) === t).length < r.settings.size) team = t;
+      }
+    }
+    r.teams.set(c.id, team);
+  }
+  c.room = r.id;
+  broadcastRoom(r);
+  if (r.match) send(c, 'matchStart', matchStartMsg(r));
+}
+
+function leaveRoom(c){
+  const r = c.room && rooms.get(c.room);
+  c.room = null;
+  if (!r) return;
+  r.members = r.members.filter(id => id !== c.id);
+  r.teams.delete(c.id);
+  if (r.match){
+    const p = r.match.S.players.find(p => p.uid === c.id);
+    if (p){ p.ctrl = 'ai'; p.uid = null; }
+  }
+  if (!r.members.length){
+    clearTimeout(r.timer);
+    rooms.delete(r.id);
+  } else {
+    if (r.hostId === c.id){
+      const next = r.members.find(id => clients.get(id).connected) ?? r.members[0];
+      r.hostId = next;
+    }
+    broadcastRoom(r);
+  }
+  broadcastRoomList();
+}
+
+// kopan oyuncunun yerine bot geçer, dönünce geri verilir
+function setControl(r, c, connected){
+  if (!r.match) return;
+  const p = r.match.S.players.find(p => p.uid === c.id);
+  if (p) p.ctrl = connected ? 'net' : 'ai';
+}
+
+/* ---------- maç ---------- */
+function startLiveMatch(r, { sides, names, diff, round = null, index = null, label = '' }){
+  const s = r.settings, humans = [];
+  sides.forEach((teamIdx, side) => {
+    for (const id of r.members){
+      if (r.teams.get(id) === teamIdx) humans.push({ team: side, ctrl: 'net', name: clients.get(id).name, uid: id });
+    }
+  });
+  const S = createMatch({
+    size: s.size, humans, diff, arena: s.arena, weather: s.weather, minutes: s.minutes,
+    specials: s.specials, seed: randomSeed(), teamNames: names,
+  });
+  for (const p of S.players) if (p.uid != null && !clients.get(p.uid).connected) p.ctrl = 'ai';
+  r.match = { S, round, index, label, n: 0, pending: [] };
+  r.phase = 'playing';
+  broadcastRoom(r, 'matchStart', matchStartMsg(r));
+  broadcastRoom(r);
+}
+
+function matchStartMsg(r){
+  const m = r.match;
+  return { roster: roster(m.S), info: matchInfo(m.S), label: m.label, snap: snapshot(m.S) };
+}
+
+function tickRoom(r){
+  const m = r.match, S = m.S, inputs = {};
+  for (const p of S.players){
+    if (p.uid == null || p.ctrl === 'ai') continue;
+    const c = clients.get(p.uid);
+    if (c && c.input) inputs[p.id] = c.input;
+  }
+  const ev = step(S, inputs);
+  if (ev.length) m.pending.push(...ev);
+  const ended = ev.some(e => e.type === 'end');
+  if (++m.n % SNAP_EVERY === 0 || ended){
+    broadcastRoom(r, 'snap', { s: snapshot(S), ev: m.pending });
+    m.pending = [];
+  }
+  if (ended) finishMatch(r);
+}
+
+function finishMatch(r){
+  const m = r.match, S = m.S;
+  r.match = null;
+  r.lastResult = { names: S.teamNames, score: S.score.slice(), label: m.label };
+  broadcastRoom(r, 'matchEnd', { names: S.teamNames, score: S.score.slice(), label: m.label, tournament: !!r.tour });
+  if (r.tour && m.round !== null){
+    recordResult(r.tour, m.round, m.index, S.score[0], S.score[1]);
+    if (r.tour.champion !== null) r.phase = 'done';
+    else {
+      r.phase = 'between'; r.nextAt = Date.now() + BETWEEN_MS;
+      r.timer = setTimeout(() => { if (rooms.get(r.id) === r && r.phase === 'between') advanceTournament(r); }, BETWEEN_MS);
+    }
+  } else r.phase = 'lobby';
+  broadcastRoom(r);
+  broadcastRoomList();
+}
+
+/* ---------- çevrimiçi turnuva ----------
+   Oyuncusu olmayan eşleşmeler ekransız simüle edilir; oyuncusu olanlar canlı oynanır,
+   diğer oda üyeleri izler. */
+function advanceTournament(r){
+  const T = r.tour, s = r.settings;
+  for (;;){
+    const nm = nextMatch(T);
+    if (!nm){ r.phase = 'done'; break; }
+    const hasHumans = r.members.some(id => { const t = r.teams.get(id); return (t === nm.a || t === nm.b) && clients.get(id).connected; });
+    const names = [T.teams[nm.a].name, T.teams[nm.b].name];
+    if (!hasHumans){
+      const res = simulateMatch({ size: s.size, diff: s.diff, minutes: s.minutes, specials: s.specials, seed: randomSeed() });
+      recordResult(T, nm.round, nm.index, res.sa, res.sb, res.pen);
+      continue;
+    }
+    startLiveMatch(r, { sides: [nm.a, nm.b], names, diff: s.diff, round: nm.round, index: nm.index, label: roundName(T, nm.round) });
+    return;
+  }
+  broadcastRoom(r);
+  broadcastRoomList();
+}
+
+/* ---------- sabit adımlı döngü ---------- */
+let last = performance.now(), acc = 0;
+setInterval(() => {
+  const now = performance.now();
+  acc = Math.min(acc + now - last, 250); last = now;
+  while (acc >= TICK){
+    acc -= TICK;
+    for (const r of rooms.values()) if (r.match) tickRoom(r);
+  }
+}, 8);
+
+server.listen(PORT, () => console.log(`Bilye Ligi: http://localhost:${PORT}`));

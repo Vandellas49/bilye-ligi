@@ -1,0 +1,17 @@
+{
+  "name": "bilye-ligi",
+  "private": true,
+  "type": "module",
+  "description": "Tepeden görünümlü arcade futbol oyunu",
+  "scripts": {
+    "start": "node server/index.js",
+    "static": "npx serve .",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
