@@ -1,5 +1,5 @@
 /* ---------- Bilye Ligi sunucusu ----------
-   Statik istemciyi servis eder ve Socket.IO (/socket.io) üzerinden çok oyunculu odaları yönetir.
+   Statik istemciyi servis eder ve Socket.IO (/canli) üzerinden çok oyunculu odaları yönetir.
    Maçlar sunucuda 60 Hz simüle edilir (sunucu otoriteli), istemcilere 30 Hz
    anlık görüntü ve olay listesi gönderilir. İstemciden yalnızca girdi kabul edilir.
 
@@ -21,6 +21,8 @@ const PORT = +(process.env.PORT || process.env.ASPNETCORE_PORT || process.env.HT
 // alt adreste çalışırken önek (ör. IIS'te /bilye-ligi uygulaması); kökte boş
 const BASE = (process.env.BASE_PATH ?? process.env.ASPNETCORE_APPL_PATH ?? '').replace(/\/+$/, '');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const SIO_PATH = BASE + '/canli';   // oyun bağlantısının adresi
+const SIO_CLIENT = path.join(ROOT, 'node_modules', 'socket.io', 'client-dist', 'socket.io.min.js');
 const SNAP_EVERY = 2;            // her 2 tick'te bir anlık görüntü (30 Hz)
 const RECONNECT_MS = 60_000;     // kopan oyuncunun geri dönmesi için süre
 const BETWEEN_MS = 7_000;        // turnuvada maçlar arası bekleme
@@ -44,9 +46,11 @@ const server = http.createServer((req, res) => {
   }
   if (p === '/') p = '/index.html';
   if (p === '/favicon.ico'){ res.writeHead(204); res.end(); return; }
+  // Socket.IO tarayıcı istemcisi kendi adımızla verilir (adreste "socket.io" geçmesin, bkz. SIO_PATH)
+  const lib = p === '/lib/sio.min.js';
   // yalnızca istemcinin ihtiyaç duyduğu dosyalar
-  const ok = p === '/index.html' || /^\/(client|shared)\/[\w.-]+\.js$/.test(p);
-  const file = path.join(ROOT, p);
+  const ok = lib || p === '/index.html' || /^\/(client|shared)\/[\w.-]+\.js$/.test(p);
+  const file = lib ? SIO_CLIENT : path.join(ROOT, p);
   if (!ok || !file.startsWith(ROOT)){ res.writeHead(404, TEXT); res.end('Bulunamadı'); return; }
   fs.readFile(file, (err, data) => {
     if (err){ res.writeHead(404, TEXT); res.end('Bulunamadı'); return; }
@@ -72,12 +76,14 @@ function send(c, type, data = {}){
 }
 
 /* Socket.IO önce HTTP uzun sorgulamayla (long polling) bağlanır, ağ izin verirse
-   WebSocket'e geçer. WebSocket'i engelleyen kurum proxy'lerinde polling ile devam eder. */
+   WebSocket'e geçer. WebSocket'i engelleyen kurum proxy'lerinde polling ile devam eder.
+   Yol bilerek varsayılan "/socket.io" değil: bazı IIS sunucularında "socket.io" geçen adresleri
+   başka uygulamaya yönlendiren genel kurallar var. İstemci aynı yolu client/net.js'te kullanır. */
 const io = new Server(server, {
-  path: BASE + '/socket.io',
+  path: SIO_PATH,
   maxHttpBufferSize: 4096,        // tek mesaj sınırı
   pingInterval: 15_000, pingTimeout: 20_000,
-  serveClient: true,              // /socket.io/socket.io.min.js
+  serveClient: false,             // istemci dosyası /lib/sio.min.js olarak yukarıda verilir
   cors: { origin: false },
 });
 io.on('connection', socket => {

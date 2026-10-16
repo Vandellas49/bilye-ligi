@@ -19,7 +19,7 @@ after(() => proc.kill());
 // mesajları sırayla bekleyebilen küçük istemci
 // transports: ['polling'] WebSocket'i engelleyen bir kurum proxy'sini taklit eder
 function client(name, sessionKey, transports){
-  const ws = io(`http://localhost:${PORT}`, { path: '/socket.io', reconnection: false, forceNew: true, ...(transports ? { transports } : {}) });
+  const ws = io(`http://localhost:${PORT}`, { path: '/canli', reconnection: false, forceNew: true, ...(transports ? { transports } : {}) });
   const c = { ws, msgs: [], waiters: [], last: {} };
   ws.on('m', m => {
     c.last[m.type] = m; c.msgs.push(m);
@@ -45,7 +45,7 @@ test('statik dosyalar servis edilir, diğerleri gizli', async () => {
   assert.equal((await fetch(`http://localhost:${PORT}/package.json`)).status, 404);
   assert.equal((await fetch(`http://localhost:${PORT}/shared/../server/index.js`)).status, 404);
   // tarayıcının yüklediği Socket.IO istemcisi
-  assert.equal((await fetch(`http://localhost:${PORT}/socket.io/socket.io.min.js`)).status, 200);
+  assert.equal((await fetch(`http://localhost:${PORT}/lib/sio.min.js`)).status, 200);
 });
 
 test('WebSocket engelliyken (yalnızca HTTP sorgulama) oda kurulur ve maç oynanır', async () => {
@@ -189,11 +189,11 @@ test('IIS alt uygulaması gibi önekle çalışır (ASPNETCORE_APPL_PATH, ASPNET
     // IIS büyük/küçük harfe duyarsız: küçük harfle de açılır
     assert.equal((await fetch(u('/bilye-ligi/'))).status, 200);
     assert.equal((await fetch(u('/Bilye-Ligi/client/main.js'))).status, 200);
-    assert.equal((await fetch(u('/Bilye-Ligi/socket.io/socket.io.min.js'))).status, 200);
+    assert.equal((await fetch(u('/Bilye-Ligi/lib/sio.min.js'))).status, 200);
     assert.equal((await fetch(u('/client/main.js'))).status, 404);          // önek dışı yok
     assert.equal((await fetch(u('/Bilye-Ligi/%E0%A4%A'))).status, 400);     // bozuk adres sunucuyu düşürmez
     // oyun bağlantısı önekli adresle
-    const s = io(u(''), { path: '/Bilye-Ligi/socket.io', reconnection: false, forceNew: true });
+    const s = io(u(''), { path: '/Bilye-Ligi/canli', reconnection: false, forceNew: true });
     const w = await new Promise((res, rej) => {
       const t = setTimeout(() => rej(new Error('bağlanamadı')), 5000);
       s.on('m', m => { if (m.type === 'welcome'){ clearTimeout(t); res(m); } });

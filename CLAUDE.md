@@ -16,7 +16,7 @@ npm start          # node server/index.js -> http://localhost:8080 (PORT ile de�
 npm test           # Node testleri
 ```
 
-Sunucu hem oyunu (`index.html`, `client/`, `shared/`) hem Socket.IO uç noktasını (`/socket.io/`, tarayıcı istemcisi `/socket.io/socket.io.min.js` dahil) aynı portta sunar. Çevrimiçi mod bu sunucu olmadan çalışmaz; tek maç ve turnuva için herhangi bir statik sunucu da yeter (`npm run static`). Oyun ES modüllerinden oluştuğu için `index.html`'i doğrudan (`file://`) açmak çalışmaz; dosyadan açılırsa menüde uyarı çıkar.
+Sunucu hem oyunu (`index.html`, `client/`, `shared/`) hem Socket.IO uç noktasını (`/canli`) ve tarayıcı istemcisini (`/lib/sio.min.js`) aynı portta sunar. Yol bilerek varsayılan `/socket.io` değil: kurum IIS sunucusunda `socket.io` geçen adresleri ana uygulamaya yönlendiren genel bir kural vardı (403.18). Adreslere `socket.io` kelimesini geri koymayın. Çevrimiçi mod bu sunucu olmadan çalışmaz; tek maç ve turnuva için herhangi bir statik sunucu da yeter (`npm run static`). Oyun ES modüllerinden oluştuğu için `index.html`'i doğrudan (`file://`) açmak çalışmaz; dosyadan açılırsa menüde uyarı çıkar.
 
 Tek dış bağımlılık (tarayıcıda) Google Fonts (Bagel Fat One, Figtree). İnternet yoksa sistem yazı tiplerine düşer.
 
@@ -24,8 +24,8 @@ Tek dış bağımlılık (tarayıcıda) Google Fonts (Bagel Fat One, Figtree). �
 
 Kurum ağındaki bir IIS sitesinin altında (`Convert to Application`, ör. `https://alanadi/bilye-ligi/`) çalışabilir; `web.config` hazır. IIS, ASP.NET Core Module V2 ile ilk istekte `C:\nodejs\node.exe .\server\index.js` komutunu başlatır ve istekleri ona iletir. Portu `ASPNETCORE_PORT`, uygulama adresini `ASPNETCORE_APPL_PATH` ile verir; sunucu ikisini de okur (`HTTP_PLATFORM_PORT` ve elle `BASE_PATH` de desteklenir).
 
-- Sunucu tüm adresleri önekle karşılar (büyük/küçük harfe duyarsız), önek sondaki `/` olmadan gelirse 301 ile yönlendirir. Socket.IO yolu `<önek>/socket.io`.
-- İstemcide tüm adresler göreli: `index.html` Socket.IO betiğini `socket.io/socket.io.min.js` ile, `client/net.js` bağlantıyı sayfanın klasörüne göre kurar. Yeni bir adres eklerken başına `/` koymayın.
+- Sunucu tüm adresleri önekle karşılar (büyük/küçük harfe duyarsız), önek sondaki `/` olmadan gelirse 301 ile yönlendirir. Socket.IO yolu `<önek>/canli`.
+- İstemcide tüm adresler göreli: `index.html` Socket.IO betiğini `lib/sio.min.js` ile, `client/net.js` bağlantıyı sayfanın klasörüne göre kurar. Yeni bir adres eklerken başına `/` koymayın.
 - Uygulama havuzu: "Yönetilen kod yok", boşta kalma zaman aşımı 0 (havuz kapanınca odalar silinir). IIS "WebSocket Protocol" özelliği yoksa oyun polling ile çalışır.
 - Uygulama klasöründe bir kez `npm ci --omit=dev` gerekir.
 
@@ -158,7 +158,7 @@ Faydalı senaryolar: pas isteme başarı oranı, botların pas sayısı ve tamam
 1. **Modüllere ayırma** — tamamlandı.
 2. **Çok oyunculu (sunucu otoriteli)** — tamamlandı: odalar, şifre, takım seçimi, izleyici, bot doldurma, kopma/geri dönme. Kalan: kendi oyuncu için tahmin + sunucu düzeltmesi (`input.seq` zaten gönderiliyor; `snap`'e son işlenen `seq` eklenip yerel `step` ile yeniden oynatılabilir), oda ayarlarını lobide değiştirme, sohbet.
 3. **Turnuva modu** — tamamlandı: tek kişilik (4/8 takım, zorluk artışı, penaltılar) ve çevrimiçi oda türü.
-4. **Yayına alma** — Render (ücretsiz web servisi) üzerinde: depo https://github.com/Vandellas49/bilye-ligi, build `npm ci`, start `npm start`; `main`e gönderilen her değişiklik otomatik yayınlanır. Ücretsiz serviste 15 dk hareketsizlikten sonra uyku ve ~1 dk açılış var. Kendi sunucuda reverse proxy arkasında `/socket.io/` için `Upgrade` başlıkları iletilmeli (yoksa polling ile çalışır) ve boşta bağlantı zaman aşımı uzatılmalı (Socket.IO 15 sn'de bir ping atıyor).
+4. **Yayına alma** — Render (ücretsiz web servisi) üzerinde: depo https://github.com/Vandellas49/bilye-ligi, build `npm ci`, start `npm start`; `main`e gönderilen her değişiklik otomatik yayınlanır. Ücretsiz serviste 15 dk hareketsizlikten sonra uyku ve ~1 dk açılış var. Kendi sunucuda reverse proxy arkasında `/canli` için `Upgrade` başlıkları iletilmeli (yoksa polling ile çalışır) ve boşta bağlantı zaman aşımı uzatılmalı (Socket.IO 15 sn'de bir ping atıyor).
 
 ## Kurallar
 
