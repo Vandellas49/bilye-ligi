@@ -26,6 +26,7 @@ const MSG_PER_SEC = 120;         // bunun üstündeki mesajlar yok sayılır
 const KICK_PER_SEC = 600;        // bunun üstünde bağlantı kapatılır
 
 /* ---------- statik dosyalar ---------- */
+const TEXT = { 'content-type': 'text/plain; charset=utf-8' };
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json' };
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
@@ -34,9 +35,9 @@ const server = http.createServer((req, res) => {
   // yalnızca istemcinin ihtiyaç duyduğu dosyalar
   const ok = p === '/index.html' || /^\/(client|shared)\/[\w.-]+\.js$/.test(p);
   const file = path.join(ROOT, p);
-  if (!ok || !file.startsWith(ROOT)){ res.writeHead(404); res.end('Bulunamadı'); return; }
+  if (!ok || !file.startsWith(ROOT)){ res.writeHead(404, TEXT); res.end('Bulunamadı'); return; }
   fs.readFile(file, (err, data) => {
-    if (err){ res.writeHead(404); res.end('Bulunamadı'); return; }
+    if (err){ res.writeHead(404, TEXT); res.end('Bulunamadı'); return; }
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
     res.end(data);
   });
