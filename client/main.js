@@ -162,7 +162,9 @@ const STATUS = {
   off: '',
 };
 net.handlers.status = s => {
-  $('netStatus').textContent = s === 'on' ? `Bağlandın: ${net.me.name}` : STATUS[s];
+  $('netStatus').textContent = s === 'on'
+    ? `Bağlandın: ${net.me.name}${net.slow ? ' · Ağın WebSocket’e izin vermiyor, yedek bağlantı kullanılıyor (gecikme olabilir).' : ''}`
+    : STATUS[s];
   if (s === 'reconnecting' && G.room) $('lobbyStatus').textContent = STATUS.reconnecting;
 };
 net.handlers.welcome = () => { $('netName').value = net.me.name; };

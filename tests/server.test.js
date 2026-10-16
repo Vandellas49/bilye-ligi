@@ -1,8 +1,8 @@
-// Sunucu entegrasyon testi: gerçek sunucuyu başlatır, WebSocket istemcileriyle oda kurar ve oynar
+// Sunucu entegrasyon testi: gerçek sunucuyu başlatır, Socket.IO istemcileriyle oda kurar ve oynar
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { WebSocket } from 'ws';
+import { io } from 'socket.io-client';
 
 const PORT = 18000 + Math.floor(Math.random()*1000);
 let proc;
@@ -17,20 +17,22 @@ before(async () => {
 after(() => proc.kill());
 
 // mesajları sırayla bekleyebilen küçük istemci
-function client(name, sessionKey){
-  const ws = new WebSocket(`ws://localhost:${PORT}/ws`);
+// transports: ['polling'] WebSocket'i engelleyen bir kurum proxy'sini taklit eder
+function client(name, sessionKey, transports){
+  const ws = io(`http://localhost:${PORT}`, { path: '/socket.io', reconnection: false, forceNew: true, ...(transports ? { transports } : {}) });
   const c = { ws, msgs: [], waiters: [], last: {} };
-  ws.on('message', d => {
-    const m = JSON.parse(d); c.last[m.type] = m; c.msgs.push(m);
+  ws.on('m', m => {
+    c.last[m.type] = m; c.msgs.push(m);
     c.waiters = c.waiters.filter(w => { if (w.pred(m)){ w.res(m); return false; } return true; });
   });
-  c.send = (type, data = {}) => ws.send(JSON.stringify({ type, ...data }));
+  c.send = (type, data = {}) => ws.emit('m', { type, ...data });
+  c.close = () => ws.disconnect();
   c.wait = (pred, ms = 5000) => new Promise((res, rej) => {
     const found = c.msgs.find(pred); if (found) return res(found);
     const t = setTimeout(() => rej(new Error('beklenen mesaj gelmedi')), ms);
     c.waiters.push({ pred, res: m => { clearTimeout(t); res(m); } });
   });
-  c.ready = new Promise(res => ws.on('open', () => { c.send('hello', { name, sessionKey }); res(); }));
+  c.ready = new Promise(res => ws.on('connect', () => { c.send('hello', { name, sessionKey }); res(); }));
   c.clear = () => { c.msgs = []; };
   return c;
 }
@@ -42,6 +44,29 @@ test('statik dosyalar servis edilir, diğerleri gizli', async () => {
   assert.equal((await fetch(`http://localhost:${PORT}/server/index.js`)).status, 404);
   assert.equal((await fetch(`http://localhost:${PORT}/package.json`)).status, 404);
   assert.equal((await fetch(`http://localhost:${PORT}/shared/../server/index.js`)).status, 404);
+  // tarayıcının yüklediği Socket.IO istemcisi
+  assert.equal((await fetch(`http://localhost:${PORT}/socket.io/socket.io.min.js`)).status, 200);
+});
+
+test('WebSocket engelliyken (yalnızca HTTP sorgulama) oda kurulur ve maç oynanır', async () => {
+  const a = client('Proxy', undefined, ['polling']);
+  await a.ready;
+  await a.wait(type('welcome'));
+  assert.equal(a.ws.io.engine.transport.name, 'polling');
+  a.send('createRoom', { settings: { type: 'match', size: 1, minutes: 2 } });
+  await a.wait(type('roomState'));
+  a.send('start');
+  const ms = await a.wait(type('matchStart'));
+  const me = ms.roster.find(p => p.uid === a.last.welcome.id);
+  await a.wait(type('snap'));
+  const y0 = a.last.snap.s.players[me.id][1];
+  const iv = setInterval(() => a.send('input', { x: 0, y: 1 }), 50);
+  await new Promise(r => setTimeout(r, 900));
+  clearInterval(iv);
+  assert.ok(a.last.snap.s.players[me.id][1] > y0 + 30, 'polling ile de hareket etmeli');
+  // polling'de de anlık görüntüler akmalı (sunucu bekleyenleri toplu gönderir)
+  assert.ok(a.msgs.filter(type('snap')).length > 15);
+  a.close();
 });
 
 test('oda kur, katıl, takım seç, maç oyna, kopup geri dön', async () => {
@@ -53,9 +78,10 @@ test('oda kur, katıl, takım seç, maç oyna, kopup geri dön', async () => {
   const rs = await a.wait(m => m.type === 'roomState');
   assert.equal(rs.room.name, 'Test odası');      // < > temizlenir
   assert.equal(rs.room.hostId, wa.id);
-  const list = await b.wait(m => m.type === 'rooms' && m.rooms.length > 0);
-  const roomId = list.rooms[0].id;
-  assert.equal(list.rooms[0].locked, true);
+  const list = await b.wait(m => m.type === 'rooms' && m.rooms.some(r => r.name === 'Test odası'));
+  const listed = list.rooms.find(r => r.name === 'Test odası');
+  const roomId = listed.id;
+  assert.equal(listed.locked, true);
 
   b.send('joinRoom', { roomId, password: 'yanlış' });
   assert.equal((await b.wait(type('error'))).message, 'Şifre yanlış.');
@@ -88,7 +114,7 @@ test('oda kur, katıl, takım seç, maç oyna, kopup geri dön', async () => {
 
   // B kopar: yerine bot geçer (8. bit = bot)
   const key = b.last.welcome.sessionKey;
-  b.ws.close();
+  b.close();
   await a.wait(m => m.type === 'roomState' && m.room.members.find(x => x.id === wb.id)?.connected === false);
   await new Promise(r => setTimeout(r, 100)); a.clear();
   const s1 = await a.wait(type('snap'));
@@ -108,7 +134,7 @@ test('oda kur, katıl, takım seç, maç oyna, kopup geri dön', async () => {
   a.send('leave');
   const after = await b2.wait(m => m.type === 'roomState' && m.room.members.length === 1);
   assert.equal(after.room.hostId, wb.id);
-  a.ws.close(); b2.ws.close();
+  a.close(); b2.close();
 });
 
 test('çevrimiçi turnuva: oyuncusuz maçlar simüle edilir, oyuncunun maçı canlı oynanır', async () => {
@@ -130,18 +156,18 @@ test('çevrimiçi turnuva: oyuncusuz maçlar simüle edilir, oyuncunun maçı ca
   assert.notEqual(T.rounds[0][0].winner, null);
   assert.equal(T.rounds[0][1].winner, null);
   assert.deepEqual(playing.room.current.names, ['Nar', 'Erik']);
-  a.ws.close();
+  a.close();
 });
 
 test('geçersiz girdiler sunucuyu bozmaz', async () => {
   const c = client('Hile');
   await c.ready; await c.wait(type('welcome'));
-  c.ws.send('bozuk json');
+  c.ws.emit('m', 'bozuk'); c.ws.emit('m', null); c.ws.emit('baska-olay', {});
   c.send('input', { x: 1e9, y: 'a', special: 'hile' });
   c.send('setTeam', { team: 99 });
   c.send('joinRoom', { roomId: 'yok' });
   assert.equal((await c.wait(type('error'))).message, 'Oda bulunamadı.');
   c.send('listRooms');
   await c.wait(m => m.type === 'rooms' && c.msgs.filter(type('rooms')).length >= 2);
-  c.ws.close();
+  c.close();
 });

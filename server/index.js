@@ -1,5 +1,5 @@
 /* ---------- Bilye Ligi sunucusu ----------
-   Statik istemciyi servis eder ve /ws üzerinden çok oyunculu odaları yönetir.
+   Statik istemciyi servis eder ve Socket.IO (/socket.io) üzerinden çok oyunculu odaları yönetir.
    Maçlar sunucuda 60 Hz simüle edilir (sunucu otoriteli), istemcilere 30 Hz
    anlık görüntü ve olay listesi gönderilir. İstemciden yalnızca girdi kabul edilir.
 
@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer } from 'ws';
+import { Server } from 'socket.io';
 import { TICK, ARENAS, TEAM_NAME } from '../shared/constants.js';
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
@@ -53,47 +53,45 @@ const cleanText = (s, max, def) => {
   return t || def;
 };
 
+// her mesaj tek bir 'm' olayıyla gider: { type, ...veri }
 function send(c, type, data = {}){
-  if (c && c.connected && c.ws.readyState === 1) c.ws.send(JSON.stringify({ type, ...data }));
+  if (c && c.connected && c.socket.connected) c.socket.emit('m', { type, ...data });
 }
 
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 4096 });
-wss.on('connection', ws => {
+/* Socket.IO önce HTTP uzun sorgulamayla (long polling) bağlanır, ağ izin verirse
+   WebSocket'e geçer. WebSocket'i engelleyen kurum proxy'lerinde polling ile devam eder. */
+const io = new Server(server, {
+  path: '/socket.io',
+  maxHttpBufferSize: 4096,        // tek mesaj sınırı
+  pingInterval: 15_000, pingTimeout: 20_000,
+  serveClient: true,              // /socket.io/socket.io.min.js
+  cors: { origin: false },
+});
+io.on('connection', socket => {
   let client = null;
   const rate = { n: 0, t: Date.now() };
-  ws.isAlive = true;
-  ws.on('pong', () => ws.isAlive = true);
-  ws.on('message', raw => {
+  socket.on('m', msg => {
     const now = Date.now();
     if (now - rate.t > 1000){ rate.t = now; rate.n = 0; }
-    if (++rate.n > KICK_PER_SEC){ ws.close(1008, 'çok fazla mesaj'); return; }
+    if (++rate.n > KICK_PER_SEC){ socket.disconnect(true); return; }
     if (rate.n > MSG_PER_SEC) return;
-    let msg;
-    try { msg = JSON.parse(raw); } catch(e){ return; }
-    if (!msg || typeof msg.type !== 'string') return;
-    if (msg.type === 'hello'){ client = hello(ws, msg, client); return; }
-    if (client && client.ws === ws) handle(client, msg);
+    if (!msg || typeof msg !== 'object' || typeof msg.type !== 'string') return;
+    if (msg.type === 'hello'){ client = hello(socket, msg, client); return; }
+    if (client && client.socket === socket) handle(client, msg);
   });
-  ws.on('close', () => { if (client && client.ws === ws) disconnected(client); });
+  socket.on('disconnect', () => { if (client && client.socket === socket) disconnected(client); });
 });
-// ölü bağlantıları temizle
-setInterval(() => {
-  for (const ws of wss.clients){
-    if (!ws.isAlive){ ws.terminate(); continue; }
-    ws.isAlive = false; ws.ping();
-  }
-}, 15_000);
 
-function hello(ws, msg, current){
+function hello(socket, msg, current){
   const name = cleanText(msg.name, 16, 'Oyuncu');
   let c = typeof msg.sessionKey === 'string' ? sessions.get(msg.sessionKey) : null;
   if (c){
     // aynı oturumla geri dönüş: eski bağlantıyı bırak
-    if (c.ws !== ws && c.ws.readyState === 1) c.ws.close(4000, 'başka bağlantı açıldı');
-    c.ws = ws; c.connected = true; c.goneAt = 0; c.name = name;
+    if (c.socket !== socket && c.socket.connected) c.socket.disconnect(true);
+    c.socket = socket; c.connected = true; c.goneAt = 0; c.name = name;
   } else {
     if (current) return current;
-    c = { id: nextClientId++, key: crypto.randomBytes(16).toString('hex'), name, ws, connected: true, goneAt: 0, room: null, input: null };
+    c = { id: nextClientId++, key: crypto.randomBytes(16).toString('hex'), name, socket, connected: true, goneAt: 0, room: null, input: null };
     clients.set(c.id, c); sessions.set(c.key, c);
   }
   send(c, 'welcome', { id: c.id, sessionKey: c.key, name: c.name });

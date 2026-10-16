@@ -11,12 +11,12 @@ Bu dosya, projeye Claude Code ile devam ederken bağlam sağlamak için yazıld�
 ## Çalıştırma
 
 ```bash
-npm install        # tek bağımlılık: ws (sunucu için)
+npm install        # bağımlılık: socket.io (sunucu); testler için socket.io-client
 npm start          # node server/index.js -> http://localhost:8080 (PORT ile değiştirilebilir)
 npm test           # Node testleri
 ```
 
-Sunucu hem oyunu (`index.html`, `client/`, `shared/`) hem `/ws` WebSocket uç noktasını aynı portta sunar. Çevrimiçi mod bu sunucu olmadan çalışmaz; tek maç ve turnuva için herhangi bir statik sunucu da yeter (`npm run static`). Oyun ES modüllerinden oluştuğu için `index.html`'i doğrudan (`file://`) açmak çalışmaz; dosyadan açılırsa menüde uyarı çıkar.
+Sunucu hem oyunu (`index.html`, `client/`, `shared/`) hem Socket.IO uç noktasını (`/socket.io/`, tarayıcı istemcisi `/socket.io/socket.io.min.js` dahil) aynı portta sunar. Çevrimiçi mod bu sunucu olmadan çalışmaz; tek maç ve turnuva için herhangi bir statik sunucu da yeter (`npm run static`). Oyun ES modüllerinden oluştuğu için `index.html`'i doğrudan (`file://`) açmak çalışmaz; dosyadan açılırsa menüde uyarı çıkar.
 
 Tek dış bağımlılık (tarayıcıda) Google Fonts (Bagel Fat One, Figtree). İnternet yoksa sistem yazı tiplerine düşer.
 
@@ -35,18 +35,18 @@ shared/              DOM'a, sese, gerçek zamana ve Math.random'a dokunmaz (tara
   tournament.js      eleme tablosu, nextMatch, recordResult, roundDiff, simulateMatch (ekransız bot maçı), penaltılar
 client/
   main.js            istemci durumu G, tek maç / turnuva / çevrimiçi akışları, sabit adımlı döngü
-  net.js             WebSocket bağlantısı, yeniden bağlanma, girdi gönderimi, sunucu maçının enterpolasyonla oynatılması
+  net.js             Socket.IO bağlantısı (global io), yeniden bağlanma, girdi gönderimi, sunucu maçının enterpolasyonla oynatılması
   input.js           klavye, joystick, dokunmatik düğmeler -> readInput(ctrl, friend); SHOT_KEYS
   effects.js         olay -> parçacık/yazı/sarsıntı/ses (applyEvents), afterStep (iz, toz, göz), hava
   render.js          canvas çizimi; maç durumunu okur, değiştirmez
   audio.js           WebAudio sesleri (sfx.*), dosya kullanılmıyor
   ui.js              menü, ayar kaydı, HUD, overlay'ler, oda listesi, lobi, turnuva tablosu (bracketHtml)
 server/
-  index.js           statik dosyalar + WebSocket; oturumlar, odalar, 60 Hz maç döngüsü, çevrimiçi turnuva
+  index.js           statik dosyalar + Socket.IO; oturumlar, odalar, 60 Hz maç döngüsü, çevrimiçi turnuva
 tests/
   sim.test.js        simülasyon: determinizm, maç sonu, girdi
   tournament.test.js tablo, zorluk, ekransız maç, anlık görüntü gidiş-dönüşü
-  server.test.js     gerçek sunucu + WebSocket istemcileri: oda, şifre, takım, maç, kopma/geri dönüş, turnuva
+  server.test.js     gerçek sunucu + Socket.IO istemcileri: yalnızca polling (proxy taklidi), oda, şifre, takım, maç, kopma/geri dönüş, turnuva
 ```
 
 Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `shared/` içindeki hiçbir dosya tarayıcı ya da Node'a özgü API kullanmamalı.
@@ -95,6 +95,8 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 - Sunucu → istemci: `welcome {id, sessionKey, name}`, `rooms {rooms}`, `roomState {room}`, `matchStart {roster, info, label, snap}`, `snap {s, ev}`, `matchEnd {names, score, label, tournament}`, `left`, `error {message}`
 - Oda ayarları (`cleanSettings` ile doğrulanır): `type` (`'match'`/`'tournament'`), `tSize` (4/8), `size` (1–3), `minutes` (2/3/5), `diff` (0–2, boş yerlere giren botlar), `specials`, `weather`, `arena`.
 
+**Bağlantı.** Socket.IO önce HTTP uzun sorgulamayla (long polling) bağlanır, ağ izin verirse WebSocket'e yükseltir. WebSocket'i engelleyen kurum proxy'lerinde polling ile devam eder (daha gecikmeli); istemci bu durumda durum satırında uyarı gösterir (`net.slow`). Tüm mesajlar tek bir `m` olayıyla `{type, ...}` biçiminde gider.
+
 **Sunucu.** Tüm odalar tek bir sabit adımlı döngüde 60 Hz ilerler, her 2 tick'te anlık görüntü yayınlanır. İstemciden yalnızca girdi kabul edilir (`sanitizeInput`); mesaj boyutu ≤ 4 KB, saniyede 120 mesajın üstü yok sayılır, 600'ün üstünde bağlantı kapatılır. Kopan oyuncunun yerini bot alır; aynı oturum anahtarıyla 60 sn içinde dönerse geri verilir, dönmezse odadan çıkarılır. Oda sahibi ayrılırsa sahiplik devredilir, oda boşalınca silinir.
 
 **İstemci.** Sunucu maçında yerel simülasyon çalışmaz: `client/net.js` anlık görüntüleri tamponlar, ~100 ms (6 tick) geriden iki görüntü arasında konumları enterpole eder (`lerpView`), olayları da aynı gecikmeyle uygular. Kendi oyuncu `mine` olarak işaretlenir ve `ctrl = 'h1'` görünür (HUD ve çizim için). Girdi değişince hemen, değişmese de 250 ms'de bir gönderilir.
@@ -127,7 +129,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 ## Test
 
-`npm test` üç dosyayı paralel çalıştırır (birkaç saniye): simülasyon, turnuva/ağ serileştirme ve gerçek sunucuya WebSocket ile bağlanan entegrasyon testi (sunucuyu rastgele bir portta kendisi başlatır).
+`npm test` üç dosyayı paralel çalıştırır (birkaç saniye): simülasyon, turnuva/ağ serileştirme ve gerçek sunucuya Socket.IO ile bağlanan entegrasyon testi (sunucuyu rastgele bir portta kendisi başlatır).
 
 **Tarayıcı testleri (Playwright):** sayfayı `?debug` ile açınca `window.__S` (çizilen durum), `window.__G` (istemci durumu), `window.__fx` (efektler) ve `window.__net` (bağlantı) okunabilir. Çevrimiçi senaryolar için `npm start` ile sunucuyu açıp iki ayrı tarayıcı bağlamı (context) kullanın; aynı bağlamdaki sekmeler aynı oturum anahtarını paylaşır.
 
@@ -147,7 +149,7 @@ Faydalı senaryolar: pas isteme başarı oranı, botların pas sayısı ve tamam
 1. **Modüllere ayırma** — tamamlandı.
 2. **Çok oyunculu (sunucu otoriteli)** — tamamlandı: odalar, şifre, takım seçimi, izleyici, bot doldurma, kopma/geri dönme. Kalan: kendi oyuncu için tahmin + sunucu düzeltmesi (`input.seq` zaten gönderiliyor; `snap`'e son işlenen `seq` eklenip yerel `step` ile yeniden oynatılabilir), oda ayarlarını lobide değiştirme, sohbet.
 3. **Turnuva modu** — tamamlandı: tek kişilik (4/8 takım, zorluk artışı, penaltılar) ve çevrimiçi oda türü.
-4. **Yayına alma** — yapılmadı. `server/` için bir Dockerfile (`node server/index.js`, `PORT`); statik istemci zaten aynı sunucudan servis ediliyor. Reverse proxy/ingress arkasında `/ws` için `Upgrade` başlıkları iletilmeli ve boşta bağlantı zaman aşımı uzatılmalı (sunucu 15 sn'de bir ping atıyor).
+4. **Yayına alma** — Render (ücretsiz web servisi) üzerinde: depo https://github.com/Vandellas49/bilye-ligi, build `npm ci`, start `npm start`; `main`e gönderilen her değişiklik otomatik yayınlanır. Ücretsiz serviste 15 dk hareketsizlikten sonra uyku ve ~1 dk açılış var. Kendi sunucuda reverse proxy arkasında `/socket.io/` için `Upgrade` başlıkları iletilmeli (yoksa polling ile çalışır) ve boşta bağlantı zaman aşımı uzatılmalı (Socket.IO 15 sn'de bir ping atıyor).
 
 ## Kurallar
 

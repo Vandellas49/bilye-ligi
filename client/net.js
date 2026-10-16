@@ -1,6 +1,7 @@
 /* ---------- çevrimiçi bağlantı ----------
-   Sunucuyla WebSocket bağlantısı, oturum anahtarıyla yeniden bağlanma
-   ve sunucudan gelen maçın enterpolasyonla oynatılması. */
+   Sunucuyla Socket.IO bağlantısı (önce HTTP uzun sorgulama, ağ izin verirse WebSocket),
+   oturum anahtarıyla yeniden bağlanma ve sunucudan gelen maçın enterpolasyonla oynatılması.
+   Socket.IO istemcisi index.html'de sunucunun verdiği /socket.io/socket.io.min.js ile yüklenir (global io). */
 import { TICK } from '../shared/constants.js';
 import { createView, applySnapshot, lerpView } from '../shared/net.js';
 
@@ -11,11 +12,12 @@ function loadStore(){ try { return JSON.parse(localStorage.getItem(STORE) || '{}
 function saveStore(o){ try { localStorage.setItem(STORE, JSON.stringify(o)); } catch(e){} }
 
 export const net = {
-  ws: null, status: 'off',    // 'off' | 'connecting' | 'on' | 'reconnecting' | 'failed'
-  me: null,                   // { id, name }
+  socket: null, status: 'off',   // 'off' | 'connecting' | 'on' | 'reconnecting' | 'failed'
+  slow: false,                   // WebSocket'e geçilemedi, HTTP uzun sorgulamayla devam ediliyor
+  me: null,                      // { id, name }
   name: loadStore().name || '',
-  handlers: {},               // type -> fn(msg); ayrıca 'status' -> fn(status)
-  retries: 0, wanted: false,
+  handlers: {},                  // type -> fn(msg); ayrıca 'status' -> fn(status)
+  wanted: false, everConnected: false, fails: 0,
 };
 
 function setStatus(s){ net.status = s; net.handlers.status && net.handlers.status(s); }
@@ -23,44 +25,52 @@ function setStatus(s){ net.status = s; net.handlers.status && net.handlers.statu
 export function connect(name){
   if (name) net.name = name;
   net.wanted = true;
-  if (net.ws && (net.ws.readyState === 0 || net.ws.readyState === 1)) return;
-  setStatus(net.retries ? 'reconnecting' : 'connecting');
-  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-  net.ws = ws;
-  ws.onopen = () => {
-    const st = loadStore();
-    ws.send(JSON.stringify({ type: 'hello', name: net.name || 'Oyuncu', sessionKey: st.key }));
-  };
-  ws.onmessage = e => {
-    let m; try { m = JSON.parse(e.data); } catch(err){ return; }
+  if (net.socket){ if (!net.socket.connected) net.socket.connect(); return; }
+  // istemci betiği yüklenemediyse oyun Bilye Ligi sunucusundan açılmamıştır
+  if (typeof io !== 'function'){ setStatus('failed'); return; }
+  setStatus('connecting');
+  const s = io({ path: '/socket.io', reconnectionDelay: 600, reconnectionDelayMax: 4000, timeout: 15000 });
+  net.socket = s;
+  s.on('connect', () => {
+    net.fails = 0;
+    const engine = s.io.engine;
+    net.slow = false;
+    // birkaç saniyede WebSocket'e geçilemezse ağ engelliyor demektir
+    const check = setTimeout(() => { if (s.connected && engine.transport.name === 'polling'){ net.slow = true; if (net.me) setStatus('on'); } }, 3000);
+    engine.once('upgrade', () => { clearTimeout(check); net.slow = false; if (net.me) setStatus('on'); });
+    s.emit('m', { type: 'hello', name: net.name || 'Oyuncu', sessionKey: loadStore().key });
+  });
+  s.on('m', m => {
+    if (!m || typeof m.type !== 'string') return;
     if (m.type === 'welcome'){
-      net.me = { id: m.id, name: m.name }; net.retries = 0;
+      net.me = { id: m.id, name: m.name }; net.everConnected = true;
       saveStore({ name: m.name, key: m.sessionKey });
       setStatus('on');
     }
     const h = net.handlers[m.type];
     if (h) h(m);
-  };
-  ws.onclose = () => {
-    if (net.ws !== ws) return;
-    net.ws = null;
-    if (!net.wanted){ setStatus('off'); return; }
-    // kopma: aynı oturum anahtarıyla tekrar dene
-    // hiç bağlanamadıysak (sunucu yok) çabuk vazgeç
-    if (++net.retries > (net.me ? 20 : 2)){ setStatus('failed'); return; }
-    setStatus('reconnecting');
-    setTimeout(() => { if (net.wanted && !net.ws) connect(); }, Math.min(4000, 600*net.retries));
-  };
+  });
+  s.on('disconnect', reason => {
+    if (!net.wanted) return setStatus('off');
+    // sunucu bağlantıyı kendisi kestiyse (aynı oturum başka sekmede açıldı) tekrar deneme
+    if (reason === 'io server disconnect') return setStatus('failed');
+    setStatus('reconnecting');   // Socket.IO kendisi yeniden bağlanır, hello aynı oturum anahtarıyla gider
+  });
+  s.on('connect_error', () => {
+    // hiç bağlanamadıysak (sunucu yok ya da ağ tamamen engelliyor) çabuk vazgeç
+    if (!net.everConnected && ++net.fails >= 3){ s.disconnect(); net.socket = null; setStatus('failed'); return; }
+    setStatus(net.everConnected ? 'reconnecting' : 'connecting');
+  });
 }
 
 export function disconnect(){
-  net.wanted = false; net.retries = 0;
-  if (net.ws) net.ws.close();
-  net.ws = null; setStatus('off');
+  net.wanted = false;
+  if (net.socket){ net.socket.disconnect(); net.socket = null; }
+  setStatus('off');
 }
 
 export function send(type, data = {}){
-  if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify({ type, ...data }));
+  if (net.socket && net.socket.connected) net.socket.emit('m', { type, ...data });
 }
 
 export function setName(name){
