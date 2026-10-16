@@ -171,3 +171,35 @@ test('geçersiz girdiler sunucuyu bozmaz', async () => {
   await c.wait(m => m.type === 'rooms' && c.msgs.filter(type('rooms')).length >= 2);
   c.close();
 });
+
+test('IIS alt uygulaması gibi önekle çalışır (ASPNETCORE_APPL_PATH, ASPNETCORE_PORT)', async () => {
+  const port = PORT + 1;
+  const env = { ...process.env, ASPNETCORE_PORT: String(port), ASPNETCORE_APPL_PATH: '/Bilye-Ligi' };
+  delete env.PORT;
+  const p2 = spawn(process.execPath, ['server/index.js'], { env, stdio: ['ignore', 'pipe', 'inherit'] });
+  try {
+    await new Promise((res, rej) => {
+      p2.stdout.on('data', d => { if (String(d).includes('localhost')) res(); });
+      p2.on('exit', c => rej(new Error('sunucu kapandı: ' + c)));
+    });
+    const u = path => `http://localhost:${port}${path}`;
+    // sondaki / olmadan gelirse yönlendir (göreli adresler için)
+    const r = await fetch(u('/Bilye-Ligi'), { redirect: 'manual' });
+    assert.equal(r.status, 301); assert.equal(r.headers.get('location'), '/Bilye-Ligi/');
+    // IIS büyük/küçük harfe duyarsız: küçük harfle de açılır
+    assert.equal((await fetch(u('/bilye-ligi/'))).status, 200);
+    assert.equal((await fetch(u('/Bilye-Ligi/client/main.js'))).status, 200);
+    assert.equal((await fetch(u('/Bilye-Ligi/socket.io/socket.io.min.js'))).status, 200);
+    assert.equal((await fetch(u('/client/main.js'))).status, 404);          // önek dışı yok
+    assert.equal((await fetch(u('/Bilye-Ligi/%E0%A4%A'))).status, 400);     // bozuk adres sunucuyu düşürmez
+    // oyun bağlantısı önekli adresle
+    const s = io(u(''), { path: '/Bilye-Ligi/socket.io', reconnection: false, forceNew: true });
+    const w = await new Promise((res, rej) => {
+      const t = setTimeout(() => rej(new Error('bağlanamadı')), 5000);
+      s.on('m', m => { if (m.type === 'welcome'){ clearTimeout(t); res(m); } });
+      s.on('connect', () => s.emit('m', { type: 'hello', name: 'IIS' }));
+    });
+    assert.equal(w.name, 'IIS');
+    s.disconnect();
+  } finally { p2.kill(); }
+});

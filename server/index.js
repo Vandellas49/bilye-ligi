@@ -16,7 +16,10 @@ import { createMatch, step, sanitizeInput } from '../shared/sim.js';
 import { roster, snapshot, matchInfo } from '../shared/net.js';
 import { createTournament, nextMatch, recordResult, simulateMatch, roundName, TOUR_TEAMS } from '../shared/tournament.js';
 
-const PORT = +process.env.PORT || 8080;
+// IIS (ASP.NET Core Module ya da HttpPlatformHandler) portu kendi değişkeniyle verir
+const PORT = +(process.env.PORT || process.env.ASPNETCORE_PORT || process.env.HTTP_PLATFORM_PORT) || 8080;
+// alt adreste çalışırken önek (ör. IIS'te /bilye-ligi uygulaması); kökte boş
+const BASE = (process.env.BASE_PATH ?? process.env.ASPNETCORE_APPL_PATH ?? '').replace(/\/+$/, '');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SNAP_EVERY = 2;            // her 2 tick'te bir anlık görüntü (30 Hz)
 const RECONNECT_MS = 60_000;     // kopan oyuncunun geri dönmesi için süre
@@ -29,7 +32,16 @@ const KICK_PER_SEC = 600;        // bunun üstünde bağlantı kapatılır
 const TEXT = { 'content-type': 'text/plain; charset=utf-8' };
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json' };
 const server = http.createServer((req, res) => {
-  let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  let p;
+  try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); }
+  catch(e){ res.writeHead(400, TEXT); res.end('Geçersiz adres'); return; }
+  if (BASE){
+    // IIS adresleri büyük/küçük harfe duyarsız: öneki öyle karşılaştır
+    const low = p.toLowerCase(), base = BASE.toLowerCase();
+    if (low === base){ res.writeHead(301, { location: p + '/' }); res.end(); return; }   // göreli adresler için sondaki /
+    if (!low.startsWith(base + '/')){ res.writeHead(404, TEXT); res.end('Bulunamadı'); return; }
+    p = p.slice(BASE.length);
+  }
   if (p === '/') p = '/index.html';
   if (p === '/favicon.ico'){ res.writeHead(204); res.end(); return; }
   // yalnızca istemcinin ihtiyaç duyduğu dosyalar
@@ -62,7 +74,7 @@ function send(c, type, data = {}){
 /* Socket.IO önce HTTP uzun sorgulamayla (long polling) bağlanır, ağ izin verirse
    WebSocket'e geçer. WebSocket'i engelleyen kurum proxy'lerinde polling ile devam eder. */
 const io = new Server(server, {
-  path: '/socket.io',
+  path: BASE + '/socket.io',
   maxHttpBufferSize: 4096,        // tek mesaj sınırı
   pingInterval: 15_000, pingTimeout: 20_000,
   serveClient: true,              // /socket.io/socket.io.min.js
@@ -367,4 +379,4 @@ setInterval(() => {
   }
 }, 8);
 
-server.listen(PORT, () => console.log(`Bilye Ligi: http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Bilye Ligi: http://localhost:${PORT}${BASE}/`));

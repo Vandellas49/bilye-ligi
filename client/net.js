@@ -1,7 +1,7 @@
 /* ---------- çevrimiçi bağlantı ----------
    Sunucuyla Socket.IO bağlantısı (önce HTTP uzun sorgulama, ağ izin verirse WebSocket),
    oturum anahtarıyla yeniden bağlanma ve sunucudan gelen maçın enterpolasyonla oynatılması.
-   Socket.IO istemcisi index.html'de sunucunun verdiği /socket.io/socket.io.min.js ile yüklenir (global io). */
+   Socket.IO istemcisi index.html'de sunucunun verdiği socket.io/socket.io.min.js ile yüklenir (global io). */
 import { TICK } from '../shared/constants.js';
 import { createView, applySnapshot, lerpView } from '../shared/net.js';
 
@@ -30,7 +30,9 @@ export function connect(name){
   // istemci betiği yüklenemediyse oyun Bilye Ligi sunucusundan açılmamıştır
   if (typeof io !== 'function'){ setStatus('failed'); return; }
   setStatus('connecting');
-  const s = io({ path: '/socket.io', reconnectionDelay: 600, reconnectionDelayMax: 4000, timeout: 15000 });
+  // sayfa bir alt adreste olabilir (ör. IIS'te /bilye-ligi/): bağlantı adresi sayfanın klasörüne göre
+  const base = location.pathname.replace(/[^/]*$/, '');
+  const s = io({ path: base + 'socket.io', reconnectionDelay: 600, reconnectionDelayMax: 4000, timeout: 15000 });
   net.socket = s;
   s.on('connect', () => {
     net.fails = 0;
