@@ -99,7 +99,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 **Sunucu.** Tüm odalar tek bir sabit adımlı döngüde 60 Hz ilerler, her 2 tick'te anlık görüntü yayınlanır. İstemciden yalnızca girdi kabul edilir (`sanitizeInput`); mesaj boyutu ≤ 4 KB, saniyede 120 mesajın üstü yok sayılır, 600'ün üstünde bağlantı kapatılır. Kopan oyuncunun yerini bot alır; aynı oturum anahtarıyla 60 sn içinde dönerse geri verilir, dönmezse odadan çıkarılır. Oda sahibi ayrılırsa sahiplik devredilir, oda boşalınca silinir.
 
-**İstemci.** Sunucu maçında yerel simülasyon çalışmaz: `client/net.js` anlık görüntüleri tamponlar, ~100 ms (6 tick) geriden iki görüntü arasında konumları enterpole eder (`lerpView`), olayları da aynı gecikmeyle uygular. Kendi oyuncu `mine` olarak işaretlenir ve `ctrl = 'h1'` görünür (HUD ve çizim için). Girdi değişince hemen, değişmese de 250 ms'de bir gönderilir.
+**İstemci.** Sunucu maçında yerel simülasyon çalışmaz: `client/net.js` anlık görüntüleri tamponlar, en az ~100 ms (6 tick) geriden iki görüntü arasında konumları enterpole eder (`lerpView`), olayları da aynı gecikmeyle uygular. Gecikme uyarlanabilir (`M.delay`): son 4 sn'de görüntüler ne kadar geç geldiyse o kadar artar (en fazla ~600 ms), ağ düzelince yavaşça iner. Böylece polling'de topluca gelen paketlerde saha donup sıçramaz. Maç sırasında sahanın üstünde ping, bağlantı türü ve gecikme yazar (`G.netInfo`); `M.starved` donan kare sayısıdır (test için). Kendi oyuncu `mine` olarak işaretlenir ve `ctrl = 'h1'` görünür (HUD ve çizim için). Girdi değişince hemen, değişmese de 250 ms'de bir gönderilir.
 
 ## Kontroller
 
@@ -125,7 +125,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 | `DIFF[]` | Bot zorlukları: hız, nişan, pas eğilimi, müdahale sıklığı, depar kullanımı |
 | `shared/sim.js` → `step()` içindeki depar çarpanları | Depar hızı (`1.38`), yorgun hız (`.72`), dayanıklılık harcama/dolma hızları |
 | `server/index.js` başı | `SNAP_EVERY`, `RECONNECT_MS`, `BETWEEN_MS`, `MAX_ROOMS`, mesaj sınırları |
-| `client/net.js` → `INTERP_TICKS` | Çevrimiçi çizim gecikmesi (yumuşaklık ↔ tepki süresi) |
+| `client/net.js` → `INTERP_TICKS`, `MAX_DELAY_TICKS`, `LATE_WINDOW_MS` | Çevrimiçi çizim gecikmesinin alt/üst sınırı ve ölçüm penceresi (yumuşaklık ↔ tepki süresi) |
 
 ## Test
 

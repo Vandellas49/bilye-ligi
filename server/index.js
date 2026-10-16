@@ -127,6 +127,7 @@ function handle(c, m){
   switch (m.type){
     case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); break;
     case 'listRooms': send(c, 'rooms', { rooms: roomList() }); break;
+    case 'ping': if (typeof m.t === 'number' && Number.isFinite(m.t)) send(c, 'pong', { t: m.t }); break;
     case 'createRoom': {
       if (room) leaveRoom(c);
       if (rooms.size >= MAX_ROOMS) return send(c, 'error', { message: 'Sunucuda yer yok, biraz sonra dene.' });

@@ -624,4 +624,14 @@ export function render(state, view){
   drawPops(ctx);
   drawShotHud(ctx);
   drawBanner(ctx);
+  drawNetInfo(ctx);
+}
+
+// çevrimiçi maçta bağlantı bilgisi (sahanın üst kenarında, küçük)
+function drawNetInfo(c){
+  if (!V.online || V.mode !== 'match' || !V.netInfo) return;
+  c.font = '700 11px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const w = c.measureText(V.netInfo).width + 16, y = -MARGIN/2;
+  c.fillStyle = 'rgba(0,0,0,.45)'; rr(c, W/2 - w/2, y - 9, w, 18, 9); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.9)'; c.fillText(V.netInfo, W/2, y + .5);
 }

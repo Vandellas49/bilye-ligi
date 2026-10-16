@@ -293,6 +293,7 @@ function netFrame(now){
   if (due.length) handleEvents(due);
   if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); }
   if (G.state.players.some(p => p.mine)) sendInput(G.menuOpen ? NEUTRAL_INPUT : readInput('h1', false), now);
+  G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${net.slow ? 'yedek bağlantı' : 'WebSocket'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;
 }
 
 let last = performance.now(), acc = 0, hudTick = 0;
