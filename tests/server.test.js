@@ -190,10 +190,13 @@ test('IIS alt uygulaması gibi önekle çalışır (ASPNETCORE_APPL_PATH, ASPNET
     assert.equal((await fetch(u('/bilye-ligi/'))).status, 200);
     assert.equal((await fetch(u('/Bilye-Ligi/client/main.js'))).status, 200);
     assert.equal((await fetch(u('/Bilye-Ligi/lib/sio.min.js'))).status, 200);
-    assert.equal((await fetch(u('/client/main.js'))).status, 404);          // önek dışı yok
+    // tanı sayfası sunucunun gördüğünü gösterir
+    const tani = await (await fetch(u('/bilye-ligi/tani'))).text();
+    assert.ok(tani.includes('önek: /Bilye-Ligi'), tani); assert.ok(tani.includes('temizlenmiş adres: /tani'), tani);
     assert.equal((await fetch(u('/Bilye-Ligi/%E0%A4%A'))).status, 400);     // bozuk adres sunucuyu düşürmez
     // oyun bağlantısı önekli adresle
-    const s = io(u(''), { path: '/Bilye-Ligi/canli', reconnection: false, forceNew: true });
+    // IIS öneki '/Bilye-Ligi' bildirirken tarayıcı küçük harfle bağlanır: yine çalışmalı (harf farkı)
+    const s = io(u(''), { path: '/bilye-ligi/canli', reconnection: false, forceNew: true });
     const w = await new Promise((res, rej) => {
       const t = setTimeout(() => rej(new Error('bağlanamadı')), 5000);
       s.on('m', m => { if (m.type === 'welcome'){ clearTimeout(t); res(m); } });

@@ -21,7 +21,7 @@ const PORT = +(process.env.PORT || process.env.ASPNETCORE_PORT || process.env.HT
 // alt adreste çalışırken önek (ör. IIS'te /bilye-ligi uygulaması); kökte boş
 const BASE = (process.env.BASE_PATH ?? process.env.ASPNETCORE_APPL_PATH ?? '').replace(/\/+$/, '');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SIO_PATH = BASE + '/canli';   // oyun bağlantısının adresi
+const SIO_PATH = '/canli';          // oyun bağlantısının adresi (önek temizlendikten sonra, bkz. stripBase)
 const SIO_CLIENT = path.join(ROOT, 'node_modules', 'socket.io', 'client-dist', 'socket.io.min.js');
 const SNAP_EVERY = 2;            // her 2 tick'te bir anlık görüntü (30 Hz)
 const RECONNECT_MS = 60_000;     // kopan oyuncunun geri dönmesi için süre
@@ -33,19 +33,37 @@ const KICK_PER_SEC = 600;        // bunun üstünde bağlantı kapatılır
 /* ---------- statik dosyalar ---------- */
 const TEXT = { 'content-type': 'text/plain; charset=utf-8' };
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json' };
+/* Alt adreste çalışırken gelen adresin başındaki uygulama önekini kaldırır (ör. /bilye-ligi/canli -> /canli).
+   IIS adresleri büyük/küçük harfe duyarsızdır ve önek sunucuya farklı yazılışla gelebilir; bu yüzden
+   harf farkı gözetilmez. Önek hiç gelmezse adres olduğu gibi kalır. Hem dosyalar hem Socket.IO
+   temizlenmiş adresle çalışır. */
+function stripBase(req){
+  if (req.original !== undefined) return;
+  req.original = req.url;
+  if (!BASE) return;
+  const q = req.url.indexOf('?');
+  const pth = q < 0 ? req.url : req.url.slice(0, q), rest = q < 0 ? '' : req.url.slice(q);
+  const low = pth.toLowerCase(), base = BASE.toLowerCase();
+  if (low === base){ req.bare = true; return; }   // sondaki / eksik
+  if (low.startsWith(base + '/')) req.url = pth.slice(BASE.length) + rest;
+}
+
 const server = http.createServer((req, res) => {
+  stripBase(req);
+  // göreli adresler için sondaki / şart
+  if (req.bare){ res.writeHead(301, { location: req.original.split('?')[0] + '/' }); res.end(); return; }
   let p;
   try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); }
   catch(e){ res.writeHead(400, TEXT); res.end('Geçersiz adres'); return; }
-  if (BASE){
-    // IIS adresleri büyük/küçük harfe duyarsız: öneki öyle karşılaştır
-    const low = p.toLowerCase(), base = BASE.toLowerCase();
-    if (low === base){ res.writeHead(301, { location: p + '/' }); res.end(); return; }   // göreli adresler için sondaki /
-    if (!low.startsWith(base + '/')){ res.writeHead(404, TEXT); res.end('Bulunamadı'); return; }
-    p = p.slice(BASE.length);
-  }
   if (p === '/') p = '/index.html';
   if (p === '/favicon.ico'){ res.writeHead(204); res.end(); return; }
+  // kurulum sorunlarında sunucunun ne gördüğünü göstermek için
+  if (p === '/tani'){
+    res.writeHead(200, { ...TEXT, 'cache-control': 'no-store' });
+    res.end([`Bilye Ligi sunucusu çalışıyor`, `alınan adres: ${req.original}`, `temizlenmiş adres: ${req.url}`,
+      `önek: ${BASE || '(yok)'}`, `bağlantı yolu: ${SIO_PATH}`, `node: ${process.version}`].join('\n'));
+    return;
+  }
   // Socket.IO tarayıcı istemcisi kendi adımızla verilir (adreste "socket.io" geçmesin, bkz. SIO_PATH)
   const lib = p === '/lib/sio.min.js';
   // yalnızca istemcinin ihtiyaç duyduğu dosyalar
@@ -86,6 +104,9 @@ const io = new Server(server, {
   serveClient: false,             // istemci dosyası /lib/sio.min.js olarak yukarıda verilir
   cors: { origin: false },
 });
+// Socket.IO kendi dinleyicisini sunucuya ekledi; önek temizliği ondan önce çalışsın
+server.prependListener('request', stripBase);
+server.prependListener('upgrade', stripBase);
 io.on('connection', socket => {
   let client = null;
   const rate = { n: 0, t: Date.now() };

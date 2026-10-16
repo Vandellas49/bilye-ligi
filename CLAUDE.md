@@ -24,7 +24,8 @@ Tek dış bağımlılık (tarayıcıda) Google Fonts (Bagel Fat One, Figtree). �
 
 Kurum ağındaki bir IIS sitesinin altında (`Convert to Application`, ör. `https://alanadi/bilye-ligi/`) çalışabilir; `web.config` hazır. IIS, ASP.NET Core Module V2 ile ilk istekte `C:\nodejs\node.exe .\server\index.js` komutunu başlatır ve istekleri ona iletir. Portu `ASPNETCORE_PORT`, uygulama adresini `ASPNETCORE_APPL_PATH` ile verir; sunucu ikisini de okur (`HTTP_PLATFORM_PORT` ve elle `BASE_PATH` de desteklenir).
 
-- Sunucu tüm adresleri önekle karşılar (büyük/küçük harfe duyarsız), önek sondaki `/` olmadan gelirse 301 ile yönlendirir. Socket.IO yolu `<önek>/canli`.
+- Sunucu gelen her isteğin başındaki öneki `stripBase` ile kaldırır (büyük/küçük harfe duyarsız; önek gelmezse adres olduğu gibi kalır), hem dosyalar hem Socket.IO temizlenmiş adresle çalışır. Önek sondaki `/` olmadan gelirse 301 ile yönlendirir. Socket.IO yolu temizlendikten sonra `/canli`, tarayıcıdan `<önek>/canli`.
+- Kurulum sorunlarında `<önek>/tani` sunucunun aldığı adresi, öneki ve Node sürümünü düz metin olarak gösterir.
 - İstemcide tüm adresler göreli: `index.html` Socket.IO betiğini `lib/sio.min.js` ile, `client/net.js` bağlantıyı sayfanın klasörüne göre kurar. Yeni bir adres eklerken başına `/` koymayın.
 - Uygulama havuzu: "Yönetilen kod yok", boşta kalma zaman aşımı 0 (havuz kapanınca odalar silinir). IIS "WebSocket Protocol" özelliği yoksa oyun polling ile çalışır.
 - Uygulama klasöründe bir kez `npm ci --omit=dev` gerekir.
