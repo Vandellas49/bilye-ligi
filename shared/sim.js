@@ -4,7 +4,7 @@
    createMatch(ayarlar)  -> state
    step(state, inputs)   -> olay listesi   (state yerinde güncellenir)
 
-   inputs[oyuncuId] = { x, y, kick, special, call, hold, sprint, slide }. Bot oyuncuların
+   inputs[oyuncuId] = { x, y, kick, special, call, hold, sprint, slide, assist }. Bot oyuncuların
    girdisi burada üretilir; insan oyuncunun girdisi yoksa boş girdi sayılır.
    Ses, parçacık, sarsıntı gibi yan etkiler olay olarak döner ({ type, ... });
    istemci bunları çizer ve seslendirir. */
@@ -17,7 +17,7 @@ import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
-export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, special: null, call: false, hold: false, sprint: false, slide: false });
+export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, special: null, call: false, hold: false, sprint: false, slide: false, assist: true });
 
 const num = v => typeof v === 'number' && Number.isFinite(v) ? v : 0;
 
@@ -30,6 +30,7 @@ export function sanitizeInput(raw){
   return {
     x, y, kick: !!raw.kick, special: normShot(raw.special),   // tek şut ya da kombo ('falso+fuze')
     call: !!raw.call, hold: !!raw.hold, sprint: !!raw.sprint, slide: !!raw.slide,
+    assist: raw.assist !== false,   // pas yardımı (oyuncunun tercihi, varsayılan açık)
   };
 }
 
@@ -200,7 +201,7 @@ export function step(S, inputs = {}){
     if (S.phase === 'goal' && p.ctrl === 'ai') inp = NEUTRAL_INPUT;
     const { x, y } = inp;
     const special = S.specials ? inp.special : null;
-    p.input = { x, y, kick: inp.kick, hold: inp.hold };
+    p.input = { x, y, kick: inp.kick, hold: inp.hold, assist: inp.assist };
     if (p.ctrl !== 'ai') chargeShot(S, p, inp.kick);
     // kayma: tuşa basıldığı an başlar (basılı tutmak yeniden kaydırmaz)
     if (p.slideCd > 0) p.slideCd--;
@@ -298,9 +299,12 @@ export function step(S, inputs = {}){
         const il = Math.hypot(p.input.x, p.input.y);
         const contact = Math.atan2(ny, nx);
         const base = il > .3 ? Math.atan2(p.input.y, p.input.x) : contact;
-        // gelen topa tek vuruşta topun arkasından çok sapamaz; kaleye güçlü nişan şuttur
-        const canTurn = owned || angDiff(base, contact) < 1.75;   // en fazla ~100°
-        if (canTurn && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
+        if (p.input.assist){
+          // gelen topa tek vuruşta topun arkasından çok sapamaz; kaleye güçlü nişan şuttur
+          const canTurn = owned || angDiff(base, contact) < 1.75;   // en fazla ~100°
+          if (canTurn && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
+        }
+        // yardım yoksa (ya da uygun arkadaş yoksa) top sürülürken basılan yöne vurulur
         if (!pass && owned && il > .3){ nx = Math.cos(base); ny = Math.sin(base); p.dirA = base; }
       }
       if (pass){

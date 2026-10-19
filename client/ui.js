@@ -40,7 +40,7 @@ export function initMenu(){
   if (saved) {
     const setR = (name, v) => { const el = document.querySelector(`input[name="${name}"][value="${v}"]`); if (el && !el.disabled) el.checked = true; };
     setR('mode', saved.mode); setR('tsize', saved.tsize);
-    setR('size', saved.size); setR('opp', saved.opp); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather);
+    setR('size', saved.size); setR('opp', saved.opp); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist);
   }
 
   // turnuva seçilince rakip ve bot seviyesi gizlenir (rakipler her turda zorlaşır)
@@ -53,14 +53,19 @@ export function initMenu(){
   };
   document.querySelectorAll('input[name="mode"]').forEach(el => el.addEventListener('change', syncMode));
   syncMode();
+  // pas yardımı seçimi hemen kaydedilir (maç başlatmadan çevrimiçine geçilse de hatırlansın)
+  document.querySelectorAll('input[name="assist"]').forEach(el => el.addEventListener('change', () => saveCfg({ ...(loadCfg() || {}), assist: radio('assist') })));
   const syncCreate = () => { $('crTourField').hidden = radio('crType') !== 'tournament'; };
   document.querySelectorAll('input[name="crType"]').forEach(el => el.addEventListener('change', syncCreate));
   syncCreate();
   return saved;
 }
 
+// pas yardımı tercihi (menüdeki seçim; çevrimiçinde de kullanılır)
+export const passAssist = () => radio('assist') !== '0';
+
 export function readCfg(){
-  return { mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), opp: radio('opp'), diff: radio('diff'),
+  return { assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), opp: radio('opp'), diff: radio('diff'),
     arena: radio('arena'), time: radio('time'), weather: radio('weather') };
 }
 

@@ -13,7 +13,7 @@ import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js'
 import { initRender, resize, renderBg, render } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
 import { $, initMenu, readCfg, readCreate, saveCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
-  updateTouchCooldowns, bracketHtml, renderRooms, renderLobby } from './ui.js';
+  updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist } from './ui.js';
 
 /* istemci durumu
    mode: 'menu' (arkada demo maç), 'match', 'end'
@@ -283,7 +283,8 @@ function handleEvents(events){
 function tick(){
   const S = G.state, inputs = {};
   const friend = !!(G.cfg && G.cfg.opp === 'friend');
-  for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = readInput(p.ctrl, friend);
+  const assist = passAssist();
+  for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = { ...readInput(p.ctrl, friend), assist };
   const events = step(S, inputs);
   handleEvents(events);
   afterStep(S);
@@ -293,7 +294,7 @@ function netFrame(now){
   const due = updateNetMatch(G.netM, now);
   if (due.length) handleEvents(due);
   if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); }
-  if (G.state.players.some(p => p.mine)) sendInput(G.menuOpen ? NEUTRAL_INPUT : readInput('h1', false), now);
+  if (G.state.players.some(p => p.mine)) sendInput(G.menuOpen ? NEUTRAL_INPUT : { ...readInput('h1', false), assist: passAssist() }, now);
   G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${net.slow ? 'yedek bağlantı' : 'WebSocket'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;
 }
 

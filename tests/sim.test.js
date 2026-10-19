@@ -345,3 +345,14 @@ test('pas yardımı: botların vuruşunu etkilemez (yalnızca insan)', () => {
   for (let i = 0; i < 2000; i++){ step(a, {}); step(b, {}); }
   assert.deepEqual(a.score, b.score);
 });
+
+test('pas yardımı kapalıyken top basılan yöne gider (arkadaşa yönlendirilmez)', () => {
+  const s = passSetup();
+  const inp = toward(s.me, s.mate, .3);
+  const out = {};
+  passRun(s, { ...inp, assist: false }, 3, {}, out);
+  assert.ok(Math.abs(out.ang - Math.atan2(inp.y, inp.x)) < .02, `top basılan yöne gitti (${out.ang.toFixed(3)})`);
+  const on = passSetup(), out2 = {};
+  passRun(on, inp, 3, {}, out2);   // varsayılan: açık
+  assert.ok(Math.abs(out2.ang - Math.atan2(inp.y, inp.x)) > .1, 'açıkken arkadaşa yönlendi');
+});
