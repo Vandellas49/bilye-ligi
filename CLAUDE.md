@@ -87,7 +87,9 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 **Şut güç barı.** İnsan oyuncuda şut tuşu basılı tutuldukça `p.charge` 0→1 dolar (`chargeShot`); bırakınca o güçte vuruş 10 tick bekler (`p.shot`), bar dolunca kendiliğinden vurur ve tuş bırakılana kadar kilitlenir (`p.kickLock`). Rakip toptayken tuş anında müdahale yapar, bar dolmaz. Bar oyuncunun etrafında halka olarak çizilir (`drawCharge`) ve anlık görüntüyle gönderilir. Botlar sabit güçle vurur.
 
-**Kombolar.** Özel şut tuşlarına birlikte basılınca: `falso+fuze` (falsolu füze), `fuze+asirtma` (havadan füze), `falso+asirtma` (falsolu aşırtma), `falso+fuze+asirtma` (üçlü kombo). Girdide `special` tek şut ya da `+` ile birleşmiş kombodur, `normShot` tek biçime çevirir (parçalar `SHOT_TYPES` sırasında). `armShot` ilk tuştan sonra `COMBO_WAIT` (6 tick) bekler ve sonradan basılan hazır tuşları birleştirir; beklemedeki şut katılmaz. Fizik tek tabloda: `SHOT_PHYS` (hız, vz, falso, alev); ad/renk `COMBOS`, `shotInfo`. Kombo kullandığı tüm şutların bekleme süresini doldurur. Botlar kombo kullanmaz. İstemci bir kareden kısa tuş dokunuşlarını `TAP_MS` (40 ms) boyunca basılı sayar.
+**Kayarak müdahale.** `slide` girdisine basıldığı an (`startSlide`, basılı tutmak tekrarlamaz) oyuncu baktığı/bastığı yöne `SLIDE_SPEED` ile kayar, `SLIDE_TICKS` boyunca yön değiştiremez ve şut atamaz. Topa `SLIDE_REACH` kadar yaklaşırsa `slideHit`: top rakipteyse kapma şansı (önden yüksek, arkadan gövde topu kapattığı için değmez; koruma azaltır, depar/yorgunluk artırır), başarılıysa top rakibin yanından çapraz dürtülür, rakip sendeler; boştaki top kayma yönüne itilir. Kayma bitince yerden kalkma (`SLIDE_GETUP`, ıskalarsa `SLIDE_MISS_GETUP`), bekleme `SLIDE_CD`. Botlar `DIFF[].slide` olasılığıyla, yol açıksa (`slideOpen`) kayar; Kolay botlar kaymaz. Olaylar: `slide`, `slideWin`, `slideKick`, `slideMiss`; anlık görüntüde 16. bit.
+
+**Kombolar.** Özel şut tuşlarına birlikte basılınca: `falso+fuze` (falsolu füze), `fuze+asirtma` (havadan füze), `falso+asirtma` (falsolu aşırtma), `falso+fuze+asirtma` (üçlü kombo). Girdide `special` tek şut ya da `+` ile birleşmiş kombodur, `normShot` tek biçime çevirir (parçalar `SHOT_TYPES` sırasında). `armShot` ilk tuştan sonra `COMBO_WAIT` (6 tick) bekler ve sonradan basılan hazır tuşları birleştirir; beklemedeki şut katılmaz. Fizik tek tabloda: `SHOT_PHYS` (hız, vz, falso, alev); ad/renk `COMBOS`, `shotInfo`. Kombo kullandığı tüm şutların bekleme süresini doldurur. Botlar kombo kullanmaz. İstemci bir kareden kısa tuş dokunuşlarını `TAP_MS` (40 ms) boyunca basılı sayar; dokunmatik düğmeler de aynı mekanizmayı `T:...` sanal tuşlarıyla kullanır.
 
 **Top sahipliği, pas, bot rolleri.** Yavaş ve yakın top oyuncuya "yapışır" ve bakış yönünün önünde taşınır; `C` (tut) ile menzil büyür ve top rakipten korunur. Rakip toptayken şut tuşu müdahale yapar (`startTackle` → `resolveTackle`). Her vuruştan sonra `registerKick` topun yolunu simüle edip alıcıyı seçer; botlar yol kapalıysa duvardan sektirir. İnsanın vuruş yönü `kickAim` ile yakındaki arkadaşa kilitlenir. `assignRoles` her tick `chaser`, `receiver`, `defender`, `support` dağıtır; topa sahip bot `makePlan` ile şut / pas / duvar pası / sürme seçer.
 
@@ -123,6 +125,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 | Şut (basılı tut: güç barı) / müdahale | Boşluk, X | Enter | ŞUT |
 | Depar | Sol Shift | Sağ Shift | Joystick'i sonuna kadar itmek |
 | Topu tut / koru | C | U, Numpad 0 | TUT |
+| Kayarak müdahale | V | I | KAY |
 | Pas iste | F | H | PAS |
 | Falso / Füze / Aşırtma | Q / E / R | J / K / L | Ayrı düğmeler |
 | Kombo (birlikte bas) | Q+E, E+R, Q+R, Q+E+R | J+K, K+L, J+L, J+K+L | Düğmelere iki/üç parmakla |
@@ -138,6 +141,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 | `CHARGE_TICKS`, `KICK_MIN`, `KICK_MAX` | Şut güç barı: dolma süresi (tick) ve `KICK` çarpanı aralığı (kısa dokunuş .. tam bar). Botlar `AI_KICK_POWER` ile tam `KICK` gücünde vurur |
 | `PR`, `BR` | Oyuncu ve top yarıçapı |
 | `SHOTS[*].cd` | Özel şutların bekleme süresi (tick) |
+| `SLIDE_*`, `DIFF[].slide` | Kayma hızı, süresi, menzili, top itme hızı, bekleme ve yerden kalkma süreleri; botların kayma sıklığı |
 | `SHOT_PHYS`, `COMBO_WAIT` | Özel şut ve kombo fiziği (hız çarpanı, havaya kalkış, falso, alev süresi); kombo için ikinci tuşu bekleme süresi |
 | `DIFF[]` | Bot zorlukları: hız, nişan, pas eğilimi, müdahale sıklığı, depar kullanımı |
 | `SPRINT_DRAIN`, `SPRINT_DRAIN_BALL` | Depar süresi: tick başına dayanıklılık harcaması (topsuz ~4 sn, topla ~3,3 sn) |

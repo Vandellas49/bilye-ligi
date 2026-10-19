@@ -33,7 +33,7 @@ export function initMenu(){
   if (isTouchOnly) {
     $('o2').disabled = true;
     $('friendNote').hidden = false;
-    $('keysHelp').innerHTML = 'Sol tarafta parmağını sürükleyerek hareket et, sağdaki <kbd>ŞUT</kbd> düğmesini basılı tuttukça güç barı dolar, bırakınca vurursun, <kbd>PAS</kbd> ile takım arkadaşından pas iste, <kbd>TUT</kbd> basılıyken top ayağına yapışır ve rakipten korursun. Joystick’i sonuna kadar itersen depar atarsın. Rakip toptayken <kbd>ŞUT</kbd> müdahale yapar. Falso, füze ve aşırtma düğmeleri dolunca tekrar kullanılabilir; ikisine ya da üçüne birlikte basarsan kombo olur.';
+    $('keysHelp').innerHTML = 'Sol tarafta parmağını sürükleyerek hareket et, sağdaki <kbd>ŞUT</kbd> düğmesini basılı tuttukça güç barı dolar, bırakınca vurursun, <kbd>PAS</kbd> ile takım arkadaşından pas iste, <kbd>TUT</kbd> basılıyken top ayağına yapışır ve rakipten korursun. Joystick’i sonuna kadar itersen depar atarsın. Rakip toptayken <kbd>ŞUT</kbd> müdahale yapar, <kbd>KAY</kbd> ile kayarak topa girersin. Falso, füze ve aşırtma düğmeleri dolunca tekrar kullanılabilir; ikisine ya da üçüne birlikte basarsan kombo olur.';
   }
 
   const saved = loadCfg();

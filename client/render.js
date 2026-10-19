@@ -249,7 +249,8 @@ function drawPlayerArt(c, p, r){
     c.beginPath(); c.ellipse(p.x, p.y + 6, r + 7, r*.7 + 4, 0, 0, Math.PI*2); c.stroke(); c.globalAlpha = 1;
   }
   // gövde
-  const st = Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
+  // kayarken hareket yönünde belirgin şekilde uzayıp yassılır
+  const st = p.slideT > 0 ? .3 : Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
   c.save();
   c.translate(p.x, y0); c.rotate(va); c.scale(1 + st, 1 - st); c.rotate(-va);
   const g = c.createRadialGradient(-r*.38, -r*.45, r*.1, 0, 0, r*1.05);

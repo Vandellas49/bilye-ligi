@@ -12,6 +12,14 @@ export const KICK = 6.4, KICK_RANGE = 5, WALL_REST = .7;
 // depar: tick başına dayanıklılık harcaması (1/değer = tam dolu bardan tükenene kadar tick)
 export const SPRINT_DRAIN = .0041;        // topsuz ~4 sn
 export const SPRINT_DRAIN_BALL = .005;    // top ayaktayken ~3,3 sn
+// kayarak müdahale
+export const SLIDE_SPEED = 6.5;        // kaymaya başlarken hız (normal azami hız ~3,4)
+export const SLIDE_TICKS = 20;         // kayma süresi (~0,33 sn, ~100 birim)
+export const SLIDE_REACH = 10;         // topa bu kadar yaklaşınca değmiş sayılır
+export const SLIDE_POKE = 3.6;         // değince topun itilme hızı
+export const SLIDE_CD = 150;           // yeniden kaymak için bekleme (~2,5 sn)
+export const SLIDE_GETUP = 16;         // topa değdiyse yerden kalkma (tick)
+export const SLIDE_MISS_GETUP = 32;    // ıskaladıysa yerden kalkma (tick)
 // şut güç barı (insan oyuncu): şut tuşu basılı tutuldukça dolar, bırakınca vurur
 export const CHARGE_TICKS = 45;                 // boştan tam güce ~0,75 sn
 export const KICK_MIN = .75, KICK_MAX = 1.35;   // KICK çarpanı: kısa dokunuş .. tam bar
@@ -71,9 +79,9 @@ export const ARENAS = [
 
 /* ---------- yapay zekâ zorlukları ---------- */
 export const DIFF = [
-  { speed:.80, align:.88, aim:.42, predict:.3, react:.35, range:330, special:.03, pass:.25, tackle:.008, turnTol:.13, tackleTry:.03, sprint:.5 },
-  { speed:.92, align:.92, aim:.32, predict:.7, react:.7, range:420, special:.07, pass:.45, tackle:.014, turnTol:.09, tackleTry:.06, sprint:.8 },
-  { speed:1.0, align:.95, aim:.24, predict:1, react:1, range:520, special:.14, pass:.6, tackle:.022, turnTol:.06, tackleTry:.1, sprint:1 },
+  { speed:.80, align:.88, aim:.42, predict:.3, react:.35, range:330, special:.03, pass:.25, tackle:.008, turnTol:.13, tackleTry:.03, sprint:.5, slide:0 },
+  { speed:.92, align:.92, aim:.32, predict:.7, react:.7, range:420, special:.07, pass:.45, tackle:.014, turnTol:.09, tackleTry:.06, sprint:.8, slide:.007 },
+  { speed:1.0, align:.95, aim:.24, predict:1, react:1, range:520, special:.14, pass:.6, tackle:.022, turnTol:.06, tackleTry:.1, sprint:1, slide:.014 },
 ];
 
 // kadro büyüklüğüne göre başlangıç dizilişi

@@ -4,18 +4,19 @@
    createMatch(ayarlar)  -> state
    step(state, inputs)   -> olay listesi   (state yerinde güncellenir)
 
-   inputs[oyuncuId] = { x, y, kick, special, call, hold, sprint }. Bot oyuncuların
+   inputs[oyuncuId] = { x, y, kick, special, call, hold, sprint, slide }. Bot oyuncuların
    girdisi burada üretilir; insan oyuncunun girdisi yoksa boş girdi sayılır.
    Ses, parçacık, sarsıntı gibi yan etkiler olay olarak döner ({ type, ... });
    istemci bunları çizer ve seslendirir. */
 import { W, H, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
+  SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
-export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, special: null, call: false, hold: false, sprint: false });
+export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, special: null, call: false, hold: false, sprint: false, slide: false });
 
 const num = v => typeof v === 'number' && Number.isFinite(v) ? v : 0;
 
@@ -27,7 +28,7 @@ export function sanitizeInput(raw){
   if (l > 1){ x /= l; y /= l; }
   return {
     x, y, kick: !!raw.kick, special: normShot(raw.special),   // tek şut ya da kombo ('falso+fuze')
-    call: !!raw.call, hold: !!raw.hold, sprint: !!raw.sprint,
+    call: !!raw.call, hold: !!raw.hold, sprint: !!raw.sprint, slide: !!raw.slide,
   };
 }
 
@@ -59,6 +60,7 @@ function buildPlayers(S, n, humans){
       d.dirA = team === 0 ? 0 : Math.PI; d.noGrab = 0;
       d.sta = 1; d.tired = false; d.sprinting = false; d.stun = 0; d.tackleCd = 0; d.lunge = 0;
       d.charge = 0; d.shot = null; d.kickLock = false;   // şut güç barı (bkz. chargeShot)
+      d.slideT = 0; d.slideCd = 0; d.slideA = 0; d.slideHit = false; d.slidePrev = false;   // kayma (bkz. startSlide)
       d.num = h ? [10, 8, 23][i] : [7, 4, 9, 11, 5, 8, 3, 6, 14, 17][(team*3 + i + randInt(rng, 10)) % 10];
       const accs = S.weather === 'kar' ? ['beanie','beanie','earmuffs','scarf','cap','headband','sprout','none']
                                        : ['cap','cap','headband','sprout','beanie','scarf','none'];
@@ -78,6 +80,7 @@ function resetPositions(S){
     p.x = f.x; p.y = f.y; p.vx = p.vy = 0; p.kickCd = 0; p.armed = null; p.plan = null;
     p.stun = 0; p.lunge = 0; p.tackleCd = 0; p.sta = Math.min(1, p.sta + .3);
     p.charge = 0; p.shot = null; p.kickLock = false;
+    p.slideT = 0; p.slideCd = 0;
     p.dirA = p.team === 0 ? 0 : Math.PI; p.noGrab = 0;
   }
   // başlama vuruşunu yapan takımın ilk oyuncusu topa yakın dursun
@@ -198,6 +201,10 @@ export function step(S, inputs = {}){
     const special = S.specials ? inp.special : null;
     p.input = { x, y, kick: inp.kick, hold: inp.hold };
     if (p.ctrl !== 'ai') chargeShot(S, p, inp.kick);
+    // kayma: tuşa basıldığı an başlar (basılı tutmak yeniden kaydırmaz)
+    if (p.slideCd > 0) p.slideCd--;
+    if (inp.slide && !p.slidePrev) startSlide(S, p, x, y);
+    p.slidePrev = inp.slide;
     if (p.callCd > 0) p.callCd--;
     if (p.bubble && --p.bubble.t <= 0) p.bubble = null;
     if (inp.call && p.callCd <= 0 && S.phase !== 'goal'){
@@ -218,7 +225,7 @@ export function step(S, inputs = {}){
     const il = Math.hypot(x, y); let ta = null;
     if (il > .2) ta = Math.atan2(y, x);
     else if (Math.hypot(p.vx, p.vy) > .6 && S.owner !== p) ta = Math.atan2(p.vy, p.vx);
-    if (ta !== null){
+    if (ta !== null && p.slideT <= 0){
       const da = Math.atan2(Math.sin(ta - p.dirA), Math.cos(ta - p.dirA)), mt = S.owner === p ? .11 : .3;
       p.dirA += Math.max(-mt, Math.min(mt, da));
     }
@@ -236,7 +243,7 @@ export function step(S, inputs = {}){
     if (p.stun > 0){ p.stun--; mul *= .25; }
     if (p.tackleCd > 0) p.tackleCd--;
     const acc = (inp.kick ? P_ACC_KICK : P_ACC) * (S.owner === p ? (inp.hold ? .8 : .9) : 1) * mul;
-    p.vx += x*acc; p.vy += y*acc;
+    if (p.slideT <= 0){ p.vx += x*acc; p.vy += y*acc; }   // kayarken yön değiştirilemez
     if (p.kickCd > 0) p.kickCd--;
     if (p.moodT > 0 && --p.moodT === 0) p.mood = 'idle';
   }
@@ -265,7 +272,7 @@ export function step(S, inputs = {}){
 
   // şutlar
   for (const p of S.players){
-    if (S.phase === 'goal' || b.z > 12) continue;
+    if (S.phase === 'goal' || b.z > 12 || p.slideT > 0) continue;   // kayan oyuncu şut atmaz
     const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy);
     // özel şut hazırsa top menzildeyken atılır; kombo için ikinci tuş beklenirken normal vuruş da yapılmaz
     if (p.armed && d - p.r - b.r < KICK_RANGE + 3){ if (p.armed.wait <= 0) specialKick(S, p, p.armed.type); continue; }
@@ -297,6 +304,13 @@ export function step(S, inputs = {}){
       registerKick(S, p);
       if (S.phase === 'kickoff') S.phase = 'play';
     }
+  }
+
+  // kayan oyuncular: topa değerse topu iter (rakipteyse kapmayı dener); kayma bitince yerden kalkar
+  for (const p of S.players){
+    if (p.slideT <= 0) continue;
+    if (!p.slideHit && S.phase !== 'goal' && b.z < 12 && Math.hypot(b.x - p.x, b.y - p.y) - p.r - b.r < SLIDE_REACH) slideHit(S, p);
+    if (--p.slideT === 0){ p.stun = p.slideHit ? SLIDE_GETUP : SLIDE_MISS_GETUP; if (!p.slideHit){ p.mood = 'dizzy'; p.moodT = SLIDE_MISS_GETUP; } }
   }
 
   // hamle yapan oyuncu topa ulaştıysa sonuçlandır
@@ -367,6 +381,56 @@ function chargeShot(S, p, held){
   if (tackling || p.kickLock || S.phase === 'goal'){ p.charge = 0; return; }
   p.charge = Math.min(1, p.charge + 1/CHARGE_TICKS);
   if (p.charge >= 1){ p.shot = { power: 1, t: 10 }; p.charge = 0; p.kickLock = true; }
+}
+
+/* Kayarak müdahale: oyuncu baktığı/bastığı yöne hızla kayar, kayarken yönünü değiştiremez.
+   Topa değerse topu kayma yönüne iter; top rakipteyse önce kapma şansı hesaplanır.
+   Kayma bitince yerden kalkar (stun); ıskaladıysa daha uzun sürer. */
+function startSlide(S, p, x, y){
+  if (p.slideCd > 0 || p.slideT > 0 || p.stun > 0 || S.owner === p || S.phase === 'goal') return;
+  const a = Math.hypot(x, y) > .2 ? Math.atan2(y, x) : p.dirA;
+  p.dirA = p.slideA = a; p.slideT = SLIDE_TICKS; p.slideCd = SLIDE_CD; p.slideHit = false;
+  p.vx = Math.cos(a)*SLIDE_SPEED; p.vy = Math.sin(a)*SLIDE_SPEED;
+  p.noGrab = SLIDE_TICKS + 4;               // kayarken topu ayağına alamaz
+  p.charge = 0; p.shot = null; p.armed = null; p.lunge = 0;
+  p.mood = 'kick'; p.moodT = SLIDE_TICKS;
+  emit(S, 'slide', { id: p.id, x: p.x, y: p.y });
+}
+
+function slideHit(S, p){
+  const b = S.ball, o = S.owner;
+  if (o && o.team === p.team) return;       // takım arkadaşının topuna dokunma
+  p.slideHit = true;
+  if (o){
+    // önden (topun olduğu taraftan) girerse şans yüksek
+    const ox = p.x - o.x, oy = p.y - o.y, od = Math.hypot(ox, oy) || 1;
+    const front = (Math.cos(o.dirA)*ox + Math.sin(o.dirA)*oy)/od;
+    let ch = .62 + front*.2;
+    if (o.input && o.input.hold) ch -= .15;
+    if (o.sprinting) ch += .1;
+    if (o.tired) ch += .08;
+    if (p.ctrl === 'ai') ch += (S.diff - 1)*.06;
+    ch = Math.max(.15, Math.min(.9, ch));
+    if (random(S.rng) >= ch){
+      o.vx += Math.cos(o.dirA)*.8; o.vy += Math.sin(o.dirA)*.8;
+      emit(S, 'slideMiss', { id: o.id, team: o.team, x: o.x, y: o.y });
+      return;
+    }
+    o.noGrab = 30; o.stun = 14; o.mood = 'sad'; o.moodT = 40;
+    S.owner = null;
+  }
+  let ax = Math.cos(p.slideA), ay = Math.sin(p.slideA);
+  if (o){
+    // rakipten kapınca top gövdesine değil, yanından çapraz dürtülür (önden kayınca geri sekmesin)
+    const px = -ay, py = ax;
+    const s = Math.sign((b.x - o.x)*px + (b.y - o.y)*py) || (random(S.rng) < .5 ? 1 : -1);
+    const dx = ax*.5 + px*s, dy = ay*.5 + py*s, dl = Math.hypot(dx, dy);
+    ax = dx/dl; ay = dy/dl;
+    b.vx = ax*SLIDE_POKE; b.vy = ay*SLIDE_POKE;
+  } else { b.vx = ax*SLIDE_POKE + p.vx*.3; b.vy = ay*SLIDE_POKE + p.vy*.3; }
+  b.curve = 0; b.fire = 0; b.grace = 6;
+  S.lastTouch = p; S.pass = null; p.plan = null;
+  emit(S, o ? 'slideWin' : 'slideKick', { id: p.id, team: p.team, x: b.x, y: b.y, px: p.x, py: p.y });
 }
 
 /* ---------- top tutma ve sürme ---------- */

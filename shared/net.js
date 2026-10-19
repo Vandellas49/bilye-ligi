@@ -31,7 +31,7 @@ export function snapshot(S){
     ball: [r2(b.x), r2(b.y), r2(b.vx), r2(b.vy), r2(b.z), b.fire, b.curve ? Math.sign(b.curve) : 0, r2(b.spin)],
     players: S.players.map(p => [
       r2(p.x), r2(p.y), r2(p.vx), r2(p.vy), r2(p.dirA), r2(p.sta),
-      (p.tired ? 1 : 0) | (p.sprinting ? 2 : 0) | (p.input.kick ? 4 : 0) | (p.ctrl === 'ai' ? 8 : 0),
+      (p.tired ? 1 : 0) | (p.sprinting ? 2 : 0) | (p.input.kick ? 4 : 0) | (p.ctrl === 'ai' ? 8 : 0) | (p.slideT > 0 ? 16 : 0),
       p.mood, p.armed ? p.armed.type : null, p.cd.falso, p.cd.fuze, p.cd.asirtma,
       p.bubble ? p.bubble.text : null, p.bubble ? p.bubble.t : 0,
       r2(p.charge || 0),   // şut güç barı
@@ -66,7 +66,7 @@ export function applySnapshot(V, s){
   s.players.forEach((a, i) => {
     const p = P[i];
     p.x = a[0]; p.y = a[1]; p.vx = a[2]; p.vy = a[3]; p.dirA = a[4]; p.sta = a[5];
-    p.tired = !!(a[6] & 1); p.sprinting = !!(a[6] & 2); p.input.kick = !!(a[6] & 4);
+    p.tired = !!(a[6] & 1); p.sprinting = !!(a[6] & 2); p.input.kick = !!(a[6] & 4); p.slideT = a[6] & 16 ? 1 : 0;
     p.ctrl = a[6] & 8 ? 'ai' : p.mine ? 'h1' : 'net';
     p.mood = a[7]; p.armed = a[8] ? { type: a[8] } : null;
     p.cd.falso = a[9]; p.cd.fuze = a[10]; p.cd.asirtma = a[11];

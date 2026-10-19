@@ -101,6 +101,10 @@ body.touch #touch.on{display:block}
   border:2px solid rgba(255,255,255,.85);background:rgba(25,18,45,.45);text-shadow:0 1px 3px rgba(0,0,0,.6)}
 #holdBtn.down{background:rgba(25,18,45,.75);transform:scale(.93)}
 #passBtn.down{background:rgba(25,18,45,.75);transform:scale(.93)}
+#slideBtn{position:absolute;right:233px;bottom:108px;width:58px;height:58px;border-radius:50%;pointer-events:auto;color:#fff;font-weight:800;font-size:13px;
+  border:2px solid rgba(255,255,255,.85);background:rgba(25,18,45,.45);text-shadow:0 1px 3px rgba(0,0,0,.6)}
+#slideBtn.down{background:rgba(25,18,45,.75);transform:scale(.93)}
+body.nospecial #slideBtn{right:160px;bottom:104px}
 body.nospecial .spBtn{display:none}
 body.nospecial #passBtn{right:120px;bottom:30px}
 #sp-falso{right:118px;bottom:108px}
@@ -185,6 +189,7 @@ details[open] summary{margin-bottom:12px}
     <button id="kickBtn" aria-label="Şut">ŞUT</button>
     <button id="holdBtn" aria-label="Topu tut">TUT</button>
     <button id="passBtn" aria-label="Pas iste">PAS</button>
+    <button id="slideBtn" aria-label="Kayarak müdahale">KAY</button>
     <button class="spBtn" id="sp-falso" data-shot="falso" style="--c:#c86bff">Falso</button>
     <button class="spBtn" id="sp-fuze" data-shot="fuze" style="--c:#ff7a1f">Füze</button>
     <button class="spBtn" id="sp-asirtma" data-shot="asirtma" style="--c:#4fc3e8">Aşırtma</button>
@@ -270,6 +275,7 @@ details[open] summary{margin-bottom:12px}
         Hareket: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ya da ok tuşları. Şut: <kbd>Boşluk</kbd> veya <kbd>X</kbd>. Basılı tuttukça oyuncunun etrafındaki güç barı dolar, bırakınca o güçte vurursun; kısa dokunuş yumuşak pas, bar dolunca kendiliğinden vurur.<br>
         Depar: <kbd>Shift</kbd> basılı tut. Dayanıklılık çubuğu biterse yorulur, bir süre yavaş koşarsın.<br>
         Topu tut ve koru: <kbd>C</kbd> basılı tut. Gelen topu yakalar, rakip yaklaşınca topu vücudunla saklarsın.<br>
+        Kayarak müdahale: <kbd>V</kbd> (2. oyuncu <kbd>I</kbd>) ile koştuğun yöne kayarsın; topa önden ya da yandan girersen kapma şansın yüksek, ıskalarsan yerden kalkman uzun sürer, ~2,5 sn'de bir kullanılır.<br>
         Top kapma: rakip toptayken yanına git, <kbd>Boşluk</kbd> ile müdahale et. Topun olduğu taraftan girersen şansın artar, ıskalarsan bir an sendelersin.<br>
         Pas iste: <kbd>F</kbd>. Takım arkadaşın topu sana atar, yol kapalıysa duvardan sektirir. Sen de duvardan sektirip pas verebilirsin, arkadaşın topun geleceği yere koşar.<br>
         Yana koşarken şut çekersen top hafif falso alır. Özel şutlar: <kbd>Q</kbd> sert falso, <kbd>E</kbd> füze, <kbd>R</kbd> aşırtma.<br>

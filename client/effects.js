@@ -42,6 +42,12 @@ export function applyEvents(events){
       case 'tackleWin':
         pop(e.px, e.py - 36, 'Kaptı!', TEAM_COL[e.team], 45);
         burst(e.x, e.y, '#ffffff', 12, 3, 20); sfx.tackleWin(); break;
+      case 'slide': sfx.tackle(); burst(e.x, e.y + 14, 'rgba(255,255,255,.7)', 8, 2, 18); break;
+      case 'slideWin':
+        pop(e.px, e.py - 36, 'Kayarak kaptı!', TEAM_COL[e.team], 50);
+        burst(e.x, e.y, '#ffffff', 14, 3.2, 22); sfx.tackleWin(); break;
+      case 'slideKick': burst(e.x, e.y, '#ffffff', 8, 2.5, 18); sfx.kick(); break;
+      case 'slideMiss': pop(e.x, e.y - 36, 'Sıyrıldı!', TEAM_COL[e.team], 45); sfx.tackleMiss(); break;
       case 'tackleMiss': pop(e.x, e.y - 36, 'Sıyrıldı!', TEAM_COL[e.team], 45); sfx.tackleMiss(); break;
       case 'whiff': pop(e.x, e.y - 36, 'Iska!', '#ffffff', 35); break;
       case 'special': {
@@ -71,6 +77,9 @@ export function afterStep(S){
   const b = S.ball;
   if (!reduceMotion){
     for (const p of S.players){
+      // kayarken yerde toz izi
+      if (p.slideT > 0 && Math.hypot(p.vx, p.vy) > 1.5)
+        fx.particles.push({ x: p.x - p.vx*2 + (Math.random()-.5)*12, y: p.y + p.r - 6 + (Math.random()-.5)*6, vx: -p.vx*.1, vy: -.4, life: 22, max: 22, color: 'rgba(255,255,255,.6)', size: 2.5 + Math.random()*3 });
       if (p.sprinting && Math.hypot(p.vx, p.vy) > 3 && S.t % 3 === 0)
         fx.particles.push({ x: p.x - p.vx*4 + (Math.random()-.5)*10, y: p.y + p.r - 4, vx: -p.vx*.15, vy: -.3, life: 16, max: 16, color: 'rgba(255,255,255,.55)', size: 2 + Math.random()*2.5 });
     }

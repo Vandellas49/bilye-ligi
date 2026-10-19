@@ -1,5 +1,5 @@
 /* ---------- girdi ----------
-   Klavye, sanal joystick ve dokunmatik düğmeler -> { x, y, kick, special, call, hold, sprint } */
+   Klavye, sanal joystick ve dokunmatik düğmeler -> { x, y, kick, special, call, hold, sprint, slide } */
 import { SHOT_TYPES, normShot } from '../shared/constants.js';
 import { ensureAudio } from './audio.js';
 
@@ -9,8 +9,8 @@ export const SHOT_KEYS = { falso: ['KeyQ', 'KeyJ'], fuze: ['KeyE', 'KeyK'], asir
 const keys = new Set();
 // son basılma anı: bir oyun karesinden kısa dokunuşlar da en az TAP_MS boyunca basılı sayılır
 const downAt = new Map(), TAP_MS = 40;
-const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','KeyX','Enter','NumpadEnter','KeyQ','KeyE','KeyR','KeyJ','KeyK','KeyL','KeyF','KeyH','ShiftLeft','KeyC','ShiftRight','Numpad0','KeyU'];
-const touchIn = { x:0, y:0, kick:false, active:false, id:null, ox:0, oy:0, specials: new Set(), call:false, hold:false };
+const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','KeyX','Enter','NumpadEnter','KeyQ','KeyE','KeyR','KeyJ','KeyK','KeyL','KeyF','KeyH','ShiftLeft','KeyC','ShiftRight','Numpad0','KeyU','KeyV','KeyI'];
+const touchIn = { x:0, y:0, active:false, id:null, ox:0, oy:0 };   // sanal joystick
 
 export function clearKeys(){ keys.clear(); downAt.clear(); }
 
@@ -47,20 +47,18 @@ export function initInput({ onPause, isPlaying }){
   stickZone.addEventListener('pointerup', endStick);
   stickZone.addEventListener('pointercancel', endStick);
 
-  // basılı tutulan düğme: down/up durumunu touchIn alanına yazar
-  const holdButton = (btn, down, up) => {
-    btn.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); down(); btn.classList.add('down'); });
-    const release = () => { up(); btn.classList.remove('down'); };
+  // dokunmatik düğmeler klavye tuşu gibi davranır ('T:...' sanal tuşları): kısa dokunuşlar da TAP_MS boyunca sayılır
+  const holdButton = (btn, code) => {
+    btn.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); keys.add(code); downAt.set(code, performance.now()); btn.classList.add('down'); });
+    const release = () => { keys.delete(code); btn.classList.remove('down'); };
     btn.addEventListener('pointerup', release); btn.addEventListener('pointercancel', release); btn.addEventListener('pointerleave', release);
   };
-  holdButton($('kickBtn'), () => touchIn.kick = true, () => touchIn.kick = false);
-  holdButton($('holdBtn'), () => touchIn.hold = true, () => touchIn.hold = false);
-  holdButton($('passBtn'), () => touchIn.call = true, () => touchIn.call = false);
-  document.querySelectorAll('.spBtn').forEach(btn => {
-    const t = btn.dataset.shot;
-    // iki parmakla birlikte basılırsa kombo olur
-    holdButton(btn, () => touchIn.specials.add(t), () => touchIn.specials.delete(t));
-  });
+  holdButton($('kickBtn'), 'T:kick');
+  holdButton($('holdBtn'), 'T:hold');
+  holdButton($('passBtn'), 'T:call');
+  holdButton($('slideBtn'), 'T:slide');
+  // özel şut düğmeleri: iki parmakla birlikte basılırsa kombo olur
+  document.querySelectorAll('.spBtn').forEach(btn => holdButton(btn, 'T:' + btn.dataset.shot));
 }
 
 // ctrl: 'h1' ya da 'h2'; friend: aynı klavyede iki kişi
@@ -76,18 +74,20 @@ export function readInput(ctrl, friend){
       kick = kick || k('Enter') || k('NumpadEnter');
     }
     if (touchIn.active){ x += touchIn.x; y += touchIn.y; }
-    kick = kick || touchIn.kick;
+    kick = kick || k('T:kick');
   } else {
     x = (k('ArrowRight')?1:0) - (k('ArrowLeft')?1:0); y = (k('ArrowDown')?1:0) - (k('ArrowUp')?1:0);
     kick = k('Enter') || k('NumpadEnter');
   }
   // basılı tüm özel şut tuşları: birden çoksa kombo ('falso+fuze' gibi)
-  const pressed = SHOT_TYPES.filter(t => k(SHOT_KEYS[t][ctrl === 'h1' ? 0 : 1]) || (ctrl === 'h1' && touchIn.specials.has(t)));
+  const pressed = SHOT_TYPES.filter(t => k(SHOT_KEYS[t][ctrl === 'h1' ? 0 : 1]) || (ctrl === 'h1' && k('T:' + t)));
   const special = normShot(pressed);
-  const call = ctrl === 'h1' ? (k('KeyF') || touchIn.call) : k('KeyH');
-  const hold = ctrl === 'h1' ? (k('KeyC') || touchIn.hold) : (k('KeyU') || k('Numpad0'));
+  const call = ctrl === 'h1' ? (k('KeyF') || k('T:call')) : k('KeyH');
+  const hold = ctrl === 'h1' ? (k('KeyC') || k('T:hold')) : (k('KeyU') || k('Numpad0'));
   const sprint = ctrl === 'h1'
     ? (k('ShiftLeft') || (!friend && k('ShiftRight')) || (touchIn.active && Math.hypot(touchIn.x, touchIn.y) > .93))
     : k('ShiftRight');
-  return { x, y, kick, special, call, hold, sprint };
+  // kayma: 1. oyuncu V, 2. oyuncu I
+  const slide = ctrl === 'h1' ? (k('KeyV') || k('T:slide')) : k('KeyI');
+  return { x, y, kick, special, call, hold, sprint, slide };
 }

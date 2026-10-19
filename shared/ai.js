@@ -2,7 +2,7 @@
    Bot girdileri insan girdisiyle aynı biçimde üretilir: {x, y, kick, special, hold, sprint}. */
 import { W, H, GH, TOP, BOT, PR, BR, P_ACC, KICK_RANGE, WALL_REST, DIFF, formation } from './constants.js';
 import { random, shuffle } from './rng.js';
-import { laneOpen } from './pass.js';
+import { laneOpen, segDist } from './pass.js';
 
 function passPlan(S, p, m, lead){
   const b = S.ball;
@@ -80,13 +80,19 @@ export function assignRoles(S){
   }
 }
 
+// kayma yolu açık mı: top sahibinin gövdesi topla bot arasında kalıyorsa (arkadan) kayma boşa gider
+function slideOpen(S, p){
+  const o = S.owner, b = S.ball;
+  return !o || segDist(o.x, o.y, p.x, p.y, b.x, b.y) > PR*.9;
+}
+
 export function aiInput(S, p){
   const D = DIFF[S.diff], b = S.ball;
   const dir = p.team === 0 ? 1 : -1;
   const ownX = p.team === 0 ? 0 : W, oppX = p.team === 0 ? W + 20 : -20;
   const look = Math.min(18, Math.hypot(b.x - p.x, b.y - p.y)/6) * D.predict;
   let bx = b.x + b.vx*look, by = b.y + b.vy*look;
-  let tx = p.x, ty = p.y, kick = false, special = null;
+  let tx = p.x, ty = p.y, kick = false, special = null, slide = false;
   const gap = Math.hypot(b.x - p.x, b.y - p.y) - PR - BR;
 
   if (--p.aimT <= 0){ p.aimT = 80 + random(S.rng)*80; p.aimOff = (random(S.rng)*2 - 1) * GH * D.aim; }
@@ -104,6 +110,9 @@ export function aiInput(S, p){
       // topun önüne gir
       const o = S.owner; tx = b.x + Math.cos(o.dirA)*6; ty = b.y + Math.sin(o.dirA)*6;
       if (gap < 26 && p.tackleCd <= 0 && p.stun <= 0 && random(S.rng) < D.tackleTry) kick = true;
+      // biraz uzaktan kayarak müdahale (Kolay botlar kaymaz)
+      // hedef topun ~0,1 sn sonraki yeri; yakından kayınca isabet artar
+      else if (gap > 22 && gap < 55 && p.slideCd <= 0 && p.stun <= 0 && slideOpen(S, p) && random(S.rng) < D.slide){ slide = true; tx = b.x + b.vx*7; ty = b.y + b.vy*7; }
       if (canSprint && Math.abs(o.x - ownX) < 420) p.aiSprint = true;
     }
     if (canSprint && gap > 120 && !S.owner) p.aiSprint = true;
@@ -141,6 +150,7 @@ export function aiInput(S, p){
     if (!waiting && !mateHas && gap < 70 && (b.x - ownX)*dir < 260){ tx = b.x - dir*(PR + BR); ty = b.y; }
     if (!waiting && S.owner && S.owner.team !== p.team){
       if (gap < 26 && p.tackleCd <= 0 && p.stun <= 0 && random(S.rng) < D.tackleTry*.8) kick = true;
+      else if (gap > 22 && gap < 55 && p.slideCd <= 0 && p.stun <= 0 && slideOpen(S, p) && Math.abs(b.x - ownX) < 300 && random(S.rng) < D.slide){ slide = true; tx = b.x + b.vx*7; ty = b.y + b.vy*7; }
       if (canSprint && Math.abs(b.x - ownX) < 300) p.aiSprint = true;
     }
   } else {
@@ -158,6 +168,8 @@ export function aiInput(S, p){
   if (dv > vmax){ dvx = dvx/dv*vmax; dvy = dvy/dv*vmax; }
   let mx = (dvx - p.vx)/P_ACC, my = (dvy - p.vy)/P_ACC; const ml = Math.hypot(mx, my);
   if (ml > 1){ mx /= ml; my /= ml; }
+  // kayarken yön, hedefe (topa) doğru
+  if (slide){ const sl = Math.hypot(tx - p.x, ty - p.y) || 1; return { x: (tx - p.x)/sl, y: (ty - p.y)/sl, kick: false, special: null, hold: false, sprint: false, slide: true }; }
   return { x: mx, y: my, kick, special, hold: p.aiHold, sprint: p.aiSprint };
 }
 

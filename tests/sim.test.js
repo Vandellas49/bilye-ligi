@@ -217,3 +217,61 @@ test('depar süresi: topsuz ~4 sn, sonra yorulur', async () => {
   assert.ok(Math.abs(ticks - 1/SPRINT_DRAIN) < 5, `depar ${ticks} tick sürdü`);
   assert.ok(ticks/60 > 3.5, `depar ${(ticks/60).toFixed(1)} sn`);
 });
+
+/* ---------- kayarak müdahale ---------- */
+// iki insan oyuncu (ikincisi girdisiz, topun sahibi); birincisi verilen yerden topa kayar
+function slideAt(fromX, fromY, seed, extra = {}){
+  const S = createMatch({ size: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }, { team: 1, ctrl: 'h2', name: 'O' }], seed });
+  const me = S.players[0], o = S.players[1];
+  S.phase = 'play';
+  Object.assign(o, { x: 500, y: 280, vx: 0, vy: 0, dirA: Math.PI });
+  if (extra.loose){ S.owner = null; o.x = 900; } else S.owner = o;
+  Object.assign(S.ball, { x: 464.5, y: 280, vx: 0, vy: 0, z: 0 });
+  Object.assign(me, { x: 500 + fromX, y: 280 + fromY, vx: 0, vy: 0 });
+  const dx = S.ball.x - me.x, dy = S.ball.y - me.y, l = Math.hypot(dx, dy);
+  const ev = [];
+  for (let i = 0; i < (extra.ticks || 30); i++) ev.push(...step(S, { [me.id]: { x: dx/l, y: dy/l, slide: extra.hold ? true : i === 0 } }));
+  return { S, me, o, ev };
+}
+
+test('kayma: hızlı başlar, bitince yerden kalkar, bekleme süresi var', () => {
+  const S = createMatch({ size: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }], seed: 1, kickoffTeam: 1 });
+  const me = S.players[0]; S.phase = 'play';
+  step(S, { [me.id]: { x: 0, y: 1, slide: true } });
+  assert.ok(Math.hypot(me.vx, me.vy) > 5, 'kayma hızı');
+  assert.ok(me.slideT > 0 && me.slideCd > 0);
+  for (let i = 0; i < 25; i++) step(S, { [me.id]: { x: 1, y: 0 } });   // kayarken yön değiştirilemez
+  assert.equal(me.slideT, 0);
+  assert.ok(Math.abs(me.x - 250) < 15, 'kayarken yana gitmedi');
+});
+
+test('kayma: önden girince çoğunlukla kapar, arkadan gövde topu kapatır', () => {
+  let front = 0, back = 0;
+  for (let seed = 1; seed <= 20; seed++){
+    if (slideAt(-90, 0, seed).ev.some(e => e.type === 'slideWin')) front++;
+    if (slideAt(90, 0, seed).ev.some(e => e.type === 'slideWin')) back++;
+  }
+  assert.ok(front >= 11, `önden kapma ${front}/20`);
+  assert.equal(back, 0);
+});
+
+test('kayma: başarılı olunca top rakipten uzaklaşır, rakip sendeler', () => {
+  let wins = 0;
+  for (let seed = 1; seed <= 20; seed++){
+    const r = slideAt(-90, 0, seed, { ticks: 12 });
+    if (!r.ev.some(e => e.type === 'slideWin')) continue;
+    wins++;
+    const b = r.S.ball, d = Math.hypot(b.x - r.o.x, b.y - r.o.y);
+    assert.notEqual(r.S.owner, r.o, 'rakip topu geri almadı');
+    assert.ok(d > 45, `top rakibin gövdesinden sekmeyip uzaklaştı (mesafe ${d.toFixed(0)})`);
+    assert.ok(r.o.stun > 0 || r.o.noGrab > 0, 'rakip sendeledi');
+  }
+  assert.ok(wins > 5);
+});
+
+test('kayma: boştaki topu iter; basılı tutmak yeniden kaydırmaz', () => {
+  const r = slideAt(-90, 0, 1, { loose: true });
+  assert.ok(r.ev.some(e => e.type === 'slideKick'));
+  const h = slideAt(-90, 0, 1, { hold: true, ticks: 200 });
+  assert.equal(h.ev.filter(e => e.type === 'slide').length, 1);
+});
