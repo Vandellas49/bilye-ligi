@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
-import { KICK, CHARGE_TICKS, KICK_MIN, KICK_MAX, normShot } from '../shared/constants.js';
+import { KICK, CHARGE_TICKS, KICK_MIN, KICK_MAX, normShot, W as W_TEST } from '../shared/constants.js';
 
 // bot maçı oynat, her tick'in olaylarını topla
 function play(settings, ticks, inputsFor = () => ({})){
@@ -274,4 +274,74 @@ test('kayma: boştaki topu iter; basılı tutmak yeniden kaydırmaz', () => {
   assert.ok(r.ev.some(e => e.type === 'slideKick'));
   const h = slideAt(-90, 0, 1, { hold: true, ticks: 200 });
   assert.equal(h.ev.filter(e => e.type === 'slide').length, 1);
+});
+
+/* ---------- pas yardımı ---------- */
+// A (h1) topu sürer, B (h2, aynı takım) arkadaş; rakipler uzakta ve girdisiz
+function passSetup(mate = { x: 560, y: 420 }, ball = 'owned'){
+  const S = createMatch({ size: 2, seed: 7, humans: [{ team: 0, ctrl: 'h1', name: 'A' }, { team: 0, ctrl: 'h2', name: 'B' }] });
+  const [me, b] = S.players.filter(p => p.team === 0);
+  for (const o of S.players.filter(p => p.team === 1)) Object.assign(o, { x: 950, y: o.slot ? 520 : 40, ctrl: 'h2' });
+  S.phase = 'play';
+  Object.assign(me, { x: 300, y: 280, vx: 0, vy: 0, dirA: 0 });
+  Object.assign(b, { ...mate, vx: 0, vy: 0 });
+  if (ball === 'owned'){ Object.assign(S.ball, { x: 336, y: 280, vx: 0, vy: 0 }); S.owner = me; }
+  return { S, me, mate: b };
+}
+// A şut tuşunu hold tick basılı tutup bırakır; topun arkadaşa en yakın geçişi (0: arkadaş aldı)
+function passRun({ S, me, mate }, inp, hold, mateIn = {}, out = {}){
+  let best = 1e9, kicked = false;
+  for (let i = 0; i < 200; i++){
+    const ev = step(S, { [me.id]: i < hold ? { ...inp, kick: true } : (kicked ? {} : inp), [mate.id]: mateIn });
+    if (!kicked && ev.some(e => e.type === 'kick' && e.id === me.id)){ kicked = true; out.ang = Math.atan2(S.ball.vy, S.ball.vx); }
+    if (kicked){
+      if (S.owner === mate) return 0;
+      best = Math.min(best, Math.hypot(S.ball.x - mate.x, S.ball.y - mate.y) - mate.r - S.ball.r);
+    }
+  }
+  return kicked ? best : null;
+}
+const toward = (from, to, err = 0) => { const a = Math.atan2(to.y - from.y, to.x - from.x) + err; return { x: Math.cos(a), y: Math.sin(a) }; };
+
+test('pas yardımı: yaklaşık nişanla duran arkadaşa kısa dokunuş da uzun basış da ulaşır', () => {
+  for (const hold of [3, 44]) for (const err of [-.3, 0, .3]){
+    const s = passSetup();
+    const r = passRun(s, toward(s.me, s.mate, err), hold);
+    assert.ok(r !== null && r < 12, `basış ${hold}, sapma ${err}: ıska ${r}`);
+  }
+});
+
+test('pas yardımı: koşan insan arkadaşın gideceği yere atılır', () => {
+  const s = passSetup({ x: 520, y: 200 });
+  const r = passRun(s, toward(s.me, s.mate), 10, { x: 1, y: .3 });
+  assert.ok(r !== null && r < 12, `ıska ${r}`);
+});
+
+test('pas yardımı: gelen topa tek vuruşla da arkadaşa gider', () => {
+  const s = passSetup({ x: 300, y: 500 }, 'loose');
+  // top soldan oyuncuya doğru geliyor, oyuncu arkadaşına (aşağı) dönük vurur
+  Object.assign(s.S.ball, { x: 250, y: 280, vx: 4, vy: 0, z: 0 });
+  s.S.owner = null;
+  const r = passRun(s, toward(s.me, s.mate), 2);
+  assert.ok(r !== null && r < 12, `ıska ${r}`);
+});
+
+test('pas yardımı: kaleye güçlü şut pasa çevrilmez, zayıf vuruş kale önündeki arkadaşa pas olur', () => {
+  // arkadaş kale önünde, A kaleye nişan alıyor
+  const goal = { x: W_TEST, y: 280 };
+  const strong = passSetup({ x: 860, y: 330 });
+  const out = {};
+  passRun(strong, toward(strong.me, goal), CHARGE_TICKS - 1, {}, out);
+  const ang = out.ang;
+  assert.ok(Math.abs(ang) < .05, `şut kaleye gitti (açı ${ang.toFixed(3)})`);
+  const weak = passSetup({ x: 860, y: 330 });
+  const r = passRun(weak, toward(weak.me, goal), 3);
+  assert.ok(r !== null && r < 12, `zayıf vuruş pas oldu (ıska ${r})`);
+});
+
+test('pas yardımı: botların vuruşunu etkilemez (yalnızca insan)', () => {
+  // aynı tohumla bot maçı: yardım insan olmayınca devreye girmez, maç birebir aynı kalır (determinizm testi bunu da kapsar)
+  const a = createMatch({ size: 3, seed: 11, minutes: 1 }), b = createMatch({ size: 3, seed: 11, minutes: 1 });
+  for (let i = 0; i < 2000; i++){ step(a, {}); step(b, {}); }
+  assert.deepEqual(a.score, b.score);
 });

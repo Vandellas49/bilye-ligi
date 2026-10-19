@@ -11,9 +11,10 @@
 import { W, H, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
+  PASS_CONE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE,
   BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
-import { registerKick, updatePass } from './pass.js';
+import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
 export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, special: null, call: false, hold: false, sprint: false, slide: false });
@@ -291,12 +292,29 @@ export function step(S, inputs = {}){
       releaseBall(S, p);
       // top sürülüyorsa oyuncunun baktığı yöne gider
       let nx = owned ? Math.cos(p.dirA) : dx/d, ny = owned ? Math.sin(p.dirA) : dy/d;
-      if (owned && human){ const a = kickAim(S, p); nx = Math.cos(a); ny = Math.sin(a); }
-      if (owned){ b.vx = p.vx + nx*kick; b.vy = p.vy + ny*kick; }
-      else { b.vx += nx*kick*b.im; b.vy += ny*kick*b.im; }
-      // yana koşarken vurursan top kendiliğinden falso alır
-      const lat = nx*(p.vy + p.input.y) - ny*(p.vx + p.input.x);
-      b.curve = Math.abs(lat) > .9 ? Math.max(-.014, Math.min(.014, lat*.005)) : 0;
+      // pas yardımı (insan): basılan yöne yakın arkadaş varsa ona, mesafeye uygun güçle
+      let pass = null;
+      if (human){
+        const il = Math.hypot(p.input.x, p.input.y);
+        const contact = Math.atan2(ny, nx);
+        const base = il > .3 ? Math.atan2(p.input.y, p.input.x) : contact;
+        // gelen topa tek vuruşta topun arkasından çok sapamaz; kaleye güçlü nişan şuttur
+        const canTurn = owned || angDiff(base, contact) < 1.75;   // en fazla ~100°
+        if (canTurn && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
+        if (!pass && owned && il > .3){ nx = Math.cos(base); ny = Math.sin(base); p.dirA = base; }
+      }
+      if (pass){
+        nx = pass.nx; ny = pass.ny; p.dirA = pass.a;
+        const sp = pass.speed*(1 - PASS_POWER_MIX) + kick*PASS_POWER_MIX;
+        b.vx = nx*sp; b.vy = ny*sp;                      // koşu hızı eklenmez, top tam hedefe
+        b.curve = 0;
+      } else {
+        if (owned){ b.vx = p.vx + nx*kick; b.vy = p.vy + ny*kick; }
+        else { b.vx += nx*kick*b.im; b.vy += ny*kick*b.im; }
+        // yana koşarken vurursan top kendiliğinden falso alır
+        const lat = nx*(p.vy + p.input.y) - ny*(p.vx + p.input.x);
+        b.curve = Math.abs(lat) > .9 ? Math.max(-.014, Math.min(.014, lat*.005)) : 0;
+      }
       b.grace = 8;
       p.kickCd = 14; p.mood = 'kick'; p.moodT = 14; S.lastTouch = p;
       emit(S, 'kick', { id: p.id, x: b.x - nx*b.r, y: b.y - ny*b.r });
@@ -507,21 +525,68 @@ function updateOwner(S){
   }
 }
 
-// insan oyuncunun şut/pas yönü: basılan yön, yakında bir arkadaş varsa ona kilitlen
+const angDiff = (a, c) => Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c)));
+
+/* Pas yardımı: base yönüne PASS_CONE içinde kalan arkadaşlardan en uygununu seçer.
+   Topun arkadaşa varış süresini (B_DAMP yavaşlamasıyla) hesaplayıp arkadaşın o anki yerine nişan alır,
+   top oraya PASS_ARRIVE hızıyla varacak şekilde gücü ayarlar. Arada rakip olmayan arkadaş tercih edilir.
+   Dönüş: { a, nx, ny, speed, mate } ya da null. */
+function passTarget(S, p, base){
+  const b = S.ball;
+  let best = null;
+  for (const m of S.players){
+    if (m.team !== p.team || m === p) continue;
+    const d0 = Math.hypot(m.x - b.x, m.y - b.y);
+    if (d0 < 50 || d0 > 700 || angDiff(Math.atan2(m.y - b.y, m.x - b.x), base) > PASS_CONE) continue;
+    let tx = m.x, ty = m.y, speed = 0;
+    for (let k = 0; k < 3; k++){
+      const d = Math.hypot(tx - b.x, ty - b.y), ux = (tx - b.x)/(d || 1), uy = (ty - b.y)/(d || 1);
+      // arkadaş pas yönünde uzaklaşıyorsa top ona yetişecek kadar hızlı varmalı
+      const f0 = predictPos(m, 30), f1 = predictPos(m, 31);
+      const away = Math.max(0, (f1.x - f0.x)*ux + (f1.y - f0.y)*uy);
+      speed = Math.max(KICK*KICK_MIN*.8, Math.min(KICK*KICK_MAX, d*(1 - B_DAMP) + PASS_ARRIVE + away));
+      const r = 1 - d*(1 - B_DAMP)/speed;                 // B_DAMP^n: n tick sonra kalan hız oranı
+      const n = r > 0 ? Math.min(150, Math.log(r)/Math.log(B_DAMP)) : 150;
+      const f = predictPos(m, n);
+      tx = Math.max(PR, Math.min(W - PR, f.x));
+      ty = Math.max(PR, Math.min(H - PR, f.y));
+    }
+    const a = Math.atan2(ty - b.y, tx - b.x), err = angDiff(a, base);
+    if (err > PASS_CONE) continue;
+    const score = err + (laneOpen(S, b.x, b.y, tx, ty, p.team) ? 0 : .35) + d0/2000;
+    if (!best || score < best.score) best = { score, a, nx: Math.cos(a), ny: Math.sin(a), speed, mate: m };
+  }
+  return best;
+}
+
+/* Oyuncunun n tick sonraki yeri. İnsan oyuncu bastığı yöne ivmelenmeye devam eder (P_ACC, P_DAMP ile
+   kapalı biçimde); bot için mevcut hızla düz gider (bot alıcı zaten pas atılınca topun geleceği yere koşar). */
+function predictPos(m, n){
+  const k = 1 - P_DAMP, Dn = Math.pow(P_DAMP, n), drift = (1 - Dn)/k;
+  let ax = 0, ay = 0;
+  if (m.ctrl !== 'ai' && m.input){
+    const il = Math.hypot(m.input.x, m.input.y);
+    if (il > .2){ const acc = P_ACC*(m.sprinting ? 1.38 : 1); ax = m.input.x/il*acc; ay = m.input.y/il*acc; }
+    return { x: m.x + m.vx*drift + ax/k*(n - drift), y: m.y + m.vy*drift + ay/k*(n - drift) };
+  }
+  return { x: m.x + m.vx*n, y: m.y + m.vy*n };
+}
+
+// base yönü rakip kalenin ağzına mı bakıyor (o zaman güçlü vuruş şuttur, pasa çevrilmez)
+function aimsAtGoal(S, p, base){
+  const b = S.ball, gx = p.team === 0 ? W : 0;
+  if (Math.abs(gx - b.x) > 650) return false;
+  const a1 = Math.atan2(TOP + 8 - b.y, gx - b.x), a2 = Math.atan2(BOT - 8 - b.y, gx - b.x);
+  const span = angDiff(a1, a2);
+  return angDiff(base, a1) <= span + .05 && angDiff(base, a2) <= span + .05;
+}
+
+// insan oyuncunun özel şut yönü: basılan yön, uygun bir arkadaş varsa ona kilitlen
 function kickAim(S, p){
   const il = Math.hypot(p.input.x, p.input.y);
   const base = il > .3 ? Math.atan2(p.input.y, p.input.x) : p.dirA;
-  const b = S.ball;
-  let best = null, bestErr = .4;   // ~23 derece
-  for (const m of S.players){
-    if (m.team !== p.team || m === p) continue;
-    const lx = m.x + m.vx*14 - b.x, ly = m.y + m.vy*14 - b.y, d = Math.hypot(lx, ly);
-    if (d < 60 || d > 650) continue;
-    const a = Math.atan2(ly, lx);
-    const err = Math.abs(Math.atan2(Math.sin(a - base), Math.cos(a - base)));
-    if (err < bestErr){ bestErr = err; best = a; }
-  }
-  if (best !== null){ p.dirA = best; return best; }
+  const t = passTarget(S, p, base);
+  if (t){ p.dirA = t.a; return t.a; }
   return base;
 }
 

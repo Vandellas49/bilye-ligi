@@ -20,6 +20,11 @@ export const SLIDE_POKE = 3.6;         // değince topun itilme hızı
 export const SLIDE_CD = 150;           // yeniden kaymak için bekleme (~2,5 sn)
 export const SLIDE_GETUP = 16;         // topa değdiyse yerden kalkma (tick)
 export const SLIDE_MISS_GETUP = 32;    // ıskaladıysa yerden kalkma (tick)
+// pas yardımı (insan oyuncu): basılan yöne yakın arkadaşa, koştuğu yere, mesafeye uygun güçle
+export const PASS_CONE = .6;           // basılan yönden en fazla bu kadar sapan arkadaşa kilitlenir (rad, ~34°)
+export const PASS_ARRIVE = 2.4;        // top arkadaşa bu hızla varacak şekilde atılır
+export const PASS_POWER_MIX = .25;     // güç barının yardımlı pas gücüne etkisi (0: hiç, 1: tamamen bar)
+export const SHOT_OVERRIDE = .6;       // kaleye nişan alıp bar bu kadar doluysa pas değil şut sayılır
 // şut güç barı (insan oyuncu): şut tuşu basılı tutuldukça dolar, bırakınca vurur
 export const CHARGE_TICKS = 45;                 // boştan tam güce ~0,75 sn
 export const KICK_MIN = .75, KICK_MAX = 1.35;   // KICK çarpanı: kısa dokunuş .. tam bar
