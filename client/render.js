@@ -1,7 +1,7 @@
 /* ---------- çizim ----------
    Maç durumunu okur, değiştirmez. Parçacık, iz, yazı ve oyuncu animasyonları
    istemci tarafındaki efekt durumunda (fx) tutulur. */
-import { W, H, GH, GD, TOP, BOT, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS } from '../shared/constants.js';
+import { W, H, GH, GD, TOP, BOT, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, shotInfo } from '../shared/constants.js';
 import { fx, visOf, reduceMotion } from './effects.js';
 import { SHOT_KEYS } from './input.js';
 import { isTouch } from './ui.js';
@@ -221,7 +221,7 @@ function drawPlayerArt(c, p, r){
     c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.ellipse(fx - 2, fy - 1.6, 2.2, 1, 0, 0, Math.PI*2); c.fill();
   }
   if (p.armed){
-    c.strokeStyle = SHOTS[p.armed.type].color; c.lineWidth = 3; c.globalAlpha = .55 + .45*Math.sin(S.t*.6);
+    c.strokeStyle = (shotInfo(p.armed.type) || SHOTS.falso).color; c.lineWidth = 3; c.globalAlpha = .55 + .45*Math.sin(S.t*.6);
     c.beginPath(); c.arc(p.x, y0, r + 5, 0, Math.PI*2); c.stroke(); c.globalAlpha = 1;
   }
   // depar: arkada kalan yansımalar ve hız çizgileri

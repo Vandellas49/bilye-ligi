@@ -206,3 +206,22 @@ test('IIS alt uygulaması gibi önekle çalışır (ASPNETCORE_APPL_PATH, ASPNET
     s.disconnect();
   } finally { p2.kill(); }
 });
+
+test('kombo girdisi sunucuda tanınır (anlık görüntüde hazırlık görünür)', async () => {
+  const a = client('Kombo');
+  await a.ready;
+  const w = await a.wait(type('welcome'));
+  a.send('createRoom', { settings: { type: 'match', size: 1, minutes: 2 } });
+  await a.wait(type('roomState'));
+  a.send('start');
+  const ms = await a.wait(type('matchStart'));
+  const me = ms.roster.find(p => p.uid === w.id);
+  // sıra karışık gönderilir, sunucu tek biçime çevirir
+  const iv = setInterval(() => a.send('input', { special: 'fuze+falso' }), 40);
+  const s = await a.wait(m => m.type === 'snap' && m.s.players[me.id][8] === 'falso+fuze');
+  clearInterval(iv);
+  assert.equal(s.s.players[me.id][8], 'falso+fuze');
+  // geçersiz kombo yok sayılır
+  a.send('input', { special: 'falso+hile' });
+  a.close();
+});

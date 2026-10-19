@@ -10,7 +10,7 @@
    istemci bunları çizer ve seslendirir. */
 import { W, H, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER,
-  BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
+  BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
@@ -26,7 +26,7 @@ export function sanitizeInput(raw){
   const l = Math.hypot(x, y);
   if (l > 1){ x /= l; y /= l; }
   return {
-    x, y, kick: !!raw.kick, special: SHOT_TYPES.includes(raw.special) ? raw.special : null,
+    x, y, kick: !!raw.kick, special: normShot(raw.special),   // tek şut ya da kombo ('falso+fuze')
     call: !!raw.call, hold: !!raw.hold, sprint: !!raw.sprint,
   };
 }
@@ -209,8 +209,11 @@ export function step(S, inputs = {}){
       if (mate && (S.owner === mate || Math.hypot(mate.x - b.x, mate.y - b.y) < 140)){ mate.bubble = { text: 'Geliyor!', t: 60 }; mate.plan = null; }
     }
     for (const t of SHOT_TYPES) if (p.cd[t] > 0) p.cd[t]--;
-    if (special && p.cd[special] <= 0 && S.phase !== 'goal') p.armed = { type: special, t: 24 };
-    if (p.armed && --p.armed.t <= 0) p.armed = null;
+    if (special && S.phase !== 'goal') armShot(p, special);
+    if (p.armed){
+      if (p.armed.wait > 0) p.armed.wait--;
+      if (--p.armed.t <= 0) p.armed = null;
+    }
     // bakış yönü: top sürerken yavaş döner, top etrafında kayar
     const il = Math.hypot(x, y); let ta = null;
     if (il > .2) ta = Math.atan2(y, x);
@@ -264,7 +267,8 @@ export function step(S, inputs = {}){
   for (const p of S.players){
     if (S.phase === 'goal' || b.z > 12) continue;
     const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy);
-    if (p.armed && d - p.r - b.r < KICK_RANGE + 3){ specialKick(S, p, p.armed.type); continue; }
+    // özel şut hazırsa top menzildeyken atılır; kombo için ikinci tuş beklenirken normal vuruş da yapılmaz
+    if (p.armed && d - p.r - b.r < KICK_RANGE + 3){ if (p.armed.wait <= 0) specialKick(S, p, p.armed.type); continue; }
     if (S.owner && S.owner.team !== p.team){
       if (p.input.kick && p.tackleCd <= 0 && p.stun <= 0 && d - p.r - b.r < 34) startTackle(S, p);
       continue;
@@ -496,6 +500,17 @@ function resolveTackle(S, p){
   }
 }
 
+/* Özel şut tuşu: hazır (bekleme süresi bitmiş) parçalar mevcut hazırlığa eklenir.
+   İlk tuştan sonra COMBO_WAIT tick boyunca atış yapılmaz ki ikinci tuş yetişip kombo olsun.
+   Tuş basılı kaldıkça hazırlık tazelenir (24 tick). */
+function armShot(p, special){
+  const ready = special.split('+').filter(t => p.cd[t] <= 0);
+  if (!ready.length) return;
+  if (!p.armed){ p.armed = { type: ready.join('+'), t: 24, wait: COMBO_WAIT }; return; }
+  p.armed.type = normShot([...p.armed.type.split('+'), ...ready]);
+  p.armed.t = 24;
+}
+
 function specialKick(S, p, type){
   const b = S.ball;
   const owned = S.owner === p;
@@ -503,22 +518,21 @@ function specialKick(S, p, type){
   let nx = owned ? Math.cos(p.dirA) : dx/d, ny = owned ? Math.sin(p.dirA) : dy/d;
   if (owned && p.ctrl !== 'ai'){ const a = kickAim(S, p); nx = Math.cos(a); ny = Math.sin(a); }
   releaseBall(S, p);
-  p.armed = null; p.cd[type] = SHOTS[type].cd; p.kickCd = 14;
+  // kombo kullandığı tüm şutların bekleme süresini doldurur
+  for (const t of type.split('+')) p.cd[t] = SHOTS[t].cd;
+  p.armed = null; p.kickCd = 14;
   p.mood = 'kick'; p.moodT = 20; S.lastTouch = p;
   b.curve = 0; b.fire = 0; b.grace = 8;
-  if (type === 'falso'){
-    const sp = KICK*1.2;
+  const ph = SHOT_PHYS[type], sp = KICK*ph.sp;
+  if (ph.curve){
+    // falso: koşu yönü topa biraz eklenir, dönüş yönü yana hareketten (yoksa kaleye doğru)
     b.vx = nx*sp + p.vx*.3; b.vy = ny*sp + p.vy*.3;
     let sgn = Math.sign(nx*(p.input.y + p.vy*.3) - ny*(p.input.x + p.vx*.3));
     if (!sgn){ const gx = (p.team === 0 ? W : 0) - b.x, gy = H/2 - b.y; sgn = Math.sign(nx*gy - ny*gx) || 1; }
-    b.curve = sgn*.03;
-  } else if (type === 'fuze'){
-    const sp = KICK*1.95;
-    b.vx = nx*sp; b.vy = ny*sp; b.fire = 70;
-  } else {
-    const sp = KICK*.95;
-    b.vx = nx*sp; b.vy = ny*sp; b.vz = 6.3; b.z = .5;
-  }
+    b.curve = sgn*ph.curve;
+  } else { b.vx = nx*sp; b.vy = ny*sp; }
+  if (ph.vz){ b.vz = ph.vz; b.z = .5; }
+  if (ph.fire) b.fire = ph.fire;
   emit(S, 'special', { id: p.id, shot: type, x: b.x, y: b.y, px: p.x, py: p.y });
   p.plan = null;
   registerKick(S, p);

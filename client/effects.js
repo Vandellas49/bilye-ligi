@@ -1,7 +1,7 @@
 /* ---------- efektler ----------
    Simülasyonun döndürdüğü olayları parçacık, yazı, sarsıntı ve sese çevirir.
    Buradaki her şey yalnızca istemcide yaşar; maç durumuna (S) yazılmaz. */
-import { H, VIEW, TEAM_COL, SHOTS } from '../shared/constants.js';
+import { H, VIEW, TEAM_COL, shotInfo } from '../shared/constants.js';
 import { sfx } from './audio.js';
 
 export const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -45,11 +45,11 @@ export function applyEvents(events){
       case 'tackleMiss': pop(e.x, e.y - 36, 'Sıyrıldı!', TEAM_COL[e.team], 45); sfx.tackleMiss(); break;
       case 'whiff': pop(e.x, e.y - 36, 'Iska!', '#ffffff', 35); break;
       case 'special': {
-        const sh = SHOTS[e.shot];
-        if (e.shot === 'fuze' && !reduceMotion) fx.shake = Math.max(fx.shake, 6);
+        const sh = shotInfo(e.shot), parts = e.shot.split('+');
+        if (parts.includes('fuze') && !reduceMotion) fx.shake = Math.max(fx.shake, parts.length > 1 ? 8 : 6);
         burst(e.x, e.y, sh.color, 22, 4.5, 30);
         pop(e.px, e.py - 34, sh.name + '!', sh.color, 55);
-        sfx[e.shot]();
+        for (const t of parts) sfx[t]();   // kombo: parçaların sesleri birlikte
         break;
       }
       case 'call': sfx.call(); break;

@@ -24,6 +24,34 @@ export const SHOTS = {
   asirtma: { name:'Aşırtma', cd:300, color:'#4fc3e8' },
 };
 export const SHOT_TYPES = Object.keys(SHOTS);
+
+/* Kombolar: özel şut tuşlarına birlikte basılınca. Anahtar, parçaların SHOT_TYPES sırasıyla '+' ile
+   birleşmiş hali. Kombo kullandığı tüm şutların bekleme süresini doldurur. */
+export const COMBOS = {
+  'falso+fuze':         { name: 'Falsolu füze',    color: '#ff5fa2' },
+  'falso+asirtma':      { name: 'Falsolu aşırtma', color: '#8f8cff' },
+  'fuze+asirtma':       { name: 'Havadan füze',    color: '#ffb238' },
+  'falso+fuze+asirtma': { name: 'Üçlü kombo',      color: '#ffe14d' },
+};
+// özel şut ya da kombo için ad ve renk
+export const shotInfo = type => SHOTS[type] || COMBOS[type] || null;
+// şut fiziği: hız (KICK çarpanı), havaya kalkış (vz), falso miktarı, füze alevi süresi (tick)
+export const SHOT_PHYS = {
+  'falso':              { sp: 1.2,  vz: 0,   curve: .03,  fire: 0  },
+  'fuze':               { sp: 1.95, vz: 0,   curve: 0,    fire: 70 },
+  'asirtma':            { sp: .95,  vz: 6.3, curve: 0,    fire: 0  },
+  'falso+fuze':         { sp: 1.7,  vz: 0,   curve: .024, fire: 55 },
+  'falso+asirtma':      { sp: 1.0,  vz: 6.0, curve: .026, fire: 0  },
+  'fuze+asirtma':       { sp: 1.6,  vz: 4.6, curve: 0,    fire: 45 },
+  'falso+fuze+asirtma': { sp: 1.5,  vz: 4.8, curve: .02,  fire: 45 },
+};
+// 'fuze+falso', ['asirtma','fuze'] gibi girdileri tek biçime çevirir; geçersizse null
+export function normShot(s){
+  const parts = Array.isArray(s) ? s : typeof s === 'string' ? s.split('+') : [];
+  const key = SHOT_TYPES.filter(t => parts.includes(t)).join('+');
+  return key && SHOT_PHYS[key] && parts.every(t => SHOT_TYPES.includes(t)) ? key : null;
+}
+export const COMBO_WAIT = 6;   // ilk tuştan sonra ikinci tuş için beklenen süre (tick, ~0,1 sn)
 export const FACES = ['bead','big','sleepy','cyclops','grumpy','bead','big','smug'];
 export const POSTS = [{x:0,y:TOP},{x:0,y:BOT},{x:W,y:TOP},{x:W,y:BOT}];
 

@@ -1,26 +1,28 @@
 /* ---------- girdi ----------
    Klavye, sanal joystick ve dokunmatik düğmeler -> { x, y, kick, special, call, hold, sprint } */
-import { SHOT_TYPES } from '../shared/constants.js';
+import { SHOT_TYPES, normShot } from '../shared/constants.js';
 import { ensureAudio } from './audio.js';
 
 // özel şut tuşları: [1. oyuncu, 2. oyuncu]
 export const SHOT_KEYS = { falso: ['KeyQ', 'KeyJ'], fuze: ['KeyE', 'KeyK'], asirtma: ['KeyR', 'KeyL'] };
 
 const keys = new Set();
+// son basılma anı: bir oyun karesinden kısa dokunuşlar da en az TAP_MS boyunca basılı sayılır
+const downAt = new Map(), TAP_MS = 40;
 const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','KeyX','Enter','NumpadEnter','KeyQ','KeyE','KeyR','KeyJ','KeyK','KeyL','KeyF','KeyH','ShiftLeft','KeyC','ShiftRight','Numpad0','KeyU'];
-const touchIn = { x:0, y:0, kick:false, active:false, id:null, ox:0, oy:0, special:null, call:false, hold:false };
+const touchIn = { x:0, y:0, kick:false, active:false, id:null, ox:0, oy:0, specials: new Set(), call:false, hold:false };
 
-export function clearKeys(){ keys.clear(); }
+export function clearKeys(){ keys.clear(); downAt.clear(); }
 
 /* onPause: Esc/P basıldığında; isPlaying: maç sürüyor ve duraklatılmamışsa true */
 export function initInput({ onPause, isPlaying }){
   addEventListener('keydown', e => {
     if (e.code === 'Escape' || e.code === 'KeyP'){ onPause(); return; }
     if (isPlaying() && GAME_KEYS.includes(e.code)){ e.preventDefault(); ensureAudio(); }
-    keys.add(e.code);
+    keys.add(e.code); downAt.set(e.code, performance.now());
   });
   addEventListener('keyup', e => keys.delete(e.code));
-  addEventListener('blur', () => keys.clear());
+  addEventListener('blur', clearKeys);
 
   const $ = id => document.getElementById(id);
   const stage = $('stage'), stickZone = $('stickZone'), stick = $('stick'), knob = $('knob');
@@ -56,13 +58,15 @@ export function initInput({ onPause, isPlaying }){
   holdButton($('passBtn'), () => touchIn.call = true, () => touchIn.call = false);
   document.querySelectorAll('.spBtn').forEach(btn => {
     const t = btn.dataset.shot;
-    holdButton(btn, () => touchIn.special = t, () => { if (touchIn.special === t) touchIn.special = null; });
+    // iki parmakla birlikte basılırsa kombo olur
+    holdButton(btn, () => touchIn.specials.add(t), () => touchIn.specials.delete(t));
   });
 }
 
 // ctrl: 'h1' ya da 'h2'; friend: aynı klavyede iki kişi
 export function readInput(ctrl, friend){
-  const k = c => keys.has(c);
+  const now = performance.now();
+  const k = c => keys.has(c) || now - (downAt.get(c) || -1e9) < TAP_MS;
   let x = 0, y = 0, kick = false;
   if (ctrl === 'h1'){
     x = (k('KeyD')?1:0) - (k('KeyA')?1:0); y = (k('KeyS')?1:0) - (k('KeyW')?1:0);
@@ -77,9 +81,9 @@ export function readInput(ctrl, friend){
     x = (k('ArrowRight')?1:0) - (k('ArrowLeft')?1:0); y = (k('ArrowDown')?1:0) - (k('ArrowUp')?1:0);
     kick = k('Enter') || k('NumpadEnter');
   }
-  let special = null;
-  for (const t of SHOT_TYPES) if (k(SHOT_KEYS[t][ctrl === 'h1' ? 0 : 1])) special = t;
-  if (ctrl === 'h1' && touchIn.special) special = touchIn.special;
+  // basılı tüm özel şut tuşları: birden çoksa kombo ('falso+fuze' gibi)
+  const pressed = SHOT_TYPES.filter(t => k(SHOT_KEYS[t][ctrl === 'h1' ? 0 : 1]) || (ctrl === 'h1' && touchIn.specials.has(t)));
+  const special = normShot(pressed);
   const call = ctrl === 'h1' ? (k('KeyF') || touchIn.call) : k('KeyH');
   const hold = ctrl === 'h1' ? (k('KeyC') || touchIn.hold) : (k('KeyU') || k('Numpad0'));
   const sprint = ctrl === 'h1'

@@ -87,6 +87,8 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 **Şut güç barı.** İnsan oyuncuda şut tuşu basılı tutuldukça `p.charge` 0→1 dolar (`chargeShot`); bırakınca o güçte vuruş 10 tick bekler (`p.shot`), bar dolunca kendiliğinden vurur ve tuş bırakılana kadar kilitlenir (`p.kickLock`). Rakip toptayken tuş anında müdahale yapar, bar dolmaz. Bar oyuncunun etrafında halka olarak çizilir (`drawCharge`) ve anlık görüntüyle gönderilir. Botlar sabit güçle vurur.
 
+**Kombolar.** Özel şut tuşlarına birlikte basılınca: `falso+fuze` (falsolu füze), `fuze+asirtma` (havadan füze), `falso+asirtma` (falsolu aşırtma), `falso+fuze+asirtma` (üçlü kombo). Girdide `special` tek şut ya da `+` ile birleşmiş kombodur, `normShot` tek biçime çevirir (parçalar `SHOT_TYPES` sırasında). `armShot` ilk tuştan sonra `COMBO_WAIT` (6 tick) bekler ve sonradan basılan hazır tuşları birleştirir; beklemedeki şut katılmaz. Fizik tek tabloda: `SHOT_PHYS` (hız, vz, falso, alev); ad/renk `COMBOS`, `shotInfo`. Kombo kullandığı tüm şutların bekleme süresini doldurur. Botlar kombo kullanmaz. İstemci bir kareden kısa tuş dokunuşlarını `TAP_MS` (40 ms) boyunca basılı sayar.
+
 **Top sahipliği, pas, bot rolleri.** Yavaş ve yakın top oyuncuya "yapışır" ve bakış yönünün önünde taşınır; `C` (tut) ile menzil büyür ve top rakipten korunur. Rakip toptayken şut tuşu müdahale yapar (`startTackle` → `resolveTackle`). Her vuruştan sonra `registerKick` topun yolunu simüle edip alıcıyı seçer; botlar yol kapalıysa duvardan sektirir. İnsanın vuruş yönü `kickAim` ile yakındaki arkadaşa kilitlenir. `assignRoles` her tick `chaser`, `receiver`, `defender`, `support` dağıtır; topa sahip bot `makePlan` ile şut / pas / duvar pası / sürme seçer.
 
 **Çizim.** Saha arka planı offscreen canvas'a bir kez çizilir (`renderBg`), her karede üstüne ışık, kar/parıltı, oyuncular, top, efektler ve HUD gelir. Karakterler `ART_R` ölçüsünde çizilip `PR`'ye büyütülür. Özel şut çubuğu yalnızca bu cihazın oyuncuları (`ctrl` `'h1'`/`'h2'`) için çizilir.
@@ -123,6 +125,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 | Topu tut / koru | C | U, Numpad 0 | TUT |
 | Pas iste | F | H | PAS |
 | Falso / Füze / Aşırtma | Q / E / R | J / K / L | Ayrı düğmeler |
+| Kombo (birlikte bas) | Q+E, E+R, Q+R, Q+E+R | J+K, K+L, J+L, J+K+L | Düğmelere iki/üç parmakla |
 | Mola (çevrimiçide menü) | Esc, P | | Üstteki düğme |
 
 ## Ayarlanabilir değerler
@@ -135,6 +138,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 | `CHARGE_TICKS`, `KICK_MIN`, `KICK_MAX` | Şut güç barı: dolma süresi (tick) ve `KICK` çarpanı aralığı (kısa dokunuş .. tam bar). Botlar `AI_KICK_POWER` ile tam `KICK` gücünde vurur |
 | `PR`, `BR` | Oyuncu ve top yarıçapı |
 | `SHOTS[*].cd` | Özel şutların bekleme süresi (tick) |
+| `SHOT_PHYS`, `COMBO_WAIT` | Özel şut ve kombo fiziği (hız çarpanı, havaya kalkış, falso, alev süresi); kombo için ikinci tuşu bekleme süresi |
 | `DIFF[]` | Bot zorlukları: hız, nişan, pas eğilimi, müdahale sıklığı, depar kullanımı |
 | `shared/sim.js` → `step()` içindeki depar çarpanları | Depar hızı (`1.38`), yorgun hız (`.72`), dayanıklılık harcama/dolma hızları |
 | `server/index.js` başı | `SNAP_EVERY`, `RECONNECT_MS`, `BETWEEN_MS`, `MAX_ROOMS`, mesaj sınırları |

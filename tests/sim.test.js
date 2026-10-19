@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
-import { KICK, CHARGE_TICKS, KICK_MIN, KICK_MAX } from '../shared/constants.js';
+import { KICK, CHARGE_TICKS, KICK_MIN, KICK_MAX, normShot } from '../shared/constants.js';
 
 // bot maçı oynat, her tick'in olaylarını topla
 function play(settings, ticks, inputsFor = () => ({})){
@@ -133,14 +133,74 @@ test('güç barı: rakip toptayken dolmaz (tuş müdahale yapar)', () => {
 });
 
 test('botların vuruş gücü değişmedi', () => {
-  // bot sabit güçle vurur: KICK
-  const S = createMatch({ size: 1, seed: 8, kickoffTeam: 0 });
-  const bot = S.players[0];
-  let max = 0;
-  for (let i = 0; i < 1200; i++){
-    const before = Math.hypot(S.ball.vx, S.ball.vy);
-    const ev = step(S, {});
-    if (ev.some(e => e.type === 'kick' && e.id === bot.id)) max = Math.max(max, Math.hypot(S.ball.vx, S.ball.vy) - before);
+  // botlar sabit güçle vurur (KICK); birkaç maçtaki tüm bot vuruşlarına bak
+  let max = 0, kicks = 0;
+  for (let seed = 1; seed <= 3; seed++){
+    const S = createMatch({ size: 3, seed, kickoffTeam: 0 });
+    for (let i = 0; i < 1500; i++){
+      const before = Math.hypot(S.ball.vx, S.ball.vy);
+      const ev = step(S, {});
+      if (ev.some(e => e.type === 'kick')){ kicks++; max = Math.max(max, Math.hypot(S.ball.vx, S.ball.vy) - before); }
+    }
   }
-  assert.ok(max > 0 && max < KICK*1.3, `bot vuruşu: ${max}`);
+  assert.ok(kicks > 10, `bot vuruş sayısı: ${kicks}`);
+  assert.ok(max < KICK*1.3, `bot vuruşu: ${max}`);
+});
+
+/* ---------- kombolar ---------- */
+
+// insan oyuncu topu ayağında tutarken verilen özel şut girdileriyle vurur; topun durumunu döndürür
+function comboKick(presses){
+  const S = createMatch({ size: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }], seed: 5, kickoffTeam: 0 });
+  const me = S.players.find(p => p.ctrl === 'h1'), op = S.players.find(p => p !== me);
+  Object.assign(op, { x: 900, y: 60 });
+  S.phase = 'play';
+  Object.assign(me, { x: 300, y: 280, vx: 0, vy: 0, dirA: 0 });
+  Object.assign(S.ball, { x: 336, y: 280, vx: 0, vy: 0, z: 0 });
+  let shot = null;
+  for (let i = 0; i < 30 && !shot; i++){
+    const ev = step(S, { [me.id]: { special: presses[i] ?? null } });
+    shot = ev.find(e => e.type === 'special');
+  }
+  return { shot: shot && shot.shot, ball: { ...S.ball, speed: Math.hypot(S.ball.vx, S.ball.vy) }, cd: { ...me.cd } };
+}
+
+test('kombo anahtarı tek biçime çevrilir', () => {
+  assert.equal(normShot('fuze+falso'), 'falso+fuze');
+  assert.equal(normShot(['asirtma', 'fuze', 'falso']), 'falso+fuze+asirtma');
+  assert.equal(normShot('falso'), 'falso');
+  assert.equal(normShot('falso+hile'), null);
+  assert.equal(normShot(''), null);
+});
+
+test('aynı anda basılan tuşlar kombo olur: Q+E falsolu füze', () => {
+  const r = comboKick(['falso+fuze']);
+  assert.equal(r.shot, 'falso+fuze');
+  assert.ok(r.ball.curve !== 0 && r.ball.fire > 0 && r.ball.z === 0);
+  assert.ok(r.cd.falso > 0 && r.cd.fuze > 0 && r.cd.asirtma === 0, 'kullanılan şutlar beklemeye girer');
+});
+
+test('kısa arayla basılan tuşlar da kombo olur: önce E, 3 tick sonra R (havadan füze)', () => {
+  const r = comboKick(['fuze', null, null, 'asirtma']);
+  assert.equal(r.shot, 'fuze+asirtma');
+  assert.ok(r.ball.z > 0 && r.ball.fire > 0 && r.ball.curve === 0);
+});
+
+test('üçlü kombo: havadan, hızlı, falsolu', () => {
+  const r = comboKick(['falso+fuze+asirtma']);
+  assert.equal(r.shot, 'falso+fuze+asirtma');
+  assert.ok(r.ball.z > 0 && r.ball.fire > 0 && r.ball.curve !== 0 && r.ball.speed > 8);
+});
+
+test('tek tuş eskisi gibi çalışır, beklemedeki şut komboya katılmaz', () => {
+  assert.equal(comboKick(['asirtma']).shot, 'asirtma');
+  // füze beklemedeyken Q+E: yalnızca falso atılır
+  const S = createMatch({ size: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }], seed: 5, kickoffTeam: 0 });
+  const me = S.players.find(p => p.ctrl === 'h1');
+  S.players.find(p => p !== me).x = 900; S.phase = 'play';
+  Object.assign(me, { x: 300, y: 280, vx: 0, vy: 0, dirA: 0 }); Object.assign(S.ball, { x: 336, y: 280, vx: 0, vy: 0 });
+  me.cd.fuze = 999;
+  let shot;
+  for (let i = 0; i < 30 && !shot; i++) shot = step(S, { [me.id]: { special: 'falso+fuze' } }).find(e => e.type === 'special');
+  assert.equal(shot.shot, 'falso');
 });
