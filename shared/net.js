@@ -34,6 +34,7 @@ export function snapshot(S){
       (p.tired ? 1 : 0) | (p.sprinting ? 2 : 0) | (p.input.kick ? 4 : 0) | (p.ctrl === 'ai' ? 8 : 0),
       p.mood, p.armed ? p.armed.type : null, p.cd.falso, p.cd.fuze, p.cd.asirtma,
       p.bubble ? p.bubble.text : null, p.bubble ? p.bubble.t : 0,
+      r2(p.charge || 0),   // şut güç barı
     ]),
   };
 }
@@ -43,7 +44,7 @@ export function createView(rosterList, info, myUid){
   const players = rosterList.map(p => ({
     ...p, x: 0, y: 0, vx: 0, vy: 0, im: .5, dirA: 0, sta: 1, tired: false, sprinting: false,
     mood: 'idle', armed: null, cd: { falso: 0, fuze: 0, asirtma: 0 }, bubble: null,
-    input: { x: 0, y: 0, kick: false }, ctrl: 'ai', mine: p.uid != null && p.uid === myUid,
+    input: { x: 0, y: 0, kick: false }, charge: 0, ctrl: 'ai', mine: p.uid != null && p.uid === myUid,
   }));
   return {
     online: true, t: 0, phase: 'kickoff', score: [0, 0], timeLeft: 0, overtime: false, kickoffTeam: 0,
@@ -70,6 +71,7 @@ export function applySnapshot(V, s){
     p.mood = a[7]; p.armed = a[8] ? { type: a[8] } : null;
     p.cd.falso = a[9]; p.cd.fuze = a[10]; p.cd.asirtma = a[11];
     p.bubble = a[12] ? { text: a[12], t: a[13] } : null;
+    p.charge = a[14] || 0;
   });
 }
 

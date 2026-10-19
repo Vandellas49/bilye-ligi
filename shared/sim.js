@@ -9,6 +9,7 @@
    Ses, parçacık, sarsıntı gibi yan etkiler olay olarak döner ({ type, ... });
    istemci bunları çizer ve seslendirir. */
 import { W, H, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
+  CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER,
   BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass } from './pass.js';
@@ -57,6 +58,7 @@ function buildPlayers(S, n, humans){
       d.plan = null; d.planT = 0; d.bubble = null; d.callCd = 0;
       d.dirA = team === 0 ? 0 : Math.PI; d.noGrab = 0;
       d.sta = 1; d.tired = false; d.sprinting = false; d.stun = 0; d.tackleCd = 0; d.lunge = 0;
+      d.charge = 0; d.shot = null; d.kickLock = false;   // şut güç barı (bkz. chargeShot)
       d.num = h ? [10, 8, 23][i] : [7, 4, 9, 11, 5, 8, 3, 6, 14, 17][(team*3 + i + randInt(rng, 10)) % 10];
       const accs = S.weather === 'kar' ? ['beanie','beanie','earmuffs','scarf','cap','headband','sprout','none']
                                        : ['cap','cap','headband','sprout','beanie','scarf','none'];
@@ -75,6 +77,7 @@ function resetPositions(S){
     const f = formation(n, p.slot, p.team);
     p.x = f.x; p.y = f.y; p.vx = p.vy = 0; p.kickCd = 0; p.armed = null; p.plan = null;
     p.stun = 0; p.lunge = 0; p.tackleCd = 0; p.sta = Math.min(1, p.sta + .3);
+    p.charge = 0; p.shot = null; p.kickLock = false;
     p.dirA = p.team === 0 ? 0 : Math.PI; p.noGrab = 0;
   }
   // başlama vuruşunu yapan takımın ilk oyuncusu topa yakın dursun
@@ -194,6 +197,7 @@ export function step(S, inputs = {}){
     const { x, y } = inp;
     const special = S.specials ? inp.special : null;
     p.input = { x, y, kick: inp.kick, hold: inp.hold };
+    if (p.ctrl !== 'ai') chargeShot(S, p, inp.kick);
     if (p.callCd > 0) p.callCd--;
     if (p.bubble && --p.bubble.t <= 0) p.bubble = null;
     if (inp.call && p.callCd <= 0 && S.phase !== 'goal'){
@@ -265,15 +269,20 @@ export function step(S, inputs = {}){
       if (p.input.kick && p.tackleCd <= 0 && p.stun <= 0 && d - p.r - b.r < 34) startTackle(S, p);
       continue;
     }
-    if (!p.input.kick || p.kickCd > 0) continue;
+    // insan: güç barından bekleyen vuruş; bot: tuşa basıldığı an sabit güç
+    const human = p.ctrl !== 'ai';
+    if ((human ? !p.shot : !p.input.kick) || p.kickCd > 0) continue;
     if (d - p.r - b.r < KICK_RANGE){
+      const power = human ? p.shot.power : AI_KICK_POWER;
+      const kick = KICK*(KICK_MIN + (KICK_MAX - KICK_MIN)*power);
+      p.shot = null;
       const owned = S.owner === p;
       releaseBall(S, p);
       // top sürülüyorsa oyuncunun baktığı yöne gider
       let nx = owned ? Math.cos(p.dirA) : dx/d, ny = owned ? Math.sin(p.dirA) : dy/d;
-      if (owned && p.ctrl !== 'ai'){ const a = kickAim(S, p); nx = Math.cos(a); ny = Math.sin(a); }
-      if (owned){ b.vx = p.vx + nx*KICK; b.vy = p.vy + ny*KICK; }
-      else { b.vx += nx*KICK*b.im; b.vy += ny*KICK*b.im; }
+      if (owned && human){ const a = kickAim(S, p); nx = Math.cos(a); ny = Math.sin(a); }
+      if (owned){ b.vx = p.vx + nx*kick; b.vy = p.vy + ny*kick; }
+      else { b.vx += nx*kick*b.im; b.vy += ny*kick*b.im; }
       // yana koşarken vurursan top kendiliğinden falso alır
       const lat = nx*(p.vy + p.input.y) - ny*(p.vx + p.input.x);
       b.curve = Math.abs(lat) > .9 ? Math.max(-.014, Math.min(.014, lat*.005)) : 0;
@@ -337,6 +346,23 @@ export function step(S, inputs = {}){
     resetPositions(S);
   }
   return events;
+}
+
+/* Şut güç barı (insan oyuncu): tuş basılı tutuldukça p.charge 0'dan 1'e dolar.
+   Bırakınca o güçte bir vuruş bekler (p.shot, 10 tick içinde top menzile girerse vurulur);
+   bar dolunca tuş bırakılmadan kendiliğinden vurur ve tuş bırakılana kadar yeniden dolmaz.
+   Rakip toptayken tuş müdahale yapar, bar dolmaz. */
+function chargeShot(S, p, held){
+  if (p.shot && --p.shot.t <= 0) p.shot = null;
+  const tackling = S.owner && S.owner.team !== p.team;
+  if (!held){
+    if (p.charge > 0 && !p.kickLock && !tackling) p.shot = { power: p.charge, t: 10 };
+    p.charge = 0; p.kickLock = false;
+    return;
+  }
+  if (tackling || p.kickLock || S.phase === 'goal'){ p.charge = 0; return; }
+  p.charge = Math.min(1, p.charge + 1/CHARGE_TICKS);
+  if (p.charge >= 1){ p.shot = { power: 1, t: 10 }; p.charge = 0; p.kickLock = true; }
 }
 
 /* ---------- top tutma ve sürme ---------- */

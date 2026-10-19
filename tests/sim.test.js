@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
+import { KICK, CHARGE_TICKS, KICK_MIN, KICK_MAX } from '../shared/constants.js';
 
 // bot maçı oynat, her tick'in olaylarını topla
 function play(settings, ticks, inputsFor = () => ({})){
@@ -84,4 +85,62 @@ test('simülasyon Math.random kullanmaz', () => {
   Math.random = () => { throw new Error('Math.random çağrıldı'); };
   try { play({ size: 3, diff: 1, minutes: 1, seed: 99, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] }, 3000); }
   finally { Math.random = orig; }
+});
+
+/* ---------- şut güç barı ---------- */
+
+// insan oyuncunun önüne topu koy, tuşu n tick basılı tutup bırak, topun hızını ölç
+function chargedKick(holdTicks){
+  const S = createMatch({ size: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }], seed: 5, kickoffTeam: 0 });
+  const me = S.players.find(p => p.ctrl === 'h1'), op = S.players.find(p => p !== me);
+  op.x = 900; op.y = 80;
+  // top uzakta beklerken bar dolar
+  S.ball.x = 100; S.ball.y = 500;
+  let fired = null;
+  for (let i = 0; i < holdTicks; i++){
+    step(S, { [me.id]: { kick: true } });
+    if (me.shot && fired === null) fired = i + 1;
+  }
+  const charge = me.charge;
+  step(S, { [me.id]: { kick: false } });   // bırak: vuruş bekler
+  // topu oyuncunun hemen önüne getir, bekleyen vuruş gerçekleşsin
+  Object.assign(S.ball, { x: me.x + me.r + S.ball.r + 2, y: me.y, vx: 0, vy: 0, z: 0 });
+  me.vx = me.vy = 0;
+  step(S, {});
+  return { speed: Math.hypot(S.ball.vx, S.ball.vy), charge, fired, me };
+}
+
+test('güç barı: kısa dokunuş yumuşak, uzun basış sert vurur', () => {
+  const tap = chargedKick(2), half = chargedKick(Math.floor(CHARGE_TICKS/2)), full = chargedKick(CHARGE_TICKS - 1);
+  assert.ok(tap.speed > KICK*KICK_MIN*.9 && tap.speed < KICK*.9, `dokunuş: ${tap.speed}`);
+  assert.ok(half.speed > tap.speed && full.speed > half.speed, `${tap.speed} < ${half.speed} < ${full.speed}`);
+  assert.ok(full.speed > KICK*1.2 && full.speed <= KICK*KICK_MAX*1.05, `tam: ${full.speed}`);
+  assert.ok(Math.abs(half.charge - .5) < .05);
+});
+
+test('güç barı: dolunca kendiliğinden vurur ve tuş bırakılana kadar yeniden dolmaz', () => {
+  const r = chargedKick(CHARGE_TICKS + 30);
+  assert.equal(r.fired, CHARGE_TICKS);          // tam dolduğu tick'te vuruş hazırlanır
+  assert.equal(r.charge, 0);                    // kilitli: tutmaya devam etse de dolmuyor
+});
+
+test('güç barı: rakip toptayken dolmaz (tuş müdahale yapar)', () => {
+  const S = createMatch({ size: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }], seed: 5, kickoffTeam: 1 });
+  const me = S.players.find(p => p.ctrl === 'h1'), op = S.players.find(p => p !== me);
+  S.phase = 'play'; S.owner = op;
+  step(S, { [me.id]: { kick: true } });
+  assert.equal(me.charge, 0);
+});
+
+test('botların vuruş gücü değişmedi', () => {
+  // bot sabit güçle vurur: KICK
+  const S = createMatch({ size: 1, seed: 8, kickoffTeam: 0 });
+  const bot = S.players[0];
+  let max = 0;
+  for (let i = 0; i < 1200; i++){
+    const before = Math.hypot(S.ball.vx, S.ball.vy);
+    const ev = step(S, {});
+    if (ev.some(e => e.type === 'kick' && e.id === bot.id)) max = Math.max(max, Math.hypot(S.ball.vx, S.ball.vy) - before);
+  }
+  assert.ok(max > 0 && max < KICK*1.3, `bot vuruşu: ${max}`);
 });

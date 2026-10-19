@@ -428,7 +428,19 @@ function drawFace(c, p, y0, v){
   else { c.beginPath(); c.moveTo(mx - 2.6, my); c.quadraticCurveTo(mx, my + 2.2, mx + 2.6, my); c.stroke(); }
 }
 
+// şut güç barı: oyuncunun etrafında saat yönünde dolan halka (yeşil -> sarı -> kırmızı)
+function drawCharge(c, p){
+  if (!(p.charge > 0) || S.phase === 'goal') return;
+  const r = p.r + 10, a0 = -Math.PI/2, k = Math.min(1, p.charge);
+  c.lineCap = 'round';
+  c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 6;
+  c.beginPath(); c.arc(p.x, p.y, r, 0, Math.PI*2); c.stroke();
+  c.strokeStyle = k < .5 ? '#5be37d' : k < .85 ? '#ffd23f' : '#ff5a5a'; c.lineWidth = 4;
+  c.beginPath(); c.arc(p.x, p.y, r, a0, a0 + Math.PI*2*k); c.stroke();
+}
+
 function drawLabel(c, p){
+  drawCharge(c, p);
   if (p.sta < .995 && S.phase !== 'goal'){
     const w = 30, h = 5, x = p.x - w/2, y = p.y - p.r - 11;
     c.fillStyle = 'rgba(0,0,0,.5)'; rr(c, x - 1, y - 1, w + 2, h + 2, 3.5); c.fill();

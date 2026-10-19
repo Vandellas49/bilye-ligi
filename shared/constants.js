@@ -9,6 +9,10 @@ export const MARGIN = 38;
 export const VIEW = { x: -GD - MARGIN, y: -MARGIN, w: W + 2*(GD + MARGIN), h: H + 2*MARGIN };
 export const P_ACC = 0.135, P_ACC_KICK = 0.09, P_DAMP = 0.96, B_DAMP = 0.99;
 export const KICK = 6.4, KICK_RANGE = 5, WALL_REST = .7;
+// şut güç barı (insan oyuncu): şut tuşu basılı tutuldukça dolar, bırakınca vurur
+export const CHARGE_TICKS = 45;                 // boştan tam güce ~0,75 sn
+export const KICK_MIN = .75, KICK_MAX = 1.35;   // KICK çarpanı: kısa dokunuş .. tam bar
+export const AI_KICK_POWER = (1 - KICK_MIN)/(KICK_MAX - KICK_MIN);   // botlar eskisi gibi tam KICK gücüyle vurur
 export const TICK = 1000/60;
 export const TEAM_COL = ['#ffcf3a', '#3fd0e8'];
 export const TEAM_DARK = ['#9a6f00', '#0f7f93'];
