@@ -105,7 +105,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 **Akış.** `hello` → `welcome` (kimlik + oturum anahtarı, tarayıcıda `localStorage 'bilye-online'`) → oda listesi → `createRoom` / `joinRoom` → lobi (`roomState`) → `setTeam` → oda sahibi `start` → `matchStart` (roster + ilk anlık görüntü) → `snap` (30 Hz, olaylarla) → `matchEnd` → lobi.
 
 **Mesajlar (JSON, `type` alanıyla).**
-- İstemci → sunucu: `hello {name, sessionKey?}`, `setName {name}`, `listRooms`, `createRoom {name, password, settings}`, `joinRoom {roomId, password}`, `setTeam {team}` (sayı ya da `null` = izleyici), `start`, `input {seq, x, y, kick, special, call, hold, sprint}`, `leave`
+- İstemci → sunucu: `hello {name, sessionKey?}`, `setName {name}`, `listRooms`, `createRoom {name, password, settings}`, `joinRoom {roomId, password}`, `setTeam {team}` (sayı ya da `null` = izleyici), `setSettings {settings: {diff}}` (yalnızca oda sahibi, lobide; şimdilik bot seviyesi), `start`, `input {seq, x, y, kick, special, call, hold, sprint}`, `leave`
 - Sunucu → istemci: `welcome {id, sessionKey, name}`, `rooms {rooms}`, `roomState {room}`, `matchStart {roster, info, label, snap}`, `snap {s, ev}`, `matchEnd {names, score, label, tournament}`, `left`, `error {message}`
 - Oda ayarları (`cleanSettings` ile doğrulanır): `type` (`'match'`/`'tournament'`), `tSize` (4/8), `size` (1–3), `minutes` (2/3/5), `diff` (0–2, boş yerlere giren botlar), `specials`, `weather`, `arena`.
 
@@ -140,7 +140,8 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 | `SHOTS[*].cd` | Özel şutların bekleme süresi (tick) |
 | `SHOT_PHYS`, `COMBO_WAIT` | Özel şut ve kombo fiziği (hız çarpanı, havaya kalkış, falso, alev süresi); kombo için ikinci tuşu bekleme süresi |
 | `DIFF[]` | Bot zorlukları: hız, nişan, pas eğilimi, müdahale sıklığı, depar kullanımı |
-| `shared/sim.js` → `step()` içindeki depar çarpanları | Depar hızı (`1.38`), yorgun hız (`.72`), dayanıklılık harcama/dolma hızları |
+| `SPRINT_DRAIN`, `SPRINT_DRAIN_BALL` | Depar süresi: tick başına dayanıklılık harcaması (topsuz ~4 sn, topla ~3,3 sn) |
+| `shared/sim.js` → `step()` içindeki depar çarpanları | Depar hızı (`1.38`), yorgun hız (`.72`), dayanıklılık dolma hızları |
 | `server/index.js` başı | `SNAP_EVERY`, `RECONNECT_MS`, `BETWEEN_MS`, `MAX_ROOMS`, mesaj sınırları |
 | `client/net.js` → `INTERP_TICKS`, `MAX_DELAY_TICKS`, `LATE_WINDOW_MS` | Çevrimiçi çizim gecikmesinin alt/üst sınırı ve ölçüm penceresi (yumuşaklık ↔ tepki süresi) |
 

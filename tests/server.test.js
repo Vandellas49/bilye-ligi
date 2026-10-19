@@ -225,3 +225,20 @@ test('kombo girdisi sunucuda tanınır (anlık görüntüde hazırlık görünü
   a.send('input', { special: 'falso+hile' });
   a.close();
 });
+
+test('oda sahibi lobide bot seviyesini değiştirir, diğerleri değiştiremez', async () => {
+  const a = client('Sahip'), b = client('Misafir');
+  await a.ready; await b.ready;
+  await a.wait(type('welcome')); await b.wait(type('welcome'));
+  a.send('createRoom', { name: 'Seviye', settings: { type: 'match', size: 1, diff: 1 } });
+  const rs = await a.wait(type('roomState'));
+  b.send('joinRoom', { roomId: rs.room.id });
+  await b.wait(m => m.type === 'roomState' && m.room.members.length === 2);
+  b.send('setSettings', { settings: { diff: 0 } });          // misafir: yok sayılır
+  a.send('setSettings', { settings: { diff: 2 } });          // sahip: geçerli
+  const st = await b.wait(m => m.type === 'roomState' && m.room.settings.diff === 2);
+  assert.equal(st.room.settings.size, 1, 'diğer ayarlar korunur');
+  a.send('setSettings', { settings: { diff: 9 } });          // geçersiz değer: varsayılana döner, bozulmaz
+  await b.wait(m => m.type === 'roomState' && [0, 1, 2].includes(m.room.settings.diff) && m.room.settings.diff !== 2);
+  a.close(); b.close();
+});

@@ -213,6 +213,7 @@ function drawLobby(){
   renderLobby(room, net.me.id, {
     onTeam: team => send('setTeam', { team }),
     onStart: () => send('start'),
+    onDiff: diff => send('setSettings', { settings: { diff } }),
   });
 }
 // turnuvada maçlar arası geri sayım

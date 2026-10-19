@@ -204,3 +204,16 @@ test('tek tuş eskisi gibi çalışır, beklemedeki şut komboya katılmaz', () 
   for (let i = 0; i < 30 && !shot; i++) shot = step(S, { [me.id]: { special: 'falso+fuze' } }).find(e => e.type === 'special');
   assert.equal(shot.shot, 'falso');
 });
+
+test('depar süresi: topsuz ~4 sn, sonra yorulur', async () => {
+  const { SPRINT_DRAIN } = await import('../shared/constants.js');
+  const S = createMatch({ size: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }], seed: 3, kickoffTeam: 1 });
+  const me = S.players.find(p => p.ctrl === 'h1');
+  // rakip girdisiz insan: hareket etmez, gol atıp ölçümü bozmaz
+  S.players.find(p => p !== me).ctrl = 'h2';
+  S.phase = 'play';
+  let ticks = 0;
+  while (!me.tired && ticks < 1000){ step(S, { [me.id]: { y: ticks % 120 < 60 ? 1 : -1, sprint: true } }); ticks++; }
+  assert.ok(Math.abs(ticks - 1/SPRINT_DRAIN) < 5, `depar ${ticks} tick sürdü`);
+  assert.ok(ticks/60 > 3.5, `depar ${(ticks/60).toFixed(1)} sn`);
+});

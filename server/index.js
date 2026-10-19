@@ -192,6 +192,15 @@ function handle(c, m){
       broadcastRoomList();
       break;
     }
+    case 'setSettings': {
+      // oda sahibi lobide ayar değiştirebilir (şimdilik yalnızca bot seviyesi); sonraki maçtan geçerli
+      if (!room || room.hostId !== c.id) return;
+      if (room.phase !== 'lobby' && room.phase !== 'done') return send(c, 'error', { message: 'Ayarlar maç sürerken değiştirilemez.' });
+      const s = m.settings && typeof m.settings === 'object' ? m.settings : {};
+      room.settings = cleanSettings({ ...room.settings, diff: s.diff ?? room.settings.diff });
+      broadcastRoom(room);
+      break;
+    }
     case 'setTeam': {
       if (!room) return;
       if (room.phase === 'playing' || room.phase === 'between') return send(c, 'error', { message: 'Maç sürerken takım değiştirilemez.' });

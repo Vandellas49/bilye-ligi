@@ -9,7 +9,7 @@
    Ses, parçacık, sarsıntı gibi yan etkiler olay olarak döner ({ type, ... });
    istemci bunları çizer ve seslendirir. */
 import { W, H, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
-  CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER,
+  CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass } from './pass.js';
@@ -228,7 +228,7 @@ export function step(S, inputs = {}){
     const spr = inp.sprint && moving && !p.tired && p.sta > 0 && S.phase !== 'goal';
     p.sprinting = spr;
     if (spr){
-      p.sta = Math.max(0, p.sta - (S.owner === p ? .0075 : .0062));
+      p.sta = Math.max(0, p.sta - (S.owner === p ? SPRINT_DRAIN_BALL : SPRINT_DRAIN));
       if (p.sta === 0){ p.tired = true; p.mood = 'tired'; p.moodT = 70; }
     } else p.sta = Math.min(1, p.sta + (p.tired ? .0028 : moving ? .0034 : .0055));
     if (p.tired && p.sta >= .38) p.tired = false;

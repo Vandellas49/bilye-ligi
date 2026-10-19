@@ -174,7 +174,7 @@ export function renderRooms(list, onJoin){
 }
 
 /* ---------- çevrimiçi: lobi ---------- */
-export function renderLobby(room, myId, { onTeam, onStart }){
+export function renderLobby(room, myId, { onTeam, onStart, onDiff }){
   const s = room.settings, tour = s.type === 'tournament';
   $('lobbyName').textContent = room.name;
   const arena = s.arena === 'r' ? 'Rastgele saha' : ARENAS[s.arena].name;
@@ -218,4 +218,11 @@ export function renderLobby(room, myId, { onTeam, onStart }){
   $('lobbyStart').hidden = !host || !canMove;
   $('lobbyStart').textContent = tour ? (room.phase === 'done' ? 'Yeni turnuva başlat' : 'Turnuvayı başlat') : 'Maçı başlat';
   $('lobbyStart').onclick = onStart;
+
+  // oda sahibi bot seviyesini lobide değiştirebilir
+  $('lobbyDiff').hidden = !host || !canMove;
+  document.querySelectorAll('input[name="lbDiff"]').forEach(el => {
+    el.checked = +el.value === s.diff;
+    el.onchange = () => onDiff(+el.value);
+  });
 }
