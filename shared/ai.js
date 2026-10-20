@@ -7,7 +7,7 @@ import { laneOpen, segDist } from './pass.js';
 function passPlan(S, p, m, lead){
   const b = S.ball;
   const tx = Math.max(PR, Math.min(W - PR, m.x + m.vx*lead)), ty = Math.max(PR, Math.min(H - PR, m.y + m.vy*lead));
-  if (Math.hypot(tx - b.x, ty - b.y) < 620 && laneOpen(S, b.x, b.y, tx, ty, p.team)) return { kind: 'pass', x: tx, y: ty, m };
+  if (Math.hypot(tx - b.x, ty - b.y) < 775 && laneOpen(S, b.x, b.y, tx, ty, p.team)) return { kind: 'pass', x: tx, y: ty, m };
   const opts = [];
   // duvardan sektirme: yansıyan hedefe nişan al (duvar sekmesi dikey hızı azaltır)
   for (const wy of [BR, H - BR]){
@@ -17,7 +17,7 @@ function passPlan(S, p, m, lead){
     const bx2 = b.x + (tx - b.x)*t;
     if (bx2 < 30 || bx2 > W - 30) continue;
     const len = Math.hypot(bx2 - b.x, wy - b.y) + Math.hypot(tx - bx2, ty - wy);
-    if (len < 540 && laneOpen(S, b.x, b.y, bx2, wy, p.team) && laneOpen(S, bx2, wy, tx, ty, p.team)) opts.push({ kind: 'bank', x: tx, y: my, m, len });
+    if (len < 675 && laneOpen(S, b.x, b.y, bx2, wy, p.team) && laneOpen(S, bx2, wy, tx, ty, p.team)) opts.push({ kind: 'bank', x: tx, y: my, m, len });
   }
   opts.sort((a, c) => a.len - c.len);
   return opts[0] || null;
@@ -41,7 +41,7 @@ function makePlan(S, p, D, oppX){
   if (random(S.rng) < D.pass + (pressured ? .25 : 0)){
     const cands = S.players.filter(m => m.team === p.team && m !== p)
       .map(m => ({ m, adv: (m.x - b.x)*dir, d: Math.hypot(m.x - b.x, m.y - b.y) }))
-      .filter(c => c.d > 90 && c.d < 620 && c.adv > -70)
+      .filter(c => c.d > 90 && c.d < 775 && c.adv > -70)
       .sort((a, c) => c.adv - a.adv);
     for (const c of cands){ const pl = passPlan(S, p, c.m, 10); if (pl) return pl; }
   }
@@ -156,7 +156,7 @@ export function aiInput(S, p){
   } else {
     // hücumda boşa çık, savunmada geride kal
     const poss = S.lastTouch && S.lastTouch.team === p.team;
-    tx = poss ? b.x + dir*170 : b.x - dir*120;
+    tx = poss ? b.x + dir*210 : b.x - dir*150;
     ty = b.y < H/2 ? H*.74 : H*.26;
     tx = Math.max(60, Math.min(W - 60, tx));
     if (!(S.owner && S.owner.team === p.team) && gap < KICK_RANGE + 1 && (b.x - p.x)*dir > 0) kick = true;
@@ -183,9 +183,9 @@ function pickAiShot(S, p, goalDist, oppX){
     const px = b.x + lx*t - o.x, py = b.y + ly*t - o.y;
     return Math.hypot(px, py) < PR + 16;
   });
-  if (blocked && p.cd.asirtma <= 0 && goalDist > 160 && goalDist < 520) return 'asirtma';
-  if (p.cd.fuze <= 0 && goalDist > 180 && goalDist < 480) return 'fuze';
-  if (p.cd.falso <= 0 && goalDist < 420) return 'falso';
+  if (blocked && p.cd.asirtma <= 0 && goalDist > 160 && goalDist < 600) return 'asirtma';
+  if (p.cd.fuze <= 0 && goalDist > 180 && goalDist < 550) return 'fuze';
+  if (p.cd.falso <= 0 && goalDist < 480) return 'falso';
   return null;
 }
 

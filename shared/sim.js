@@ -8,11 +8,11 @@
    girdisi burada üretilir; insan oyuncunun girdisi yoksa boş girdi sayılır.
    Ses, parçacık, sarsıntı gibi yan etkiler olay olarak döner ({ type, ... });
    istemci bunları çizer ve seslendirir. */
-import { W, H, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
+import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
-  PASS_CONE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
+  PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
+  CENTER_R, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
@@ -185,7 +185,7 @@ function kickoffConstraint(S, p){
   if (p.team === 0 && p.x > W/2 - p.r){ p.x = W/2 - p.r; if (p.vx > 0) p.vx = 0; }
   if (p.team === 1 && p.x < W/2 + p.r){ p.x = W/2 + p.r; if (p.vx < 0) p.vx = 0; }
   if (p.team !== S.kickoffTeam){
-    const dx = p.x - W/2, dy = p.y - H/2, d = Math.hypot(dx, dy), min = 80 + p.r;
+    const dx = p.x - W/2, dy = p.y - H/2, d = Math.hypot(dx, dy), min = CENTER_R + p.r;
     if (d < min){ const nx = d ? dx/d : (p.team === 0 ? -1 : 1), ny = d ? dy/d : 0; p.x = W/2 + nx*min; p.y = H/2 + ny*min; }
   }
 }
@@ -300,7 +300,7 @@ export function step(S, inputs = {}){
       // top sürülüyorsa oyuncunun baktığı yöne gider
       let nx = owned ? Math.cos(p.dirA) : dx/d, ny = owned ? Math.sin(p.dirA) : dy/d;
       // pas yardımı (insan): basılan yöne yakın arkadaş varsa ona, mesafeye uygun güçle
-      let pass = null;
+      let pass = null, shotAim = null;
       if (human){
         const il = Math.hypot(p.input.x, p.input.y);
         const contact = Math.atan2(ny, nx);
@@ -311,8 +311,15 @@ export function step(S, inputs = {}){
         else if (canTurn && kind === 'pass' && p.input.assist && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
         // havadan pas için uygun arkadaş yoksa top basılan yöne havalanır
         if (!pass && kind === 'lob') pass = { a: base, nx: Math.cos(base), ny: Math.sin(base), speed: KICK*.85, vz: 5, mix: 0 };
+        // pas yoksa şut yardımı: kaleye yaklaşık nişan alındıysa top kale ağzına gider
+        if (!pass && p.input.assist && (kind === 'shot' || kind === 'pass')){
+          // şut tuşu (D) açıkça şut der: kaleye bakan hemen her yön kabul; ortak tuşta dar açı (kanattan pas şuta dönmesin)
+          const sa = shotTarget(S, p, base, kind === 'shot' ? SHOT_CONE_WIDE : SHOT_CONE);
+          if (sa !== null && (owned || angDiff(sa, contact) < 1.75)) shotAim = sa;
+        }
+        if (shotAim !== null){ nx = Math.cos(shotAim); ny = Math.sin(shotAim); p.dirA = shotAim; }
         // yardım yoksa (ya da uygun arkadaş yoksa) top sürülürken basılan yöne vurulur
-        if (!pass && owned && il > .3){ nx = Math.cos(base); ny = Math.sin(base); p.dirA = base; }
+        else if (!pass && owned && il > .3){ nx = Math.cos(base); ny = Math.sin(base); p.dirA = base; }
       }
       if (pass){
         nx = pass.nx; ny = pass.ny; p.dirA = pass.a;
@@ -320,6 +327,8 @@ export function step(S, inputs = {}){
         b.vx = nx*sp; b.vy = ny*sp;                      // koşu hızı eklenmez, top tam hedefe
         b.curve = 0;
         if (pass.vz){ b.vz = pass.vz; b.z = .5; }        // havadan pas
+      } else if (shotAim !== null){
+        b.vx = nx*kick; b.vy = ny*kick; b.curve = 0;     // yardımlı şut: koşu hızı ve otomatik falso eklenmez
       } else {
         if (owned){ b.vx = p.vx + nx*kick; b.vy = p.vy + ny*kick; }
         else { b.vx += nx*kick*b.im; b.vy += ny*kick*b.im; }
@@ -573,7 +582,7 @@ function passTarget(S, p, base, mode = 'ground'){
   for (const m of S.players){
     if (m.team !== p.team || m === p) continue;
     const d0 = Math.hypot(m.x - b.x, m.y - b.y);
-    if (d0 < 50 || d0 > 700 || angDiff(Math.atan2(m.y - b.y, m.x - b.x), base) > PASS_CONE) continue;
+    if (d0 < 50 || d0 > 875 || angDiff(Math.atan2(m.y - b.y, m.x - b.x), base) > PASS_CONE) continue;
     let tx = m.x, ty = m.y, speed = 0;
     for (let k = 0; k < 3; k++){
       const d = Math.hypot(tx - b.x, ty - b.y), ux = (tx - b.x)/(d || 1), uy = (ty - b.y)/(d || 1);
@@ -630,16 +639,36 @@ function predictPos(m, n){
 // base yönü rakip kalenin ağzına mı bakıyor (o zaman güçlü vuruş şuttur, pasa çevrilmez)
 function aimsAtGoal(S, p, base){
   const b = S.ball, gx = p.team === 0 ? W : 0;
-  if (Math.abs(gx - b.x) > 650) return false;
+  if (Math.abs(gx - b.x) > 760) return false;
   const a1 = Math.atan2(TOP + 8 - b.y, gx - b.x), a2 = Math.atan2(BOT - 8 - b.y, gx - b.x);
   const span = angDiff(a1, a2);
   return angDiff(base, a1) <= span + .05 && angDiff(base, a2) <= span + .05;
 }
 
-// insan oyuncunun özel şut yönü: basılan yön, uygun bir arkadaş varsa ona kilitlen
+/* Şut yardımı: basılan yön kaleye yaklaşık doğruysa (SHOT_CONE) top kale ağzına gider. Yön kale çizgisini
+   nerede kesiyorsa oraya nişan alınır ama hedef direklerin içine çekilir (çapraz yukarı: üst köşe, çapraz aşağı:
+   alt köşe). Merkeze yakın düz vuruş kalecinin (kaleye en yakın rakibin) uzak köşesine yönelir. Dönüş: açı ya da null. */
+function shotTarget(S, p, base, cone = SHOT_CONE){
+  const b = S.ball, gx = p.team === 0 ? W : 0, dx = gx - b.x;
+  if (Math.abs(dx) > SHOT_RANGE || Math.cos(base)*dx <= 0) return null;
+  const toGoal = Math.atan2(H/2 - b.y, dx);
+  if (angDiff(base, toGoal) > cone) return null;
+  const inner = 22;
+  let ty = b.y + Math.tan(base)*dx;                       // basılan yönün kale çizgisini kestiği yer
+  if (Math.abs(ty - H/2) < GH*.2){
+    const keeper = S.players.filter(o => o.team !== p.team).sort((a, c) => Math.abs(a.x - gx) - Math.abs(c.x - gx))[0];
+    if (keeper && Math.abs(keeper.x - gx) < 200) ty = keeper.y < H/2 ? BOT - inner : TOP + inner;
+  }
+  ty = Math.max(TOP + inner, Math.min(BOT - inner, ty));
+  return Math.atan2(ty - b.y, dx);
+}
+
+// insan oyuncunun özel şut yönü: kaleye nişanlıysa kaleye, değilse uygun bir arkadaşa kilitlen
 function kickAim(S, p){
   const il = Math.hypot(p.input.x, p.input.y);
   const base = il > .3 ? Math.atan2(p.input.y, p.input.x) : p.dirA;
+  const sa = p.input.assist ? shotTarget(S, p, base) : null;
+  if (sa !== null){ p.dirA = sa; return sa; }
   const t = passTarget(S, p, base);
   if (t){ p.dirA = t.a; return t.a; }
   return base;

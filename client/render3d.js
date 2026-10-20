@@ -84,7 +84,7 @@ export function init3D(canvas, share){
   const sun = G3.sun = new T.DirectionalLight(0xffffff, 1);
   sun.position.set(-320, 950, 420); sun.castShadow = true;
   sun.shadow.mapSize.set(light() ? 1024 : 2048, light() ? 1024 : 2048);
-  Object.assign(sun.shadow.camera, { left: -760, right: 760, top: 520, bottom: -520, near: 100, far: 2600 });
+  Object.assign(sun.shadow.camera, { left: -940, right: 940, top: 650, bottom: -650, near: 100, far: 2800 });
   sun.shadow.bias = -0.0006;
   sc.add(sun); sc.add(sun.target);
   sc.fog = new T.Fog(0x000000, 1800, 4200);
@@ -329,7 +329,7 @@ function applyArena(){
   G3.snowList = [];
   const kind = S.weather, n = kind === 'kar' ? (reduceMotion || light() ? 400 : 1400) : kind === 'parilti' ? (reduceMotion || light() ? 120 : 320) : 0;
   for (let i = 0; i < n; i++){
-    G3.snowList.push({ x: (Math.random() - .5)*1700, y: Math.random()*520, z: (Math.random() - .5)*1100 - 120,
+    G3.snowList.push({ x: (Math.random() - .5)*2100, y: Math.random()*520, z: (Math.random() - .5)*1400 - 140,
       s: kind === 'kar' ? 2.2 + Math.random()*4.2 : 3 + Math.random()*5, v: kind === 'kar' ? .5 + Math.random()*.9 : -(.08 + Math.random()*.25),
       ph: Math.random()*6.28, a: .45 + Math.random()*.5 });
   }
@@ -484,9 +484,9 @@ function updateScene(){
   for (const f of G3.snowList){
     if (move){
       f.y -= f.v*(reduceMotion ? .4 : 1); f.x += Math.sin(S.t*.016 + f.ph)*.35 + (kar ? .15 : 0);
-      if (f.y < 0){ f.y = 520; f.x = (Math.random() - .5)*1700; }
+      if (f.y < 0){ f.y = 520; f.x = (Math.random() - .5)*2100; }
       if (f.y > 520) f.y = 0;
-      if (f.x > 850) f.x = -850;
+      if (f.x > 1050) f.x = -1050;
     }
     putPoint(SN, f.x, f.y, f.z, tint, kar ? f.a : f.a*(.3 + .7*Math.abs(Math.sin(S.t*.04 + f.ph))), f.s);
   }

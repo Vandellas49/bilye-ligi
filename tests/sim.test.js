@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
-import { KICK, CHARGE_TICKS, KICK_MIN, KICK_MAX, normShot, W as W_TEST } from '../shared/constants.js';
+import { KICK, CHARGE_TICKS, KICK_MIN, KICK_MAX, normShot, W as W_TEST, H as H_TEST, TOP, BOT } from '../shared/constants.js';
 
 // bot maçı oynat, her tick'in olaylarını topla
 function play(settings, ticks, inputsFor = () => ({})){
@@ -237,12 +237,13 @@ function slideAt(fromX, fromY, seed, extra = {}){
 test('kayma: hızlı başlar, bitince yerden kalkar, bekleme süresi var', () => {
   const S = createMatch({ size: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }], seed: 1, kickoffTeam: 1 });
   const me = S.players[0]; S.phase = 'play';
+  const x0 = me.x;
   step(S, { [me.id]: { x: 0, y: 1, slide: true } });
   assert.ok(Math.hypot(me.vx, me.vy) > 5, 'kayma hızı');
   assert.ok(me.slideT > 0 && me.slideCd > 0);
   for (let i = 0; i < 25; i++) step(S, { [me.id]: { x: 1, y: 0 } });   // kayarken yön değiştirilemez
   assert.equal(me.slideT, 0);
-  assert.ok(Math.abs(me.x - 250) < 15, 'kayarken yana gitmedi');
+  assert.ok(Math.abs(me.x - x0) < 15, 'kayarken yana gitmedi');
 });
 
 test('kayma: önden girince çoğunlukla kapar, arkadan gövde topu kapatır', () => {
@@ -328,12 +329,13 @@ test('pas yardımı: gelen topa tek vuruşla da arkadaşa gider', () => {
 
 test('pas yardımı: kaleye güçlü şut pasa çevrilmez, zayıf vuruş kale önündeki arkadaşa pas olur', () => {
   // arkadaş kale önünde, A kaleye nişan alıyor
-  const goal = { x: W_TEST, y: 280 };
+  const goal = { x: W_TEST, y: H_TEST/2 };
   const strong = passSetup({ x: 860, y: 330 });
   const out = {};
   passRun(strong, toward(strong.me, goal), CHARGE_TICKS - 1, {}, out);
-  const ang = out.ang;
-  assert.ok(Math.abs(ang) < .05, `şut kaleye gitti (açı ${ang.toFixed(3)})`);
+  // top kale çizgisini direklerin arasından geçmeli (pasa çevrilmedi)
+  const yAt = strong.S.ball.y + Math.tan(out.ang)*(W_TEST - strong.S.ball.x);
+  assert.ok(yAt > TOP && yAt < BOT, `şut kale ağzına gitti (y ${yAt.toFixed(0)})`);
   const weak = passSetup({ x: 860, y: 330 });
   const r = passRun(weak, toward(weak.me, goal), 3);
   assert.ok(r !== null && r < 12, `zayıf vuruş pas oldu (ıska ${r})`);
@@ -412,4 +414,35 @@ test('oyuncu değiştirme izin verilmeyen maçta (çevrimiçi) çalışmaz', () 
   const me = S.players.find(p => p.uid === 5);
   step(S, { [me.id]: { swap: true } });
   assert.equal(me.ctrl, 'net');
+});
+
+/* ---------- şut yardımı ---------- */
+// insan oyuncu ceza sahası önünde topla; verilen yöne şut (kind: shot), topun kale çizgisini kestiği y
+function shotAt(dir, assist = true, from = { x: W_TEST - 380, y: H_TEST/2 + 90 }){
+  const S = createMatch({ size: 1, seed: 4, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+  const me = S.players[0], o = S.players[1];
+  S.phase = 'play'; o.ctrl = 'h2'; Object.assign(o, { x: W_TEST - 30, y: H_TEST/2 - 40 });   // kaleci üst tarafta
+  Object.assign(me, { ...from, vx: 0, vy: 0, dirA: 0 });
+  Object.assign(S.ball, { x: from.x + 36, y: from.y, vx: 0, vy: 0 }); S.owner = me;
+  const inp = { x: dir[0], y: dir[1], kind: 'shot', assist };
+  let ang = null;
+  for (let i = 0; i < 30 && ang === null; i++){
+    const ev = step(S, { [me.id]: i < 3 ? { ...inp, kick: true } : inp });
+    if (ev.some(e => e.type === 'kick')) ang = Math.atan2(S.ball.vy, S.ball.vx);
+  }
+  return S.ball.y + Math.tan(ang)*(W_TEST - S.ball.x);
+}
+
+test('şut yardımı: 8 yönlü tuşla bile top kale ağzına, basılan yöne göre köşeye gider', () => {
+  const s = Math.SQRT1_2;
+  const up = shotAt([s, -s]), down = shotAt([s, s]), straight = shotAt([1, 0]);
+  for (const [n, y] of [['çapraz yukarı', up], ['çapraz aşağı', down], ['düz', straight]]) assert.ok(y > TOP && y < BOT, `${n}: kale ağzında (y ${y.toFixed(0)})`);
+  assert.ok(up < H_TEST/2 && down > H_TEST/2, 'yukarı üst, aşağı alt köşe');
+});
+
+test('şut yardımı: düz vuruş kalecinin uzak köşesine, yardım kapalıysa basılan yöne', () => {
+  const y = shotAt([1, 0], true, { x: W_TEST - 380, y: H_TEST/2 });
+  assert.ok(y > H_TEST/2, `kaleci üstte, top alt köşeye (y ${y.toFixed(0)})`);
+  const raw = shotAt([Math.SQRT1_2, -Math.SQRT1_2], false);
+  assert.ok(raw < TOP, `yardımsız çapraz şut kalenin dışına gider (y ${raw.toFixed(0)})`);
 });

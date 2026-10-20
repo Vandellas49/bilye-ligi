@@ -6,6 +6,8 @@
    applySnapshot    anlık görüntüyü görünüme yazar (referansları geri kurar)
    lerpView         iki anlık görüntü arasında konumları enterpole eder */
 
+import { W, H } from './constants.js';
+
 const r2 = v => Math.round(v*100)/100;
 
 export function roster(S){
@@ -49,7 +51,7 @@ export function createView(rosterList, info, myUid){
   return {
     online: true, t: 0, phase: 'kickoff', score: [0, 0], timeLeft: 0, overtime: false, kickoffTeam: 0,
     arena: info.arena, weather: info.weather, specials: info.specials, teamNames: info.teamNames, timed: info.timed,
-    players, ball: { x: 500, y: 280, vx: 0, vy: 0, r: 12, z: 0, fire: 0, curve: 0, spin: 0 },
+    players, ball: { x: W/2, y: H/2, vx: 0, vy: 0, r: 12, z: 0, fire: 0, curve: 0, spin: 0 },
     owner: null, pass: null, req: [null, null], goalInfo: null, lastTouch: null,
   };
 }

@@ -1,7 +1,7 @@
 /* ---------- çizim ----------
    Maç durumunu okur, değiştirmez. Parçacık, iz, yazı ve oyuncu animasyonları
    istemci tarafındaki efekt durumunda (fx) tutulur. */
-import { W, H, GH, GD, TOP, BOT, PR, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, shotInfo } from '../shared/constants.js';
+import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, shotInfo } from '../shared/constants.js';
 import { fx, visOf, reduceMotion, jumpOf } from './effects.js';
 import { shotKeyLabel } from './input.js';
 import { isTouch, keyLayout } from './ui.js';
@@ -122,13 +122,15 @@ export function renderBg(state){
   if (A.id === 'gece'){ c.shadowColor = 'rgba(120,230,255,.9)'; c.shadowBlur = 10; }
   c.strokeRect(0, 0, W, H);
   c.beginPath(); c.moveTo(W/2, 0); c.lineTo(W/2, H); c.stroke();
-  c.beginPath(); c.arc(W/2, H/2, 80, 0, Math.PI*2); c.stroke();
+  c.beginPath(); c.arc(W/2, H/2, CENTER_R, 0, Math.PI*2); c.stroke();
   c.fillStyle = A.line; c.beginPath(); c.arc(W/2, H/2, 4, 0, Math.PI*2); c.fill();
   for (const s of [0, 1]){
-    const x = s ? W - 150 : 0;
-    c.strokeRect(x, H/2 - 150, 150, 300);
-    c.strokeRect(s ? W - 55 : 0, H/2 - 105, 55, 210);
-    c.beginPath(); c.arc(s ? W - 150 : 150, H/2, 50, s ? Math.PI/2 : -Math.PI/2, s ? Math.PI*1.5 : Math.PI/2); c.stroke();
+    // ceza sahası, kale alanı ve ceza yayı
+    const BX = 188, BH = 375, SX = 69, SH = 262;
+    const x = s ? W - BX : 0;
+    c.strokeRect(x, H/2 - BH/2, BX, BH);
+    c.strokeRect(s ? W - SX : 0, H/2 - SH/2, SX, SH);
+    c.beginPath(); c.arc(s ? W - BX : BX, H/2, 62, s ? Math.PI/2 : -Math.PI/2, s ? Math.PI*1.5 : Math.PI/2); c.stroke();
   }
   c.shadowBlur = 0;
 

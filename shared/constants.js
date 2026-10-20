@@ -1,8 +1,9 @@
 /* ---------- sabitler ----------
    Hem tarayıcıda hem sunucuda kullanılır; DOM'a dokunmaz. */
 
-export const W = 1000, H = 560;           // saha
-export const GH = 170, GD = 48;           // kale ağzı ve derinliği
+export const W = 1250, H = 700;           // saha (paslaşmaya yer olsun diye 1000x560'tan büyütüldü)
+export const GH = 220, GD = 48;           // kale ağzı ve derinliği
+export const CENTER_R = 100;              // orta yuvarlak (başlama vuruşunda rakip dışında bekler)
 export const TOP = H/2 - GH/2, BOT = H/2 + GH/2;
 export const PR = 22, BR = 12, POST_R = 7;
 export const MARGIN = 38;
@@ -22,7 +23,10 @@ export const SLIDE_GETUP = 16;         // topa değdiyse yerden kalkma (tick)
 export const SLIDE_MISS_GETUP = 32;    // ıskaladıysa yerden kalkma (tick)
 export const GOAL_PAUSE = 180;        // golden sonra sevinç ve yeniden başlama arası (tick, 3 sn)
 // pas yardımı (insan oyuncu): basılan yöne yakın arkadaşa, koştuğu yere, mesafeye uygun güçle
-export const PASS_CONE = .6;           // basılan yönden en fazla bu kadar sapan arkadaşa kilitlenir (rad, ~34°)
+export const PASS_CONE = .8;           // basılan yönden en fazla bu kadar sapan arkadaşa kilitlenir (rad, ~46°; 8 yönlü ok tuşlarında her yöne yeter)
+export const SHOT_CONE = .9;           // şut yardımı: basılan yön kaleye bu kadar yakınsa (rad, ~52°) top kale ağzına gider
+export const SHOT_CONE_WIDE = 1.35;    // şut tuşunda (FIFA D) daha geniş: kaleye bakan hemen her yön (~77°)
+export const SHOT_RANGE = 800;         // şut yardımının çalıştığı en uzak mesafe (kale çizgisine)
 export const PASS_ARRIVE = 2.4;        // top arkadaşa bu hızla varacak şekilde atılır
 export const PASS_POWER_MIX = .25;     // güç barının yardımlı pas gücüne etkisi (0: hiç, 1: tamamen bar)
 export const SHOT_OVERRIDE = .6;       // kaleye nişan alıp bar bu kadar doluysa pas değil şut sayılır
@@ -86,9 +90,9 @@ export const ARENAS = [
 
 /* ---------- yapay zekâ zorlukları ---------- */
 export const DIFF = [
-  { speed:.80, align:.88, aim:.42, predict:.3, react:.35, range:330, special:.03, pass:.25, tackle:.008, turnTol:.13, tackleTry:.03, sprint:.5, slide:0 },
-  { speed:.92, align:.92, aim:.32, predict:.7, react:.7, range:420, special:.07, pass:.45, tackle:.014, turnTol:.09, tackleTry:.06, sprint:.8, slide:.007 },
-  { speed:1.0, align:.95, aim:.24, predict:1, react:1, range:520, special:.14, pass:.6, tackle:.022, turnTol:.06, tackleTry:.1, sprint:1, slide:.014 },
+  { speed:.80, align:.88, aim:.42, predict:.3, react:.35, range:420, special:.03, pass:.25, tackle:.008, turnTol:.13, tackleTry:.03, sprint:.5, slide:0 },
+  { speed:.92, align:.92, aim:.32, predict:.7, react:.7, range:540, special:.07, pass:.45, tackle:.014, turnTol:.09, tackleTry:.06, sprint:.8, slide:.007 },
+  { speed:1.0, align:.95, aim:.24, predict:1, react:1, range:600, special:.14, pass:.6, tackle:.022, turnTol:.06, tackleTry:.1, sprint:1, slide:.014 },
 ];
 
 // kadro büyüklüğüne göre başlangıç dizilişi
