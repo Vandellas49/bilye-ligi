@@ -13,7 +13,7 @@ import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js'
 import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
 import { $, initMenu, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
-  updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D } from './ui.js';
+  updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D, keyLayout } from './ui.js';
 
 /* istemci durumu
    mode: 'menu' (arkada demo maç), 'match', 'end'
@@ -36,13 +36,12 @@ function setMode(mode){
 // extra: { teamNames } turnuva maçı için
 function startMatch(cfg, extra = {}){
   if (!extra.teamNames) G.cfg = cfg;
-  const humans = cfg.opp === 'friend'
-    ? [{team:0, ctrl:'h1', name:'1P'}, {team:1, ctrl:'h2', name:'2P'}]
-    : [{team:0, ctrl:'h1', name:'Sen'}];
+  const humans = [{team:0, ctrl:'h1', name:'Sen'}];
   const weather = cfg.weather || 'kar';
   G.state = createMatch({
     size: +cfg.size, humans, diff: +cfg.diff, arena: cfg.arena, weather,
     minutes: +cfg.time, specials: true, seed: randomSeed(), teamNames: extra.teamNames,
+    allowSwitch: true,   // yerel maçta Q/Tab ile bot takım arkadaşına geçilebilir
   });
   G.online = false; G.netM = null; prevPos.clear();
   resetFx(); buildAmbient(weather);
@@ -68,7 +67,7 @@ function startDemo(){
 function endMatch(){
   setMode('end');
   if (G.tourMatch) return endTourMatch();
-  showEnd(G.state, { friend: G.cfg.opp === 'friend', myTeam: 0 });
+  showEnd(G.state, { myTeam: 0 });
 }
 
 function togglePause(){
@@ -137,7 +136,7 @@ async function tourNext(){
   }
   const opp = nm.a === me ? nm.b : nm.a;
   G.tourMatch = nm;
-  startMatch({ ...cfg, opp: 'cpu', diff: roundDiff(T, nm.round) }, { teamNames: [T.teams[me].name, T.teams[opp].name] });
+  startMatch({ ...cfg, diff: roundDiff(T, nm.round) }, { teamNames: [T.teams[me].name, T.teams[opp].name] });
 }
 
 function endTourMatch(){
@@ -327,9 +326,8 @@ function withLerp(S, alpha, fn){
 function tick(){
   const S = G.state, inputs = {};
   savePrev(S);
-  const friend = !!(G.cfg && G.cfg.opp === 'friend');
-  const assist = passAssist();
-  for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = { ...readInput(p.ctrl, friend), assist };
+  const assist = passAssist(), layout = keyLayout();
+  for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = { ...readInput(layout, { defending: !!S.owner && S.owner.team !== p.team }), assist };
   const events = step(S, inputs);
   handleEvents(events);
   afterStep(S);
@@ -339,7 +337,8 @@ function netFrame(now){
   const due = updateNetMatch(G.netM, now);
   if (due.length) handleEvents(due);
   if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); }
-  if (G.state.players.some(p => p.mine)) sendInput(G.menuOpen ? NEUTRAL_INPUT : { ...readInput('h1', false), assist: passAssist() }, now);
+  const me = G.state.players.find(p => p.mine);
+  if (me) sendInput(G.menuOpen ? NEUTRAL_INPUT : { ...readInput(keyLayout(), { defending: !!G.state.owner && G.state.owner.team !== me.team }), assist: passAssist() }, now);
   G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${net.slow ? 'yedek bağlantı' : 'WebSocket'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;
 }
 

@@ -356,3 +356,60 @@ test('pas yardımı kapalıyken top basılan yöne gider (arkadaşa yönlendiril
   passRun(on, inp, 3, {}, out2);   // varsayılan: açık
   assert.ok(Math.abs(out2.ang - Math.atan2(inp.y, inp.x)) > .1, 'açıkken arkadaşa yönlendi');
 });
+
+/* ---------- FIFA tuşları: vuruş türleri ve oyuncu değiştirme ---------- */
+test('şut tuşu (kind: shot) arkadaşa kilitlenmez, basılan yöne gider', () => {
+  const s = passSetup(), inp = toward(s.me, s.mate, .3), out = {};
+  passRun(s, { ...inp, kind: 'shot' }, 3, {}, out);
+  assert.ok(Math.abs(out.ang - Math.atan2(inp.y, inp.x)) < .02);
+});
+
+test('ara pas (kind: through) koşan arkadaşın önüne atılır, arkadaş topa koşarak yetişir', () => {
+  // arkadaş sağa koşuyor; ara pas onun şimdiki yerinin önüne gider
+  const s = passSetup({ x: 480, y: 160 });
+  const out = {};
+  const r = passRun(s, { ...toward(s.me, s.mate), kind: 'through' }, 3, { x: 1, y: 0 }, out);
+  const direct = Math.atan2(160 - 280, 480 - 336);
+  assert.ok(out.ang > direct + .05, `top arkadaşın önüne (sağa) gitti: ${out.ang.toFixed(2)} > ${direct.toFixed(2)}`);
+  assert.ok(r !== null && r < 12, `arkadaş topa yetişti (ıska ${r})`);
+});
+
+test('havadan pas (kind: lob) havalanır ve aradaki rakibin üstünden arkadaşa gider', () => {
+  const s = passSetup({ x: 640, y: 280 });
+  // rakip tam yolun ortasında
+  const o = s.S.players.find(p => p.team === 1); Object.assign(o, { x: 480, y: 280 });
+  let maxZ = 0, touched = false, best = 1e9;
+  for (let i = 0; i < 200; i++){
+    // tuş bırakılınca da tür hatırlanır (girdi katmanı gibi)
+    const ev = step(s.S, { [s.me.id]: i < 3 ? { x: 1, y: 0, kick: true, kind: 'lob' } : { kind: 'lob' } });
+    maxZ = Math.max(maxZ, s.S.ball.z);
+    if (s.S.lastTouch === o) touched = true;
+    best = Math.min(best, Math.hypot(s.S.ball.x - s.mate.x, s.S.ball.y - s.mate.y) - 34);
+    if (s.S.owner === s.mate) { best = 0; break; }
+  }
+  assert.ok(maxZ > 20, `top havalandı (en yüksek ${maxZ.toFixed(0)})`);
+  assert.ok(!touched, 'rakip topa değmedi');
+  assert.ok(best < 15, `arkadaşa ulaştı (ıska ${best.toFixed(0)})`);
+});
+
+test('oyuncu değiştirme: kontrol topa en yakın bot arkadaşa geçer, "Sen" etiketi de geçer', () => {
+  const S = createMatch({ size: 3, seed: 2, allowSwitch: true, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+  S.phase = 'play';
+  const me = S.players.find(p => p.ctrl === 'h1');
+  const mates = S.players.filter(p => p.team === 0 && p !== me);
+  Object.assign(S.ball, { x: mates[1].x + 30, y: mates[1].y });   // top ikinci arkadaşa yakın
+  const ev = step(S, { [me.id]: { swap: true } });
+  assert.ok(ev.some(e => e.type === 'swap'));
+  assert.equal(mates[1].ctrl, 'h1'); assert.equal(me.ctrl, 'ai');
+  assert.equal(mates[1].name, 'Sen');
+  // basılı tutmak hemen geri geçirmez
+  step(S, { [mates[1].id]: { swap: true } });
+  assert.equal(mates[1].ctrl, 'h1');
+});
+
+test('oyuncu değiştirme izin verilmeyen maçta (çevrimiçi) çalışmaz', () => {
+  const S = createMatch({ size: 3, seed: 2, humans: [{ team: 0, ctrl: 'net', name: 'A', uid: 5 }] });
+  const me = S.players.find(p => p.uid === 5);
+  step(S, { [me.id]: { swap: true } });
+  assert.equal(me.ctrl, 'net');
+});

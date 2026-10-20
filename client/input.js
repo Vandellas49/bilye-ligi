@@ -1,16 +1,27 @@
 /* ---------- girdi ----------
-   Klavye, sanal joystick ve dokunmatik düğmeler -> { x, y, kick, special, call, hold, sprint, slide } */
+   Klavye, sanal joystick ve dokunmatik düğmeler -> girdi nesnesi:
+   { x, y, kick, kind, special, call, hold, sprint, slide, swap }
+   kind: vuruşun türü. 'pass' yardımlı pas, 'shot' şut (arkadaşa kilitlenmez), 'through' ara pas
+   (arkadaşın önüne), 'lob' havadan pas. Güç barı tuş bırakılınca vurduğu için tür, tuş bırakıldıktan
+   sonra da hatırlanır.
+   Tuş düzenleri: 'fifa' (varsayılan, FIFA'nın "sadece klavye" düzeni) ve 'klasik' (eski düzen). */
 import { SHOT_TYPES, normShot } from '../shared/constants.js';
 import { ensureAudio } from './audio.js';
 
-// özel şut tuşları: [1. oyuncu, 2. oyuncu]
-export const SHOT_KEYS = { falso: ['KeyQ', 'KeyJ'], fuze: ['KeyE', 'KeyK'], asirtma: ['KeyR', 'KeyL'] };
+export const LAYOUTS = {
+  fifa:   { name: 'FIFA',   shots: { falso: 'KeyZ', fuze: 'KeyX', asirtma: 'KeyC' } },
+  klasik: { name: 'Klasik', shots: { falso: 'KeyQ', fuze: 'KeyE', asirtma: 'KeyR' } },
+};
+// özel şut tuşunun ekranda gösterilecek adı ('KeyZ' -> 'Z')
+export const shotKeyLabel = (layout, t) => (LAYOUTS[layout] || LAYOUTS.fifa).shots[t].replace('Key', '');
 
 const keys = new Set();
 // son basılma anı: bir oyun karesinden kısa dokunuşlar da en az TAP_MS boyunca basılı sayılır
 const downAt = new Map(), TAP_MS = 40;
-const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','KeyX','Enter','NumpadEnter','KeyQ','KeyE','KeyR','KeyJ','KeyK','KeyL','KeyF','KeyH','ShiftLeft','KeyC','ShiftRight','Numpad0','KeyU','KeyV','KeyI'];
+const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','KeyX','KeyZ','Enter','NumpadEnter',
+  'KeyQ','KeyE','KeyR','KeyF','ShiftLeft','ShiftRight','KeyC','KeyV','Tab'];
 const touchIn = { x:0, y:0, active:false, id:null, ox:0, oy:0 };   // sanal joystick
+let kindLatch = 'pass';
 
 export function clearKeys(){ keys.clear(); downAt.clear(); }
 
@@ -61,33 +72,45 @@ export function initInput({ onPause, isPlaying }){
   document.querySelectorAll('.spBtn').forEach(btn => holdButton(btn, 'T:' + btn.dataset.shot));
 }
 
-// ctrl: 'h1' ya da 'h2'; friend: aynı klavyede iki kişi
-export function readInput(ctrl, friend){
+/* layout: 'fifa' | 'klasik'
+   ctx.defending: rakip takım topu kontrol ediyor. FIFA düzeninde S/A müdahale, D kayarak müdahale olur. */
+export function readInput(layout = 'fifa', ctx = {}){
   const now = performance.now();
   const k = c => keys.has(c) || now - (downAt.get(c) || -1e9) < TAP_MS;
-  let x = 0, y = 0, kick = false;
-  if (ctrl === 'h1'){
-    x = (k('KeyD')?1:0) - (k('KeyA')?1:0); y = (k('KeyS')?1:0) - (k('KeyW')?1:0);
-    kick = k('Space') || k('KeyX');
-    if (!friend){
-      x += (k('ArrowRight')?1:0) - (k('ArrowLeft')?1:0); y += (k('ArrowDown')?1:0) - (k('ArrowUp')?1:0);
-      kick = kick || k('Enter') || k('NumpadEnter');
-    }
-    if (touchIn.active){ x += touchIn.x; y += touchIn.y; }
-    kick = kick || k('T:kick');
+  const arrX = (k('ArrowRight')?1:0) - (k('ArrowLeft')?1:0), arrY = (k('ArrowDown')?1:0) - (k('ArrowUp')?1:0);
+  let x, y, kick, slide, sprint, hold, swap;
+  if (layout === 'klasik'){
+    x = (k('KeyD')?1:0) - (k('KeyA')?1:0) + arrX; y = (k('KeyS')?1:0) - (k('KeyW')?1:0) + arrY;
+    kick = k('Space') || k('KeyX') || k('Enter') || k('NumpadEnter');
+    if (kick) kindLatch = 'pass';   // pas ya da şut: pas yardımı ayarı ve nişan belirler
+    slide = k('KeyV');
+    sprint = k('ShiftLeft') || k('ShiftRight');
+    hold = k('KeyC');
+    swap = k('Tab');
   } else {
-    x = (k('ArrowRight')?1:0) - (k('ArrowLeft')?1:0); y = (k('ArrowDown')?1:0) - (k('ArrowUp')?1:0);
-    kick = k('Enter') || k('NumpadEnter');
+    x = arrX; y = arrY;
+    if (ctx.defending){
+      kick = k('KeyS') || k('KeyA');   // müdahale
+      slide = k('KeyD');               // kayarak müdahale
+    } else {
+      const s = k('KeyS'), d = k('KeyD'), w = k('KeyW'), a = k('KeyA');
+      kick = s || d || w || a;
+      if (d) kindLatch = 'shot'; else if (w) kindLatch = 'through'; else if (a) kindLatch = 'lob'; else if (s) kindLatch = 'pass';
+      slide = false;
+    }
+    sprint = k('KeyE');
+    hold = k('ShiftLeft') || k('ShiftRight');
+    swap = k('KeyQ');
   }
+  // dokunmatik: joystick, ŞUT (pas yardımı ayarına göre pas ya da şut), TUT, PAS, KAY
+  if (touchIn.active){ x += touchIn.x; y += touchIn.y; }
+  if (k('T:kick')){ kick = true; kindLatch = 'pass'; }
+  slide = slide || k('T:slide');
+  hold = hold || k('T:hold');
+  sprint = sprint || (touchIn.active && Math.hypot(touchIn.x, touchIn.y) > .93);
   // basılı tüm özel şut tuşları: birden çoksa kombo ('falso+fuze' gibi)
-  const pressed = SHOT_TYPES.filter(t => k(SHOT_KEYS[t][ctrl === 'h1' ? 0 : 1]) || (ctrl === 'h1' && k('T:' + t)));
-  const special = normShot(pressed);
-  const call = ctrl === 'h1' ? (k('KeyF') || k('T:call')) : k('KeyH');
-  const hold = ctrl === 'h1' ? (k('KeyC') || k('T:hold')) : (k('KeyU') || k('Numpad0'));
-  const sprint = ctrl === 'h1'
-    ? (k('ShiftLeft') || (!friend && k('ShiftRight')) || (touchIn.active && Math.hypot(touchIn.x, touchIn.y) > .93))
-    : k('ShiftRight');
-  // kayma: 1. oyuncu V, 2. oyuncu I
-  const slide = ctrl === 'h1' ? (k('KeyV') || k('T:slide')) : k('KeyI');
-  return { x, y, kick, special, call, hold, sprint, slide };
+  const shots = (LAYOUTS[layout] || LAYOUTS.fifa).shots;
+  const special = normShot(SHOT_TYPES.filter(t => k(shots[t]) || k('T:' + t)));
+  const call = k('KeyF') || k('T:call');
+  return { x, y, kick, kind: kindLatch, special, call, hold, sprint, slide, swap };
 }

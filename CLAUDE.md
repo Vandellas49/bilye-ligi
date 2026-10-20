@@ -2,7 +2,7 @@
 
 Tepeden görünümlü, Haxball tarzı arcade futbol oyunu. Yuvarlak, yüzlü karakterler; paslaşma, top sürme, depar, top kapma ve özel şutlar var. Üç biçimde oynanır:
 
-- **Tek maç:** bota karşı ya da aynı klavyede 2 kişi (simülasyon tarayıcıda)
+- **Tek maç:** bota karşı (simülasyon tarayıcıda). Aynı klavyede iki kişilik mod kaldırıldı.
 - **Turnuva:** tek kişilik, 4 ya da 8 takımlı eleme tablosu, rakipler her turda zorlaşır
 - **Çevrimiçi:** oda kur / katıl, takımlara oyuncular girer, boş yerleri botlar doldurur; oda türü maç ya da turnuva. Maç sunucuda çalışır (sunucu otoriteli).
 
@@ -46,7 +46,7 @@ shared/              DOM'a, sese, gerçek zamana ve Math.random'a dokunmaz (tara
 client/
   main.js            istemci durumu G, tek maç / turnuva / çevrimiçi akışları, sabit adımlı döngü
   net.js             Socket.IO bağlantısı (global io), yeniden bağlanma, girdi gönderimi, sunucu maçının enterpolasyonla oynatılması
-  input.js           klavye, joystick, dokunmatik düğmeler -> readInput(ctrl, friend); SHOT_KEYS
+  input.js           klavye, joystick, dokunmatik düğmeler -> readInput(layout, {defending}); LAYOUTS ('fifa' | 'klasik')
   effects.js         olay -> parçacık/yazı/sarsıntı/ses (applyEvents), afterStep (iz, toz, göz), hava
   render.js          2B canvas çizimi; 3B'de isim/çubuk/balon/yazı/HUD katmanı; görünüm seçimi (setView3D)
   render3d.js        3B çizim (Three.js r128): kamera, karakterler, kaleler, stadyum, seyirciler, kar
@@ -72,7 +72,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 **Simülasyon API'si (`shared/sim.js`).**
 - `createMatch(ayarlar)` → maç durumu. Ayarlar: `size`, `humans [{team, ctrl, name, uid?}]` (bir takımda birden çok insan olabilir, sırayla ilk yerlere geçer), `diff`, `arena` (indeks ya da `'r'`), `weather`, `minutes` (0 = süresiz demo), `specials`, `seed`, isteğe bağlı `teamNames [sol, sağ]` ve `kickoffTeam`.
 - `step(state, inputs)` → **olay listesi**. Durum yerinde güncellenir. `inputs[oyuncuId] = {x, y, kick, special, call, hold, sprint}`; bot girdileri `step` içinde üretilir, eksik insan girdisi boş sayılır. Her girdi `sanitizeInput` ile sınırlanır.
-- Oyuncunun `ctrl` alanı `'ai'` değilse insan sayılır: yerelde `'h1'`/`'h2'`, sunucuda `'net'` (ve `uid` = bağlantı kimliği). Maç sırasında `ctrl`'ü `'ai'` yapmak oyuncuyu bota devreder.
+- Oyuncunun `ctrl` alanı `'ai'` değilse insan sayılır: yerelde `'h1'`, sunucuda `'net'` (ve `uid` = bağlantı kimliği). Maç sırasında `ctrl`'ü `'ai'` yapmak oyuncuyu bota devreder.
 - Rastgelelik yalnızca `state.rng` üzerinden; aynı tohum + aynı girdi dizisi = aynı maç. Simülasyona `Math.random`, `performance.now` ya da DOM eklemeyin; test bunu yakalar.
 - Olaylar: `kick`, `bounce`, `land`, `fireStop`, `steal`, `tackle`, `tackleWin`, `tackleMiss`, `whiff`, `special`, `call`, `goal`, `overtime`, `end`, `kickoff`. Görsel ve sesli karşılıkları `client/effects.js` → `applyEvents`. Yeni bir yan etki gerekiyorsa simülasyonda olay yayınlayın (`emit`), istemcide karşılayın.
 
@@ -103,7 +103,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 **Gol sevinci.** Gol arası `GOAL_PAUSE` (3 sn). Atan takımın botları gol atana koşar, gol atan botsa köşeye koşar (`celebrateInput`); insanlar serbest. Atan takımın oyuncuları zıplar (`jumpOf`, gol atan daha yükseğe), takım renklerinde konfeti yağar (`fx.confetti`), "GOL!" yazısı ~0,8 sn sonra küçülüp yukarı kayar. 3B'de kamera gol atana yaklaşır, o takımın taraftarları zıplar ve LED'leri yanıp söner.
 
-**Çizim.** Saha arka planı offscreen canvas'a bir kez çizilir (`renderBg`), her karede üstüne ışık, kar/parıltı, oyuncular, top, efektler ve HUD gelir. Karakterler `ART_R` ölçüsünde çizilip `PR`'ye büyütülür. Özel şut çubuğu yalnızca bu cihazın oyuncuları (`ctrl` `'h1'`/`'h2'`) için çizilir.
+**Çizim.** Saha arka planı offscreen canvas'a bir kez çizilir (`renderBg`), her karede üstüne ışık, kar/parıltı, oyuncular, top, efektler ve HUD gelir. Karakterler `ART_R` ölçüsünde çizilip `PR`'ye büyütülür. Özel şut çubuğu yalnızca bu cihazın oyuncusu (`ctrl` `'h1'`) için, seçili tuş düzeninin tuş adlarıyla çizilir.
 
 ## Turnuva
 
@@ -129,17 +129,26 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 ## Kontroller
 
-| İşlem | 1. oyuncu | 2. oyuncu | Dokunmatik |
+Menüde "Tuş düzeni: FIFA / Klasik" (varsayılan FIFA, `bilye-cfg.keys`). FIFA düzeni, FIFA'nın "sadece klavye" düzenine göre: tuşlar topa kimin sahip olduğuna göre iş değiştirir (`readInput`'a `defending` verilir).
+
+| İşlem | FIFA | Klasik | Dokunmatik |
 |---|---|---|---|
-| Hareket | WASD (tek kişide oklar da) | Oklar | Sol tarafta joystick |
-| Şut (basılı tut: güç barı) / müdahale | Boşluk, X | Enter | ŞUT |
-| Depar | Sol Shift | Sağ Shift | Joystick'i sonuna kadar itmek |
-| Topu tut / koru | C | U, Numpad 0 | TUT |
-| Kayarak müdahale | V | I | KAY |
-| Pas iste | F | H | PAS |
-| Falso / Füze / Aşırtma | Q / E / R | J / K / L | Ayrı düğmeler |
-| Kombo (birlikte bas) | Q+E, E+R, Q+R, Q+E+R | J+K, K+L, J+L, J+K+L | Düğmelere iki/üç parmakla |
-| Mola (çevrimiçide menü) | Esc, P | | Üstteki düğme |
+| Hareket | Ok tuşları | WASD ya da oklar | Sol tarafta joystick |
+| Pas (pas yardımıyla) | S | Boşluk / X / Enter | ŞUT |
+| Şut (arkadaşa kilitlenmez) | D | (pas yardımı kapalıysa Boşluk) | ŞUT |
+| Ara pas (arkadaşın önüne) | W | – | – |
+| Havadan pas / orta | A | – | – |
+| Müdahale (rakip toptayken) | S ya da A | Boşluk | ŞUT |
+| Kayarak müdahale | D (rakip toptayken) | V | KAY |
+| Depar | E | Shift | Joystick'i sonuna kadar itmek |
+| Topu tut / koru | Shift | C | TUT |
+| Oyuncu değiştir (yerel maç) | Q | Tab | – |
+| Pas iste | F | F | PAS |
+| Falso / Füze / Aşırtma | Z / X / C | Q / E / R | Ayrı düğmeler |
+| Kombo (birlikte bas) | Z+X, X+C, Z+C, üçü | Q+E, E+R, Q+R, üçü | Düğmelere iki/üç parmakla |
+| Mola (çevrimiçide menü) | Esc, P | Esc, P | Üstteki düğme |
+
+Vuruş tuşları basılı tutuldukça güç barı dolar, bırakınca vurur. Girdideki `kind` vuruşun türünü taşır (`'pass' | 'shot' | 'through' | 'lob'`) ve tuş bırakıldıktan sonra da hatırlanır (`kindLatch`), çünkü vuruş bırakınca olur. Simülasyonda: `pass` pas yardımı ayarına göre arkadaşa kilitlenir; `shot` kilitlenmez; `through` arkadaşın koşu yönüne `THROUGH_LEAD` kadar ileriye (duruyorsa rakip kaleye doğru), `lob` havadan (`vz`) arkadaşın biraz önüne, aradaki rakiplerin üstünden gider; ikisi de pas yardımı kapalıyken de yardımlıdır. Oyuncu değiştirme (`swap`, `swapControl`) yalnızca `settings.allowSwitch` ile (yerel maçlar); kontrol topa en yakın bot arkadaşa geçer, ad ve numara da geçer; takım başına 20 tick bekleme.
 
 ## Ayarlanabilir değerler
 

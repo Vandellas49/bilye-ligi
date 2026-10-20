@@ -31,8 +31,6 @@ export function initMenu(){
   arenaRadios($('crArenaSeg'), 'crArena', 'cra');
 
   if (isTouchOnly) {
-    $('o2').disabled = true;
-    $('friendNote').hidden = false;
     $('keysHelp').innerHTML = 'Sol tarafta parmağını sürükleyerek hareket et, sağdaki <kbd>ŞUT</kbd> düğmesini basılı tuttukça güç barı dolar, bırakınca vurursun, <kbd>PAS</kbd> ile takım arkadaşından pas iste, <kbd>TUT</kbd> basılıyken top ayağına yapışır ve rakipten korursun. Joystick’i sonuna kadar itersen depar atarsın. Rakip toptayken <kbd>ŞUT</kbd> müdahale yapar, <kbd>KAY</kbd> ile kayarak topa girersin. Falso, füze ve aşırtma düğmeleri dolunca tekrar kullanılabilir; ikisine ya da üçüne birlikte basarsan kombo olur.';
   }
 
@@ -40,19 +38,23 @@ export function initMenu(){
   if (saved) {
     const setR = (name, v) => { const el = document.querySelector(`input[name="${name}"][value="${v}"]`); if (el && !el.disabled) el.checked = true; };
     setR('mode', saved.mode); setR('tsize', saved.tsize);
-    setR('size', saved.size); setR('opp', saved.opp); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist); setR('view', saved.view);
+    setR('size', saved.size); setR('keys', saved.keys); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist); setR('view', saved.view);
   }
 
   // turnuva seçilince rakip ve bot seviyesi gizlenir (rakipler her turda zorlaşır)
   const syncMode = () => {
     const tour = radio('mode') === 'tour';
     $('tourField').hidden = !tour; $('tourNote').hidden = !tour;
-    $('oppField').hidden = tour; $('diffField').hidden = tour;
-    $('friendNote').hidden = tour || !isTouchOnly;
+    $('diffField').hidden = tour;
     $('startBtn').textContent = tour ? 'Turnuvaya başla' : 'Maça başla';
   };
   document.querySelectorAll('input[name="mode"]').forEach(el => el.addEventListener('change', syncMode));
   syncMode();
+  // tuş düzeni: varsayılan FIFA; yardım metni seçilen düzene göre
+  if (!document.querySelector('input[name="keys"]:checked')) $('kf').checked = true;
+  const syncKeys = () => { if (!isTouchOnly) $('keysHelp').innerHTML = keysHelpHtml(keyLayout()); };
+  document.querySelectorAll('input[name="keys"]').forEach(el => el.addEventListener('change', () => { saveCfg({ ...(loadCfg() || {}), keys: radio('keys') }); syncKeys(); }));
+  syncKeys();
   // görünüm: kayıt yoksa bilgisayarda 3B, yalnızca dokunmatik cihazda 2B
   if (!document.querySelector('input[name="view"]:checked')) $(isTouchOnly ? 'v2' : 'v3').checked = true;
   document.querySelectorAll('input[name="view"]').forEach(el => el.addEventListener('change', () => saveCfg({ ...(loadCfg() || {}), view: radio('view') })));
@@ -66,11 +68,31 @@ export function initMenu(){
 
 // pas yardımı tercihi (menüdeki seçim; çevrimiçinde de kullanılır)
 export const passAssist = () => radio('assist') !== '0';
+// tuş düzeni: 'fifa' | 'klasik'
+export const keyLayout = () => radio('keys') === 'klasik' ? 'klasik' : 'fifa';
+
+const kbd = k => `<kbd>${k}</kbd>`;
+function keysHelpHtml(layout){
+  if (layout === 'klasik') return [
+    `Hareket: ${kbd('W')}${kbd('A')}${kbd('S')}${kbd('D')} ya da ok tuşları. Şut / pas: ${kbd('Boşluk')}; basılı tuttukça güç barı dolar, bırakınca vurursun. Pas yardımı açıksa bastığın yöndeki arkadaşına gider.`,
+    `Depar: ${kbd('Shift')}. Topu koru: ${kbd('C')}. Pas iste: ${kbd('F')}. Oyuncu değiştir: ${kbd('Tab')} (topa en yakın arkadaşına geçersin).`,
+    `Rakip toptayken ${kbd('Boşluk')} müdahale, ${kbd('V')} kayarak müdahale.`,
+    `Özel şutlar: ${kbd('Q')} falso, ${kbd('E')} füze, ${kbd('R')} aşırtma; birlikte basınca kombo (${kbd('Q')}+${kbd('E')}, ${kbd('E')}+${kbd('R')}, ${kbd('Q')}+${kbd('R')}, üçü birden).`,
+    `Duraklat: ${kbd('Esc')}.`].join('<br>');
+  return [
+    `<b>FIFA düzeni.</b> Hareket: ok tuşları. Depar: ${kbd('E')}. Topu koru: ${kbd('Shift')}.`,
+    `Topu sürerken: ${kbd('S')} pas (arkadaşına), ${kbd('D')} şut, ${kbd('W')} ara pas (arkadaşının önüne), ${kbd('A')} havadan pas / orta. Basılı tuttukça güç barı dolar, bırakınca vurursun.`,
+    `Rakip toptayken: ${kbd('S')} ya da ${kbd('A')} müdahale, ${kbd('D')} kayarak müdahale.`,
+    `Oyuncu değiştir: ${kbd('Q')} (topa en yakın arkadaşına geçersin). Pas iste: ${kbd('F')}.`,
+    `Özel şutlar: ${kbd('Z')} falso, ${kbd('X')} füze, ${kbd('C')} aşırtma; birlikte basınca kombo (${kbd('Z')}+${kbd('X')}, ${kbd('X')}+${kbd('C')}, ${kbd('Z')}+${kbd('C')}, üçü birden).`,
+    `Duraklat: ${kbd('Esc')}.`].join('<br>');
+}
+
 // görünüm tercihi: true = 3B
 export const want3D = () => radio('view') === '3';
 
 export function readCfg(){
-  return { view: radio('view'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), opp: radio('opp'), diff: radio('diff'),
+  return { view: radio('view'), keys: radio('keys'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), diff: radio('diff'),
     arena: radio('arena'), time: radio('time'), weather: radio('weather') };
 }
 
@@ -114,16 +136,15 @@ export function setPlaying(on, touch = on){
 }
 
 /* maç sonu ekranı
-   friend: aynı klavyede iki kişi; myTeam: oyuncunun tarafı (0/1) ya da izleyiciyse null
+   myTeam: oyuncunun tarafı (0/1) ya da izleyiciyse null
    buttons: { again, menu } düğme yazıları (again boşsa gizlenir) */
-export function showEnd(S, { friend = false, myTeam = 0, buttons } = {}){
+export function showEnd(S, { myTeam = 0, buttons } = {}){
   const [a, c] = S.score, names = S.teamNames || TEAM_NAME;
   let title, text = `${names[0]} ${a} – ${c} ${names[1]}`;
   if (a === c){ title = 'Berabere'; text = `${a} – ${c}. Kimse kazanamadı.`; }
   else {
     const w = a > c ? 0 : 1;
-    if (friend) title = `${w === 0 ? '1P' : '2P'} kazandı`;
-    else if (myTeam === null) title = `${names[w]} kazandı`;
+    if (myTeam === null) title = `${names[w]} kazandı`;
     else title = w === myTeam ? 'Kazandın!' : 'Bu sefer olmadı';
   }
   $('endTitle').textContent = title; $('endText').textContent = text;

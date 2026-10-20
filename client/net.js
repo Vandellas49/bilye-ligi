@@ -95,7 +95,7 @@ let lastSent = '', lastSendT = 0, seq = 0;
 const q = v => Math.round(v*100)/100;
 export function sendInput(inp, now){
   const msg = { x: q(Math.max(-1, Math.min(1, inp.x))), y: q(Math.max(-1, Math.min(1, inp.y))), kick: inp.kick, special: inp.special,
-    call: inp.call, hold: inp.hold, sprint: inp.sprint, slide: inp.slide, assist: inp.assist !== false };
+    call: inp.call, hold: inp.hold, sprint: inp.sprint, slide: inp.slide, assist: inp.assist !== false, kind: inp.kind || 'pass' };
   const key = JSON.stringify(msg);
   // değişince hemen (en fazla ~60/sn), değişmese de 250 ms'de bir
   if ((key !== lastSent && now - lastSendT >= 15) || now - lastSendT >= 250){

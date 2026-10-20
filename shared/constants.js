@@ -26,6 +26,7 @@ export const PASS_CONE = .6;           // basılan yönden en fazla bu kadar sap
 export const PASS_ARRIVE = 2.4;        // top arkadaşa bu hızla varacak şekilde atılır
 export const PASS_POWER_MIX = .25;     // güç barının yardımlı pas gücüne etkisi (0: hiç, 1: tamamen bar)
 export const SHOT_OVERRIDE = .6;       // kaleye nişan alıp bar bu kadar doluysa pas değil şut sayılır
+export const THROUGH_LEAD = 90;        // ara pas: arkadaşın önüne, koşu yoluna bu kadar ileriye
 // şut güç barı (insan oyuncu): şut tuşu basılı tutuldukça dolar, bırakınca vurur
 export const CHARGE_TICKS = 45;                 // boştan tam güce ~0,75 sn
 export const KICK_MIN = .75, KICK_MAX = 1.35;   // KICK çarpanı: kısa dokunuş .. tam bar

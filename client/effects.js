@@ -82,6 +82,7 @@ export function applyEvents(events){
         break;
       }
       case 'call': sfx.call(); break;
+      case 'swap': burst(e.x, e.y, '#ffffff', 10, 2.2, 18); sfx.call(); break;
       case 'goal':
         burst(e.x, H/2, TEAM_COL[e.team], 60, 7, 70);
         burst(e.x, H/2, '#ffffff', 30, 5, 60);

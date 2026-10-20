@@ -237,14 +237,6 @@ details[open] summary{margin-bottom:12px}
         </div>
       </fieldset>
 
-      <fieldset id="oppField">
-        <legend>Rakip</legend>
-        <div class="seg">
-          <input type="radio" name="opp" id="o1" value="cpu" checked><label for="o1">Bilgisayar</label>
-          <input type="radio" name="opp" id="o2" value="friend"><label for="o2">Arkadaşın (aynı klavye)</label>
-        </div>
-      </fieldset>
-      <div class="note" id="friendNote" hidden>İki kişilik maç için klavye gerekiyor.</div>
 
       <fieldset id="diffField">
         <legend>Bot seviyesi</legend>
@@ -258,6 +250,14 @@ details[open] summary{margin-bottom:12px}
       <fieldset>
         <legend>Saha</legend>
         <div class="seg" id="arenaSeg"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Tuş düzeni</legend>
+        <div class="seg">
+          <input type="radio" name="keys" id="kf" value="fifa"><label for="kf">FIFA</label>
+          <input type="radio" name="keys" id="kk" value="klasik"><label for="kk">Klasik</label>
+        </div>
       </fieldset>
 
       <fieldset>
@@ -300,18 +300,7 @@ details[open] summary{margin-bottom:12px}
         <button class="btn" id="startBtn" type="button">Maça başla</button>
         <button class="btn ghost" id="onlineBtn" type="button">Çevrimiçi oyna</button>
       </div>
-      <div class="keys" id="keysHelp">
-        Hareket: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ya da ok tuşları. Şut: <kbd>Boşluk</kbd> veya <kbd>X</kbd>. Basılı tuttukça oyuncunun etrafındaki güç barı dolar, bırakınca o güçte vurursun; kısa dokunuş yumuşak pas, bar dolunca kendiliğinden vurur.<br>
-        Depar: <kbd>Shift</kbd> basılı tut. Dayanıklılık çubuğu biterse yorulur, bir süre yavaş koşarsın.<br>
-        Topu tut ve koru: <kbd>C</kbd> basılı tut. Gelen topu yakalar, rakip yaklaşınca topu vücudunla saklarsın.<br>
-        Kayarak müdahale: <kbd>V</kbd> (2. oyuncu <kbd>I</kbd>) ile koştuğun yöne kayarsın; topa önden ya da yandan girersen kapma şansın yüksek, ıskalarsan yerden kalkman uzun sürer, ~2,5 sn'de bir kullanılır.<br>
-        Top kapma: rakip toptayken yanına git, <kbd>Boşluk</kbd> ile müdahale et. Topun olduğu taraftan girersen şansın artar, ıskalarsan bir an sendelersin.<br>
-        Pas iste: <kbd>F</kbd>. Takım arkadaşın topu sana atar, yol kapalıysa duvardan sektirir. Sen de duvardan sektirip pas verebilirsin, arkadaşın topun geleceği yere koşar.<br>
-        Yana koşarken şut çekersen top hafif falso alır. Özel şutlar: <kbd>Q</kbd> sert falso, <kbd>E</kbd> füze, <kbd>R</kbd> aşırtma.<br>
-        Kombolar (tuşlara birlikte bas): <kbd>Q</kbd>+<kbd>E</kbd> falsolu füze, <kbd>E</kbd>+<kbd>R</kbd> havadan füze, <kbd>Q</kbd>+<kbd>R</kbd> falsolu aşırtma, <kbd>Q</kbd>+<kbd>E</kbd>+<kbd>R</kbd> üçlü kombo. Kombo, kullandığı tüm şutları beklemeye sokar.<br>
-        İki kişi: 1. oyuncu <kbd>WASD</kbd> + <kbd>Boşluk</kbd>, pas isteme <kbd>F</kbd>, özel şutlar <kbd>Q</kbd><kbd>E</kbd><kbd>R</kbd>. 2. oyuncu ok tuşları + <kbd>Enter</kbd>, pas isteme <kbd>H</kbd>, depar sağ <kbd>Shift</kbd>, topu tutma <kbd>U</kbd>, özel şutlar <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd>.<br>
-        Duraklatmak için <kbd>Esc</kbd>.
-      </div>
+      <div class="keys" id="keysHelp"></div>
     </form>
   </div>
 

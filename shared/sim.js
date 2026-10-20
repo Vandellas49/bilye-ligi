@@ -4,20 +4,21 @@
    createMatch(ayarlar)  -> state
    step(state, inputs)   -> olay listesi   (state yerinde güncellenir)
 
-   inputs[oyuncuId] = { x, y, kick, special, call, hold, sprint, slide, assist }. Bot oyuncuların
+   inputs[oyuncuId] = { x, y, kick, kind, special, call, hold, sprint, slide, assist, swap }. Bot oyuncuların
    girdisi burada üretilir; insan oyuncunun girdisi yoksa boş girdi sayılır.
    Ses, parçacık, sarsıntı gibi yan etkiler olay olarak döner ({ type, ... });
    istemci bunları çizer ve seslendirir. */
 import { W, H, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
-  PASS_CONE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE,
+  PASS_CONE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
   BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
-export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, special: null, call: false, hold: false, sprint: false, slide: false, assist: true });
+export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, kind: 'pass', special: null, call: false, hold: false, sprint: false, slide: false, assist: true, swap: false });
+const KINDS = ['pass', 'shot', 'through', 'lob'];
 
 const num = v => typeof v === 'number' && Number.isFinite(v) ? v : 0;
 
@@ -31,6 +32,8 @@ export function sanitizeInput(raw){
     x, y, kick: !!raw.kick, special: normShot(raw.special),   // tek şut ya da kombo ('falso+fuze')
     call: !!raw.call, hold: !!raw.hold, sprint: !!raw.sprint, slide: !!raw.slide,
     assist: raw.assist !== false,   // pas yardımı (oyuncunun tercihi, varsayılan açık)
+    kind: KINDS.includes(raw.kind) ? raw.kind : 'pass',   // vuruş türü: pas, şut, ara pas, havadan pas
+    swap: !!raw.swap,               // oyuncu değiştir (yalnızca izin verilen maçlarda)
   };
 }
 
@@ -105,7 +108,7 @@ function resetPositions(S){
    teamNames    isteğe bağlı takım adları [sol, sağ] (turnuva); verilmezse TEAM_NAME
    kickoffTeam  isteğe bağlı; verilmezse rastgele */
 export function createMatch(settings = {}){
-  const cfg = { size: 3, humans: [], diff: 1, arena: 'r', weather: 'kar', minutes: 0, specials: true, seed: 1, ...settings };
+  const cfg = { size: 3, humans: [], diff: 1, arena: 'r', weather: 'kar', minutes: 0, specials: true, seed: 1, allowSwitch: false, ...settings };
   const rng = createRng(cfg.seed);
   const S = {
     settings: cfg, rng, events: [], t: 0,
@@ -201,12 +204,15 @@ export function step(S, inputs = {}){
     if (S.phase === 'goal' && p.ctrl === 'ai') inp = sanitizeInput(celebrateInput(S, p));   // gol sevinci
     const { x, y } = inp;
     const special = S.specials ? inp.special : null;
-    p.input = { x, y, kick: inp.kick, hold: inp.hold, assist: inp.assist };
+    p.input = { x, y, kick: inp.kick, hold: inp.hold, assist: inp.assist, kind: inp.kind };
     if (p.ctrl !== 'ai') chargeShot(S, p, inp.kick);
     // kayma: tuşa basıldığı an başlar (basılı tutmak yeniden kaydırmaz)
     if (p.slideCd > 0) p.slideCd--;
     if (inp.slide && !p.slidePrev) startSlide(S, p, x, y);
     p.slidePrev = inp.slide;
+    const wantSwap = inp.swap && !p.swapPrev;
+    p.swapPrev = inp.swap;
+    if (wantSwap && p.ctrl !== 'ai' && S.settings.allowSwitch) swapControl(S, p);
     if (p.callCd > 0) p.callCd--;
     if (p.bubble && --p.bubble.t <= 0) p.bubble = null;
     if (inp.call && p.callCd <= 0 && S.phase !== 'goal'){
@@ -299,19 +305,21 @@ export function step(S, inputs = {}){
         const il = Math.hypot(p.input.x, p.input.y);
         const contact = Math.atan2(ny, nx);
         const base = il > .3 ? Math.atan2(p.input.y, p.input.x) : contact;
-        if (p.input.assist){
-          // gelen topa tek vuruşta topun arkasından çok sapamaz; kaleye güçlü nişan şuttur
-          const canTurn = owned || angDiff(base, contact) < 1.75;   // en fazla ~100°
-          if (canTurn && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
-        }
+        // gelen topa tek vuruşta topun arkasından çok sapamaz (en fazla ~100°)
+        const canTurn = owned || angDiff(base, contact) < 1.75, kind = p.input.kind || 'pass';
+        if (canTurn && (kind === 'through' || kind === 'lob')) pass = passTarget(S, p, base, kind);   // her zaman yardımlı
+        else if (canTurn && kind === 'pass' && p.input.assist && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
+        // havadan pas için uygun arkadaş yoksa top basılan yöne havalanır
+        if (!pass && kind === 'lob') pass = { a: base, nx: Math.cos(base), ny: Math.sin(base), speed: KICK*.85, vz: 5, mix: 0 };
         // yardım yoksa (ya da uygun arkadaş yoksa) top sürülürken basılan yöne vurulur
         if (!pass && owned && il > .3){ nx = Math.cos(base); ny = Math.sin(base); p.dirA = base; }
       }
       if (pass){
         nx = pass.nx; ny = pass.ny; p.dirA = pass.a;
-        const sp = pass.speed*(1 - PASS_POWER_MIX) + kick*PASS_POWER_MIX;
+        const mix = pass.mix ?? PASS_POWER_MIX, sp = pass.speed*(1 - mix) + kick*mix;
         b.vx = nx*sp; b.vy = ny*sp;                      // koşu hızı eklenmez, top tam hedefe
         b.curve = 0;
+        if (pass.vz){ b.vz = pass.vz; b.z = .5; }        // havadan pas
       } else {
         if (owned){ b.vx = p.vx + nx*kick; b.vy = p.vy + ny*kick; }
         else { b.vx += nx*kick*b.im; b.vy += ny*kick*b.im; }
@@ -455,6 +463,30 @@ function slideHit(S, p){
   emit(S, o ? 'slideWin' : 'slideKick', { id: p.id, team: p.team, x: b.x, y: b.y, px: p.x, py: p.y });
 }
 
+/* Oyuncu değiştirme (yalnızca settings.allowSwitch, yerel maç): kontrol topa en yakın bot takım arkadaşına
+   geçer; ad ve numara da geçer ki "Sen" etiketi kontrol edilen oyuncuda kalsın. Basılı tutunca
+   art arda geçişi önlemek için takım başına kısa bekleme var. */
+function swapControl(S, p){
+  S.lastSwap = S.lastSwap || [-99, -99];
+  if (S.t - S.lastSwap[p.team] < 20) return;
+  const b = S.ball;
+  let q = null, qd = 1e9;
+  for (const m of S.players){
+    if (m.team !== p.team || m.ctrl !== 'ai') continue;
+    const d = Math.hypot(m.x - b.x, m.y - b.y);
+    if (d < qd){ qd = d; q = m; }
+  }
+  if (!q) return;
+  S.lastSwap[p.team] = S.t;
+  [q.ctrl, p.ctrl] = [p.ctrl, 'ai'];
+  [q.uid, p.uid] = [p.uid, null];
+  [q.name, p.name] = [p.name, q.name];
+  [q.num, p.num] = [p.num, q.num];
+  q.swapPrev = true; q.plan = null; q.charge = 0; q.shot = null; q.kickLock = false;
+  p.charge = 0; p.shot = null; p.kickLock = false; p.plan = null;
+  emit(S, 'swap', { id: q.id, from: p.id, x: q.x, y: q.y });
+}
+
 /* ---------- top tutma ve sürme ---------- */
 function releaseBall(S, kicker){
   if (!S.owner) return;
@@ -535,7 +567,7 @@ const angDiff = (a, c) => Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c)))
    Topun arkadaşa varış süresini (B_DAMP yavaşlamasıyla) hesaplayıp arkadaşın o anki yerine nişan alır,
    top oraya PASS_ARRIVE hızıyla varacak şekilde gücü ayarlar. Arada rakip olmayan arkadaş tercih edilir.
    Dönüş: { a, nx, ny, speed, mate } ya da null. */
-function passTarget(S, p, base){
+function passTarget(S, p, base, mode = 'ground'){
   const b = S.ball;
   let best = null;
   for (const m of S.players){
@@ -555,10 +587,29 @@ function passTarget(S, p, base){
       tx = Math.max(PR, Math.min(W - PR, f.x));
       ty = Math.max(PR, Math.min(H - PR, f.y));
     }
+    let vz = 0, mix = PASS_POWER_MIX;
+    if (mode === 'through'){
+      // ara pas: arkadaşın koştuğu yöne (duruyorsa rakip kaleye doğru) boşluğa at; arkadaş topa koşarak yetişir
+      const f0 = predictPos(m, 20), f1 = predictPos(m, 21), vl = Math.hypot(f1.x - f0.x, f1.y - f0.y);
+      const dir = vl > .8 ? [(f1.x - f0.x)/vl, (f1.y - f0.y)/vl] : [p.team === 0 ? 1 : -1, 0];
+      tx = Math.max(PR, Math.min(W - PR, tx + dir[0]*THROUGH_LEAD)); ty = Math.max(PR, Math.min(H - PR, ty + dir[1]*THROUGH_LEAD));
+      const d = Math.hypot(tx - b.x, ty - b.y);
+      speed = Math.max(KICK*KICK_MIN, Math.min(KICK*KICK_MAX, d*(1 - B_DAMP) + PASS_ARRIVE + 1));
+      mix = .15;
+    } else if (mode === 'lob'){
+      // havadan pas: savunmanın üstünden, arkadaşın biraz önüne düşer
+      const d = Math.hypot(tx - b.x, ty - b.y);
+      vz = Math.max(3.6, Math.min(6.8, 3.6 + d*.006));
+      const air = 2*vz/.32;
+      speed = Math.min(KICK*KICK_MAX, d*.88*(1 - B_DAMP)/(1 - Math.pow(B_DAMP, air)));
+      mix = 0;
+    }
     const a = Math.atan2(ty - b.y, tx - b.x), err = angDiff(a, base);
     if (err > PASS_CONE) continue;
-    const score = err + (laneOpen(S, b.x, b.y, tx, ty, p.team) ? 0 : .35) + d0/2000;
-    if (!best || score < best.score) best = { score, a, nx: Math.cos(a), ny: Math.sin(a), speed, mate: m };
+    // havadan pasın yolu rakiplerin üstünden geçer, açık yol aranmaz
+    const open = mode === 'lob' || laneOpen(S, b.x, b.y, tx, ty, p.team);
+    const score = err + (open ? 0 : .35) + d0/2000;
+    if (!best || score < best.score) best = { score, a, nx: Math.cos(a), ny: Math.sin(a), speed, mate: m, vz, mix };
   }
   return best;
 }

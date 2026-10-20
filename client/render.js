@@ -3,8 +3,8 @@
    istemci tarafındaki efekt durumunda (fx) tutulur. */
 import { W, H, GH, GD, TOP, BOT, PR, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, shotInfo } from '../shared/constants.js';
 import { fx, visOf, reduceMotion, jumpOf } from './effects.js';
-import { SHOT_KEYS } from './input.js';
-import { isTouch } from './ui.js';
+import { shotKeyLabel } from './input.js';
+import { isTouch, keyLayout } from './ui.js';
 
 const ART_R = 19; // karakter çizimi bu ölçüde yapılıp fizik yarıçapına büyütülür
 
@@ -608,7 +608,7 @@ function drawShotHud(c){
   if (V.mode !== 'match' || !S.specials) return;
   const touch = isTouch();
   for (const p of S.players){
-    if (p.ctrl !== 'h1' && p.ctrl !== 'h2') continue;   // yalnızca bu cihazdaki oyuncular
+    if (p.ctrl !== 'h1') continue;   // yalnızca bu cihazdaki oyuncu
     const w = 96, h = 22, gap = 8, total = 3*w + 2*gap;
     let x = p.team === 0 ? 0 : W - total;
     const y = H + (MARGIN - h)/2 + 2;
@@ -620,7 +620,7 @@ function drawShotHud(c){
       c.globalAlpha = 1;
       c.font = '800 11.5px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillStyle = ready ? '#160d20' : '#ffffff';
-      const key = touch ? '' : SHOT_KEYS[t][p.ctrl === 'h1' ? 0 : 1].replace('Key', '') + '  ';
+      const key = touch ? '' : shotKeyLabel(keyLayout(), t) + '  ';
       c.fillText(key + sh.name, x + w/2, y + h/2 + .5);
       x += w + gap;
     }
@@ -659,8 +659,7 @@ function drawBanner(c){
   } else if (S.phase === 'kickoff' && V.mode === 'match'){
     c.font = '800 18px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     const mine = S.players.find(p => p.ctrl === 'h1');
-    const txt = !V.online && V.cfg && V.cfg.opp === 'friend' ? `Başlama vuruşu: ${S.kickoffTeam === 0 ? '1P' : '2P'}`
-      : mine ? (S.kickoffTeam === mine.team ? (V.online ? 'Başlama vuruşu takımında' : 'Başlama vuruşu sende') : 'Rakip başlıyor')
+    const txt = mine ? (S.kickoffTeam === mine.team ? (V.online ? 'Başlama vuruşu takımında' : 'Başlama vuruşu sende') : 'Rakip başlıyor')
       : `Başlama vuruşu: ${S.teamNames[S.kickoffTeam]}`;
     const w = c.measureText(txt).width + 26;
     c.fillStyle = 'rgba(0,0,0,.45)'; rr(c, W/2 - w/2, H/2 + 100, w, 32, 16); c.fill();
