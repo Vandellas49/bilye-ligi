@@ -9,7 +9,7 @@
    Ses, parçacık, sarsıntı gibi yan etkiler olay olarak döner ({ type, ... });
    istemci bunları çizer ve seslendirir. */
 import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
-  CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
+  CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SHOT_KEY_MIN, SHOT_KEY_MAX, SHOT_KEY_FIRE, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
   CENTER_R, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
@@ -18,7 +18,7 @@ import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
 export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, kind: 'pass', special: null, call: false, hold: false, sprint: false, slide: false, assist: true, swap: false });
-const KINDS = ['pass', 'shot', 'through', 'lob'];
+const KINDS = ['pass', 'shot', 'through', 'lob', 'lobshot'];   // lobshot: havadan sert şut (FIFA A+D)
 
 const num = v => typeof v === 'number' && Number.isFinite(v) ? v : 0;
 
@@ -300,7 +300,9 @@ export function step(S, inputs = {}){
     if ((human ? !p.shot : !p.input.kick) || p.kickCd > 0) continue;
     if (d - p.r - b.r < KICK_RANGE){
       const power = human ? p.shot.power : AI_KICK_POWER;
-      const kick = KICK*(KICK_MIN + (KICK_MAX - KICK_MIN)*power);
+      // şut tuşu (kind: shot) daha sert vurur
+      const hard = human && (p.input.kind === 'shot' || p.input.kind === 'lobshot');
+      const kick = hard ? KICK*(SHOT_KEY_MIN + (SHOT_KEY_MAX - SHOT_KEY_MIN)*power) : KICK*(KICK_MIN + (KICK_MAX - KICK_MIN)*power);
       p.shot = null;
       const owned = S.owner === p;
       releaseBall(S, p);
@@ -319,9 +321,9 @@ export function step(S, inputs = {}){
         // havadan pas için uygun arkadaş yoksa top basılan yöne havalanır
         if (!pass && kind === 'lob') pass = { a: base, nx: Math.cos(base), ny: Math.sin(base), speed: KICK*.85, vz: 5, mix: 0 };
         // pas yoksa şut yardımı: kaleye yaklaşık nişan alındıysa top kale ağzına gider
-        if (!pass && p.input.assist && (kind === 'shot' || kind === 'pass')){
+        if (!pass && p.input.assist && (kind === 'shot' || kind === 'lobshot' || kind === 'pass')){
           // şut tuşu (D) açıkça şut der: kaleye bakan hemen her yön kabul; ortak tuşta dar açı (kanattan pas şuta dönmesin)
-          const sa = shotTarget(S, p, base, kind === 'shot' ? SHOT_CONE_WIDE : SHOT_CONE);
+          const sa = shotTarget(S, p, base, kind === 'pass' ? SHOT_CONE : SHOT_CONE_WIDE);
           if (sa !== null && (owned || angDiff(sa, contact) < 1.75)) shotAim = sa;
         }
         if (shotAim !== null){ nx = Math.cos(shotAim); ny = Math.sin(shotAim); p.dirA = shotAim; }
@@ -343,6 +345,9 @@ export function step(S, inputs = {}){
         const lat = nx*(p.vy + p.input.y) - ny*(p.vx + p.input.x);
         b.curve = Math.abs(lat) > .9 ? Math.max(-.014, Math.min(.014, lat*.005)) : 0;
       }
+      // havadan sert şut: top havalanır, savunmanın üstünden gider (yakından fazla yükselip üstten çıkabilir)
+      if (human && p.input.kind === 'lobshot' && !pass){ b.vz = 3.2 + 1.4*power; b.z = .5; b.curve = 0; }
+      if (hard && !pass && power >= SHOT_KEY_FIRE){ b.fire = 35; emit(S, 'hardShot', { id: p.id, x: b.x, y: b.y }); }   // sert şut füze gibi alevlenir
       b.grace = 8;
       p.kickCd = 14; p.mood = 'kick'; p.moodT = 14; S.lastTouch = p;
       emit(S, 'kick', { id: p.id, x: b.x - nx*b.r, y: b.y - ny*b.r });

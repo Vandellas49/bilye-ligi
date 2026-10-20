@@ -507,3 +507,39 @@ test('insan oyuncunun seçtiği görünüm maça geçer, geçersiz alanlar rastg
   const plain = createMatch({ size: 3, seed: 4, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
   assert.deepEqual(S.players.slice(1).map(p => p.hair + p.skin), plain.players.slice(1).map(p => p.hair + p.skin));
 });
+
+test('şut tuşu (kind: shot) sert vurur: tam barda füzeye yakın hız ve alev, kısa dokunuşta alevsiz', () => {
+  const speedOf = (kind, hold) => {
+    const s = passSetup(), inp = { ...toward(s.me, s.mate, .6), kind };
+    let v = 0, fire = 0, hard = 0;
+    for (let i = 0; i < 80 && !v; i++){
+      const ev = step(s.S, { [s.me.id]: i < hold ? { ...inp, kick: true } : inp });
+      if (ev.some(e => e.type === 'kick' && e.id === s.me.id)){ v = Math.hypot(s.S.ball.vx, s.S.ball.vy); fire = s.S.ball.fire; hard = ev.filter(e => e.type === 'hardShot').length; }
+    }
+    return { v, fire, hard };
+  };
+  const shot = speedOf('shot', CHARGE_TICKS + 2), pass = speedOf('pass', CHARGE_TICKS + 2), tap = speedOf('shot', 2);
+  assert.ok(shot.v > KICK*1.7, `sert şut hızı: ${shot.v.toFixed(2)}`);
+  assert.ok(shot.v > pass.v*1.25, `şut ${shot.v.toFixed(2)} / pas ${pass.v.toFixed(2)}`);
+  assert.ok(shot.fire > 0 && shot.hard === 1);
+  assert.ok(tap.fire === 0 && tap.hard === 0 && tap.v < shot.v);
+});
+
+test('havadan sert şut (kind: lobshot, FIFA A+D): sert ve havalanır, aradaki rakibin üstünden geçer', () => {
+  const s = passSetup(), { S, me } = s;
+  const opp = S.players.find(p => p.team !== me.team);
+  // rakip kaleye doğru, aradaki rakip 90 birim önde
+  const dir = me.team === 0 ? 1 : -1;
+  Object.assign(opp, { x: S.ball.x + dir*90, y: S.ball.y, vx: 0, vy: 0, ctrl: 'h9' });
+  const inp = { x: dir, y: 0, kind: 'lobshot' };
+  let v = 0, maxZ = 0, touched = false;
+  for (let i = 0; i < 90; i++){
+    if (!v) Object.assign(opp, { x: S.ball.x + dir*90, y: S.ball.y, vx: 0, vy: 0 });   // vuruşa kadar 90 birim önde
+    const ev = step(S, { [me.id]: i < CHARGE_TICKS + 2 ? { ...inp, kick: true } : inp, [opp.id]: {} });
+    if (!v && ev.some(e => e.type === 'kick' && e.id === me.id)) v = Math.hypot(S.ball.vx, S.ball.vy);
+    if (v){ maxZ = Math.max(maxZ, S.ball.z); if (S.lastTouch === opp) touched = true; }
+  }
+  assert.ok(v > KICK*1.7, `hız ${v.toFixed(2)}`);
+  assert.ok(maxZ > 20, `yükseklik ${maxZ.toFixed(1)}`);
+  assert.ok(!touched, 'top aradaki rakibe çarpmamalı');
+});

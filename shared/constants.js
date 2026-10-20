@@ -34,6 +34,8 @@ export const THROUGH_LEAD = 90;        // ara pas: arkadaşın önüne, koşu yo
 // şut güç barı (insan oyuncu): şut tuşu basılı tutuldukça dolar, bırakınca vurur
 export const CHARGE_TICKS = 45;                 // boştan tam güce ~0,75 sn
 export const KICK_MIN = .75, KICK_MAX = 1.35;   // KICK çarpanı: kısa dokunuş .. tam bar
+// şut tuşu (FIFA D): füze gibi sert; tam barda füzeye yakın hız (füze 1.95), bar bu eşiği geçince top alevlenir
+export const SHOT_KEY_MIN = .95, SHOT_KEY_MAX = 1.85, SHOT_KEY_FIRE = .7;
 export const AI_KICK_POWER = (1 - KICK_MIN)/(KICK_MAX - KICK_MIN);   // botlar eskisi gibi tam KICK gücüyle vurur
 export const TICK = 1000/60;
 export const TEAM_COL = ['#ffcf3a', '#3fd0e8'];

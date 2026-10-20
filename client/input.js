@@ -22,6 +22,7 @@ const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW'
   'KeyQ','KeyE','KeyR','KeyF','ShiftLeft','ShiftRight','KeyC','KeyV','Tab'];
 const touchIn = { x:0, y:0, active:false, id:null, ox:0, oy:0 };   // sanal joystick
 let kindLatch = 'pass';
+let prevKick = false;   // FIFA A+D (havadan sert şut): aynı basışta ikisi de görülürse
 
 export function clearKeys(){ keys.clear(); downAt.clear(); }
 
@@ -95,7 +96,10 @@ export function readInput(layout = 'fifa', ctx = {}){
     } else {
       const s = k('KeyS'), d = k('KeyD'), w = k('KeyW'), a = k('KeyA');
       kick = s || d || w || a;
-      if (d) kindLatch = 'shot'; else if (w) kindLatch = 'through'; else if (a) kindLatch = 'lob'; else if (s) kindLatch = 'pass';
+      // A ile D birlikte (ya da biri basılıyken öteki): havadan sert şut, tuşlar bırakılana kadar öyle kalır
+      const both = (a && d) || (prevKick && (a || d) && (kindLatch === 'lobshot' || (kindLatch === 'lob' && d) || (kindLatch === 'shot' && a)));
+      if (both) kindLatch = 'lobshot';
+      else if (d) kindLatch = 'shot'; else if (w) kindLatch = 'through'; else if (a) kindLatch = 'lob'; else if (s) kindLatch = 'pass';
       slide = false;
     }
     sprint = k('KeyE');
@@ -112,5 +116,6 @@ export function readInput(layout = 'fifa', ctx = {}){
   const shots = (LAYOUTS[layout] || LAYOUTS.fifa).shots;
   const special = normShot(SHOT_TYPES.filter(t => k(shots[t]) || k('T:' + t)));
   const call = k('KeyF') || k('T:call');
+  prevKick = !!kick;
   return { x, y, kick, kind: kindLatch, special, call, hold, sprint, slide, swap };
 }

@@ -137,7 +137,8 @@ Menüde "Tuş düzeni: FIFA / Klasik" (varsayılan FIFA, `bilye-cfg.keys`). FIFA
 |---|---|---|---|
 | Hareket | Ok tuşları | WASD ya da oklar | Sol tarafta joystick |
 | Pas (pas yardımıyla) | S | Boşluk / X / Enter | ŞUT |
-| Şut (arkadaşa kilitlenmez) | D | (pas yardımı kapalıysa Boşluk) | ŞUT |
+| Sert şut (arkadaşa kilitlenmez; `SHOT_KEY_MIN/MAX`, bar `SHOT_KEY_FIRE` üstündeyse alevli, olay `hardShot`) | D | (pas yardımı kapalıysa Boşluk) | ŞUT |
+| Havadan sert şut (`kind: lobshot`; aynı basışta A ve D) | A+D | – | – |
 | Ara pas (arkadaşın önüne) | W | – | – |
 | Havadan pas / orta | A | – | – |
 | Müdahale (rakip toptayken) | S ya da A | Boşluk | ŞUT |

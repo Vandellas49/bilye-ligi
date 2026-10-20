@@ -105,6 +105,9 @@ export function applyEvents(events){
         for (const t of parts) sfx[t]();   // kombo: parçaların sesleri birlikte
         break;
       }
+      case 'hardShot':   // şut tuşuyla sert şut: füze gibi alev, kısa sarsıntı
+        if (!reduceMotion) fx.shake = Math.max(fx.shake, 4);
+        burst(e.x, e.y, '#ff7a1f', 16, 4, 26); sfx.fuze(); break;
       case 'call': sfx.call(); break;
       case 'swap': burst(e.x, e.y, '#ffffff', 10, 2.2, 18); sfx.call(); break;
       case 'goal':
