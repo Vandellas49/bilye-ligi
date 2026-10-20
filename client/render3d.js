@@ -108,7 +108,7 @@ export function init3D(canvas, share){
   G3.snowList = []; G3.trail = []; G3.players = new Map();
   G3.prevBall = { x: W/2, y: H/2 };
   G3.key = '';   // saha/hava değişince yeniden ayarlamak için
-  G3.quality = 2; G3.qScale = 1; G3.ft = []; G3.lastT = 0;   // otomatik kalite (bkz. adaptQuality)
+  G3.quality = 2; G3.ft = []; G3.lastT = 0; G3.tooSlow = false;   // otomatik kalite (bkz. adaptQuality)
   G3.ready = true;
 }
 
@@ -339,7 +339,7 @@ function applyArena(){
 export function resize3D(cw, ch, dpr){
   if (!G3.ready) return;
   G3.dpr = dpr;
-  const d = Math.min(dpr, light() ? 1.25 : 1.5)*G3.qScale;   // yüksek DPI ekranda piksel sayısı sınırlı; kalite düşünce daha da az
+  const d = Math.min(dpr, light() ? 1.25 : 1.5);   // yüksek DPI ekranda piksel sayısı sınırlı
   G3.renderer.setPixelRatio(d); G3.renderer.setSize(cw, ch, false);
   G3.cw = cw; G3.ch = ch;
   const cam = G3.camera;
@@ -506,8 +506,9 @@ function updateScene(){
   G3.leds.forEach((m, i) => { m.emissiveIntensity = cheer === i ? .7 + .6*Math.abs(Math.sin(S.t*.3)) : .7; });
 }
 
-/* Otomatik kalite: son ~2 sn'de kare süresi ortalaması 22 ms'yi (≈45 kare/sn) aşarsa bir kademe düşer:
-   2 → 1: çözünürlük %75, gölge haritası 1024;  1 → 0: gölgeler kapalı, kar azalır. Geri yükselmez. */
+/* Otomatik kalite: ~2 sn'lik ortalama kare süresine bakılır. Çözünürlük düşürülmez (görüntü bulanıklaşıyordu).
+   2 -> 1: gölgeler kapanır;  1 -> 0: seyirciler gizlenir, kar azalır.
+   En düşük kademede de ortalama 33 ms'yi (30 kare/sn) aşarsa tooSlow işaretlenir; render.js 2B'ye geçer. */
 function adaptQuality(now){
   if (G3.lastT){ const dt = now - G3.lastT; if (dt < 1000) G3.ft.push(dt); }
   G3.lastT = now;
@@ -515,19 +516,28 @@ function adaptQuality(now){
   if (span < 2000 || G3.ft.length < 8) return;     // ~2 sn'lik ölçüm biriksin
   const avg = span/G3.ft.length;
   G3.ft = [];
-  if (avg <= 22 || G3.quality === 0) return;
+  if (avg <= 22) return;
+  if (G3.quality === 0){ if (avg > 33) G3.tooSlow = true; return; }
   G3.quality--;
   if (G3.quality === 1){
-    G3.qScale = .75;
-    G3.sun.shadow.mapSize.set(1024, 1024);
-    if (G3.sun.shadow.map){ G3.sun.shadow.map.dispose(); G3.sun.shadow.map = null; }
-  } else {
     G3.renderer.shadowMap.enabled = false;
     G3.scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+  } else {
+    G3.fanMesh.visible = false;
     G3.snowList.length = Math.min(G3.snowList.length, 300);
   }
-  resize3D(G3.cw, G3.ch, G3.dpr);
   console.info('3B kalite düşürüldü:', G3.quality, '(ortalama kare ' + avg.toFixed(1) + ' ms)');
+}
+// 3B bu cihazda akıcı değil (en düşük kalitede de 30 kare/sn altı)
+export const tooSlow = () => !!G3.tooSlow;
+
+/* Tarayıcı 3B'yi ekran kartı olmadan, yazılımla mı çiziyor? (uzak masaüstü, sanal makine, kapalı donanım
+   hızlandırma, eski sürücü). O zaman 3B oynanamayacak kadar yavaştır. */
+export function softwareGL(){
+  const gl = G3.renderer.getContext();
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const name = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+  return /swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/i.test(name) ? name : '';
 }
 export const quality3D = () => G3.quality;
 

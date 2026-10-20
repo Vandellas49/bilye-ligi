@@ -3,16 +3,16 @@
    - tek maç: simülasyon tarayıcıda çalışır (bota karşı ya da aynı klavyede iki kişi)
    - turnuva: tek kişilik eleme tablosu; senin maçların tarayıcıda, diğerleri ekransız simüle edilir
    - çevrimiçi: maç sunucuda çalışır; bu istemci girdisini gönderir, gelen anlık görüntüleri çizer */
-import { TICK } from '../shared/constants.js';
+import { TICK, W, H } from '../shared/constants.js';
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, NEUTRAL_INPUT } from '../shared/sim.js';
 import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, roundName, alive } from '../shared/tournament.js';
 import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
-import { initRender, resize, renderBg, render, setView3D, viewInfo } from './render.js';
+import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
-import { $, initMenu, readCfg, readCreate, saveCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
+import { $, initMenu, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
   updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D } from './ui.js';
 
 /* istemci durumu
@@ -237,9 +237,22 @@ initInput({ onPause: togglePause, isPlaying: () => G.mode === 'match' && !G.paus
 initRender($('cv'), $('stage'), $('cv3'));
 
 // görünüm: 3B istenirse yüklenir, açılamazsa 2B'de kalınır ve menüde not gösterilir
+const VIEW_NOTES = {
+  software: 'Tarayıcın bu bilgisayarda ekran kartını kullanamıyor (3B işlemciyle çizilip çok yavaş kalıyor), bu yüzden 2B kullanılıyor.',
+  slow: '3B bu bilgisayarda akıcı çalışmadı, 2B\'ye geçildi.',
+  failed: '3B görünüm bu cihazda açılamadı, 2B kullanılıyor.',
+};
+// 3B kullanılamıyorsa menüde 2B'yi seç, kaydet ve nedenini yaz (3B'yi yeniden seçmek her zaman mümkün)
+function viewFallback(reason){
+  $('viewNote').textContent = VIEW_NOTES[reason]; $('viewNote').hidden = false;
+  $('v2').checked = true;
+  saveCfg({ ...(loadCfg() || {}), view: '2' });
+  if (reason === 'slow' && G.state) fx.pops.push({ x: W/2, y: H/2 + 60, text: '3B yavaş, 2B\'ye geçildi', color: '#ffffff', life: 150, max: 150 });
+}
+setFallbackHandler(viewFallback);
 async function applyView(){
-  const ok = await setView3D(want3D());
-  $('viewNote').hidden = ok || !want3D();
+  const st = await setView3D(want3D());
+  if (VIEW_NOTES[st]) viewFallback(st); else $('viewNote').hidden = true;
   if (G.state) renderBg(G.state);
 }
 document.querySelectorAll('input[name="view"]').forEach(el => el.addEventListener('change', applyView));

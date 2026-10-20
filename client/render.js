@@ -28,8 +28,13 @@ export const share = {
 
 /* Görünüm: 3B istenirse Three.js (client/three.min.js) ve client/render3d.js yüklenir.
    Açılamazsa (WebGL yok, dosya yüklenemedi) 2B'de kalınır. Dönüş: 3B açık mı. */
+/* Dönüş: '3d' açıldı; '2d' 2B istendi; 'software' tarayıcı ekran kartı kullanamıyor (3B yazılımla çizilir,
+   oynanamayacak kadar yavaş); 'slow' bu oturumda 3B zaten yavaş bulundu; 'failed' yüklenemedi / WebGL yok. */
+let block3D = '';
 export async function setView3D(on){
-  if (!on){ use3D = false; document.body.classList.remove('three'); resize(); return false; }
+  const off = st => { use3D = false; document.body.classList.remove('three'); resize(); return st; };
+  if (!on) return off('2d');
+  if (block3D) return off(block3D);
   try {
     if (!window.THREE) await new Promise((res, rej) => {
       const sc = document.createElement('script');
@@ -37,15 +42,21 @@ export async function setView3D(on){
       document.head.appendChild(sc);
     });
     if (!R3){ const m = await import('./render3d.js'); m.init3D(cv3, share); R3 = m; }
+    const sw = R3.softwareGL();
+    // ?3dzorla: yazılımla çizilse de 3B'yi aç (yalnızca deneme ve test için)
+    if (sw && !new URLSearchParams(location.search).has('3dzorla')){ console.warn('3B yazılımla çiziliyor (' + sw + '), 2B kullanılıyor.'); block3D = 'software'; return off('software'); }
     use3D = true; document.body.classList.add('three');
     resize();
-    return true;
+    return '3d';
   } catch (e){
     console.warn('3B görünüm açılamadı, 2B ile devam ediliyor:', e);
-    use3D = false; document.body.classList.remove('three');
-    return false;
+    block3D = 'failed';
+    return off('failed');
   }
 }
+// 3B oyun sırasında yavaş bulunup 2B'ye geçilince çağrılır (main.js menüyü ve kaydı günceller)
+let onFallback = () => {};
+export function setFallbackHandler(fn){ onFallback = fn; }
 export const is3D = () => use3D;
 // performans göstergesi için: görünüm ve 3B kalite kademesi (2 en yüksek)
 export const viewInfo = () => use3D && R3 ? '3B, kalite ' + R3.quality3D() : '2B';
@@ -671,6 +682,12 @@ function drawConfetti(c){
 /* 3B: sahne Three.js ile çizilir, isim/çubuk/balon/yazı/HUD bu 2B katmanda üstte kalır.
    Oyuncunun ayağı ve başı ekrana yansıtılıp 2B katmanın dünya koordinatına çevrilir. */
 function render3DFrame(){
+  if (R3.tooSlow()){
+    // en düşük kalitede de 30 kare/sn altı: bu oturumda 2B'ye geç
+    block3D = 'slow'; use3D = false; document.body.classList.remove('three'); resize();
+    onFallback('slow');
+    return render(S, V);
+  }
   R3.render3D(S, V, fx);
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0, 0, cv.width, cv.height);
