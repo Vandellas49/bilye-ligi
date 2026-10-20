@@ -20,6 +20,7 @@ export const SLIDE_POKE = 3.6;         // değince topun itilme hızı
 export const SLIDE_CD = 150;           // yeniden kaymak için bekleme (~2,5 sn)
 export const SLIDE_GETUP = 16;         // topa değdiyse yerden kalkma (tick)
 export const SLIDE_MISS_GETUP = 32;    // ıskaladıysa yerden kalkma (tick)
+export const GOAL_PAUSE = 180;        // golden sonra sevinç ve yeniden başlama arası (tick, 3 sn)
 // pas yardımı (insan oyuncu): basılan yöne yakın arkadaşa, koştuğu yere, mesafeye uygun güçle
 export const PASS_CONE = .6;           // basılan yönden en fazla bu kadar sapan arkadaşa kilitlenir (rad, ~34°)
 export const PASS_ARRIVE = 2.4;        // top arkadaşa bu hızla varacak şekilde atılır

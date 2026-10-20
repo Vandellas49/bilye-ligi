@@ -11,7 +11,7 @@
 import { W, H, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP, B_DAMP, KICK, KICK_RANGE, WALL_REST,
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
-  PASS_CONE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE,
+  PASS_CONE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE,
   BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
@@ -198,7 +198,7 @@ export function step(S, inputs = {}){
   assignRoles(S);
   for (const p of S.players){
     let inp = sanitizeInput(p.ctrl === 'ai' ? aiInput(S, p) : inputs[p.id]);
-    if (S.phase === 'goal' && p.ctrl === 'ai') inp = NEUTRAL_INPUT;
+    if (S.phase === 'goal' && p.ctrl === 'ai') inp = sanitizeInput(celebrateInput(S, p));   // gol sevinci
     const { x, y } = inp;
     const special = S.specials ? inp.special : null;
     p.input = { x, y, kick: inp.kick, hold: inp.hold, assist: inp.assist };
@@ -672,14 +672,31 @@ function specialKick(S, p, type){
   if (S.phase === 'kickoff') S.phase = 'play';
 }
 
+/* Gol sevinci (botlar): golü atan takımın botları gol atana koşup etrafında toplanır; gol atan botsa
+   kendi taraftarlarına, rakip sahanın köşesine doğru koşar. Kendi kalesine golde takım ortada toplanır.
+   Golü yiyen takım yavaşlayıp durur. İnsan oyuncular gol arasında istediği gibi hareket eder. */
+function celebrateInput(S, p){
+  const g = S.goalInfo;
+  if (!g || p.team !== g.team) return NEUTRAL_INPUT;
+  const sc = g.scorer && g.scorer.team === g.team ? g.scorer : null;
+  let tx, ty, near;
+  if (sc === p){ tx = p.team === 0 ? W - 60 : 60; ty = p.y < H/2 ? 50 : H - 50; near = 20; }
+  else if (sc){ tx = sc.x; ty = sc.y; near = PR*2 + 14; }
+  else { tx = W/2 + (p.team === 0 ? -120 : 120); ty = H/2; near = 60; }
+  const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
+  if (d < near) return NEUTRAL_INPUT;
+  const k = Math.min(1, (d - near)/60);
+  return { x: dx/d*k, y: dy/d*k, sprint: d > 160 };
+}
+
 function goal(S, team){
   S.score[team]++;
-  S.phase = 'goal'; S.goalT = 130; S.pass = null; S.req = [null, null];
+  S.phase = 'goal'; S.goalT = GOAL_PAUSE; S.pass = null; S.req = [null, null];
   S.kickoffTeam = 1 - team;
   const scorer = S.lastTouch;
   S.goalInfo = { team, t: S.t, scorer, own: scorer && scorer.team !== team };
   for (const p of S.players){ p.mood = p.team === team ? 'happy' : 'sad'; p.moodT = 150; }
-  emit(S, 'goal', { team, x: team === 0 ? W + 10 : -10, scorer: scorer ? scorer.id : null });
+  emit(S, 'goal', { team, x: team === 0 ? W + 10 : -10, scorer: scorer ? scorer.id : null, sx: scorer ? scorer.x : null, sy: scorer ? scorer.y : null });
 }
 
 function endMatch(S){

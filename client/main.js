@@ -10,10 +10,10 @@ import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, ro
 import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
-import { initRender, resize, renderBg, render } from './render.js';
+import { initRender, resize, renderBg, render, setView3D } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
 import { $, initMenu, readCfg, readCreate, saveCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
-  updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist } from './ui.js';
+  updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D } from './ui.js';
 
 /* istemci durumu
    mode: 'menu' (arkada demo maç), 'match', 'end'
@@ -234,7 +234,15 @@ function openOnline(){
 
 /* ---------- girdi ve arayüz bağlantıları ---------- */
 initInput({ onPause: togglePause, isPlaying: () => G.mode === 'match' && !G.paused && !G.menuOpen });
-initRender($('cv'), $('stage'));
+initRender($('cv'), $('stage'), $('cv3'));
+
+// görünüm: 3B istenirse yüklenir, açılamazsa 2B'de kalınır ve menüde not gösterilir
+async function applyView(){
+  const ok = await setView3D(want3D());
+  $('viewNote').hidden = ok || !want3D();
+  if (G.state) renderBg(G.state);
+}
+document.querySelectorAll('input[name="view"]').forEach(el => el.addEventListener('change', applyView));
 
 $('muteBtn').onclick = () => {
   const muted = toggleMute();
@@ -326,5 +334,6 @@ new ResizeObserver(resize).observe($('stage'));
 addEventListener('resize', resize);
 startDemo();
 resize();
+applyView();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render(G.state, G));
 requestAnimationFrame(frame);

@@ -40,7 +40,7 @@ export function initMenu(){
   if (saved) {
     const setR = (name, v) => { const el = document.querySelector(`input[name="${name}"][value="${v}"]`); if (el && !el.disabled) el.checked = true; };
     setR('mode', saved.mode); setR('tsize', saved.tsize);
-    setR('size', saved.size); setR('opp', saved.opp); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist);
+    setR('size', saved.size); setR('opp', saved.opp); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist); setR('view', saved.view);
   }
 
   // turnuva seçilince rakip ve bot seviyesi gizlenir (rakipler her turda zorlaşır)
@@ -53,6 +53,9 @@ export function initMenu(){
   };
   document.querySelectorAll('input[name="mode"]').forEach(el => el.addEventListener('change', syncMode));
   syncMode();
+  // görünüm: kayıt yoksa bilgisayarda 3B, yalnızca dokunmatik cihazda 2B
+  if (!document.querySelector('input[name="view"]:checked')) $(isTouchOnly ? 'v2' : 'v3').checked = true;
+  document.querySelectorAll('input[name="view"]').forEach(el => el.addEventListener('change', () => saveCfg({ ...(loadCfg() || {}), view: radio('view') })));
   // pas yardımı seçimi hemen kaydedilir (maç başlatmadan çevrimiçine geçilse de hatırlansın)
   document.querySelectorAll('input[name="assist"]').forEach(el => el.addEventListener('change', () => saveCfg({ ...(loadCfg() || {}), assist: radio('assist') })));
   const syncCreate = () => { $('crTourField').hidden = radio('crType') !== 'tournament'; };
@@ -63,9 +66,11 @@ export function initMenu(){
 
 // pas yardımı tercihi (menüdeki seçim; çevrimiçinde de kullanılır)
 export const passAssist = () => radio('assist') !== '0';
+// görünüm tercihi: true = 3B
+export const want3D = () => radio('view') === '3';
 
 export function readCfg(){
-  return { assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), opp: radio('opp'), diff: radio('diff'),
+  return { view: radio('view'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), opp: radio('opp'), diff: radio('diff'),
     arena: radio('arena'), time: radio('time'), weather: radio('weather') };
 }
 

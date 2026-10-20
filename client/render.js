@@ -1,8 +1,8 @@
 /* ---------- çizim ----------
    Maç durumunu okur, değiştirmez. Parçacık, iz, yazı ve oyuncu animasyonları
    istemci tarafındaki efekt durumunda (fx) tutulur. */
-import { W, H, GH, GD, TOP, BOT, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, shotInfo } from '../shared/constants.js';
-import { fx, visOf, reduceMotion } from './effects.js';
+import { W, H, GH, GD, TOP, BOT, PR, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, shotInfo } from '../shared/constants.js';
+import { fx, visOf, reduceMotion, jumpOf } from './effects.js';
 import { SHOT_KEYS } from './input.js';
 import { isTouch } from './ui.js';
 
@@ -12,8 +12,41 @@ let cv, ctx, stage, scale = 1, dpr = 1;
 const bg = document.createElement('canvas'), bgx = bg.getContext('2d');
 let S = null;   // çizilen maç durumu (yalnızca okunur)
 let V = null;   // istemci görünümü: { mode, paused, cfg }
+let bgVersion = 0;               // arka plan her yeniden çizildiğinde artar (3B saha dokusu için)
+let R3 = null, cv3 = null;       // 3B çizim katmanı (client/render3d.js), seçilince yüklenir
+let use3D = false;
+// isim, güç barı ve balonların çizileceği yer: 2B'de oyuncunun kendisi, 3B'de ekrana yansıtılmış hali
+let posOf = p => p;
 
-export function initRender(canvas, stageEl){ cv = canvas; ctx = cv.getContext('2d'); stage = stageEl; }
+export function initRender(canvas, stageEl, canvas3d){ cv = canvas; ctx = cv.getContext('2d'); stage = stageEl; cv3 = canvas3d; }
+
+// 3B katmanın 2B koddan kullandıkları
+export const share = {
+  ART_R, get bg(){ return bg; }, get bgVersion(){ return bgVersion; },
+  drawFace: (...a) => drawFace(...a), drawAccessory: (...a) => drawAccessory(...a),
+};
+
+/* Görünüm: 3B istenirse Three.js (client/three.min.js) ve client/render3d.js yüklenir.
+   Açılamazsa (WebGL yok, dosya yüklenemedi) 2B'de kalınır. Dönüş: 3B açık mı. */
+export async function setView3D(on){
+  if (!on){ use3D = false; document.body.classList.remove('three'); resize(); return false; }
+  try {
+    if (!window.THREE) await new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'client/three.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('three.min.js yüklenemedi'));
+      document.head.appendChild(sc);
+    });
+    if (!R3){ const m = await import('./render3d.js'); m.init3D(cv3, share); R3 = m; }
+    use3D = true; document.body.classList.add('three');
+    resize();
+    return true;
+  } catch (e){
+    console.warn('3B görünüm açılamadı, 2B ile devam ediliyor:', e);
+    use3D = false; document.body.classList.remove('three');
+    return false;
+  }
+}
+export const is3D = () => use3D;
 
 export function resize(){
   const r = stage.getBoundingClientRect();
@@ -23,6 +56,7 @@ export function resize(){
   const cw = Math.floor(VIEW.w*scale), ch = Math.floor(VIEW.h*scale);
   cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
   cv.width = Math.floor(cw*dpr); cv.height = Math.floor(ch*dpr);
+  if (use3D && R3){ cv3.style.width = cw + 'px'; cv3.style.height = ch + 'px'; R3.resize3D(cw, ch, dpr); }
   renderBg();
 }
 function worldTransform(c){
@@ -35,7 +69,7 @@ function rr(c, x, y, w, h, r){ c.beginPath(); c.roundRect ? c.roundRect(x, y, w,
 export function renderBg(state){
   if (state) S = state;
   if (!S) return;
-  bg.width = cv.width; bg.height = cv.height;
+  bg.width = cv.width; bg.height = cv.height; bgVersion++;
   const c = bgx, A = ARENAS[S.arena];
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,bg.width,bg.height);
   worldTransform(c);
@@ -208,7 +242,7 @@ function drawPlayerArt(c, p, r){
   const sp = Math.hypot(p.vx, p.vy), run = Math.min(1, sp/2.2);
   const va = Math.atan2(p.vy, p.vx);
   const bob = -Math.abs(Math.sin(v.walk))*2*run;
-  const y0 = p.y + bob;
+  const y0 = p.y + bob - jumpOf(S, p)*.8;   // gol sevincinde zıplar (gölge yerde kalır)
   // gölge
   c.fillStyle = 'rgba(0,0,0,.3)';
   c.beginPath(); c.ellipse(p.x + 3, p.y + 8, r*.95 - bob*.3, r*.6, 0, 0, Math.PI*2); c.fill();
@@ -432,18 +466,19 @@ function drawFace(c, p, y0, v){
 // şut güç barı: oyuncunun etrafında saat yönünde dolan halka (yeşil -> sarı -> kırmızı)
 function drawCharge(c, p){
   if (!(p.charge > 0) || S.phase === 'goal') return;
-  const r = p.r + 10, a0 = -Math.PI/2, k = Math.min(1, p.charge);
+  const q = posOf(p), r = q.r + 10, a0 = -Math.PI/2, k = Math.min(1, p.charge);
   c.lineCap = 'round';
   c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 6;
-  c.beginPath(); c.arc(p.x, p.y, r, 0, Math.PI*2); c.stroke();
+  c.beginPath(); c.arc(q.x, q.y, r, 0, Math.PI*2); c.stroke();
   c.strokeStyle = k < .5 ? '#5be37d' : k < .85 ? '#ffd23f' : '#ff5a5a'; c.lineWidth = 4;
-  c.beginPath(); c.arc(p.x, p.y, r, a0, a0 + Math.PI*2*k); c.stroke();
+  c.beginPath(); c.arc(q.x, q.y, r, a0, a0 + Math.PI*2*k); c.stroke();
 }
 
 function drawLabel(c, p){
   drawCharge(c, p);
+  const q = posOf(p);
   if (p.sta < .995 && S.phase !== 'goal'){
-    const w = 30, h = 5, x = p.x - w/2, y = p.y - p.r - 11;
+    const w = 30, h = 5, x = q.x - w/2, y = q.y - q.r - 11;
     c.fillStyle = 'rgba(0,0,0,.5)'; rr(c, x - 1, y - 1, w + 2, h + 2, 3.5); c.fill();
     const col = p.tired ? (S.t % 16 < 8 ? '#ff5a5a' : '#ff9a9a') : p.sta > .5 ? '#5be37d' : p.sta > .25 ? '#ffd23f' : '#ff7a45';
     c.fillStyle = col; rr(c, x, y, Math.max(2, w*p.sta), h, 2.5); c.fill();
@@ -457,10 +492,10 @@ function drawLabel(c, p){
   }
   c.font = '700 11px Figtree, system-ui, sans-serif';
   c.textAlign = 'center'; c.textBaseline = 'middle';
-  const w = c.measureText(p.name).width + 10, y = p.y + p.r + 11;
-  c.fillStyle = 'rgba(0,0,0,.45)'; rr(c, p.x - w/2, y - 7, w, 14, 7); c.fill();
+  const w = c.measureText(p.name).width + 10, y = q.y + q.r + 11;
+  c.fillStyle = 'rgba(0,0,0,.45)'; rr(c, q.x - w/2, y - 7, w, 14, 7); c.fill();
   c.fillStyle = p.ctrl !== 'ai' ? '#ffffff' : 'rgba(255,255,255,.82)';
-  c.fillText(p.name, p.x, y + .5);
+  c.fillText(p.name, q.x, y + .5);
 }
 
 function drawBall(c, b){
@@ -503,8 +538,8 @@ function drawBall(c, b){
 function drawReqBubbles(c){
   for (const rq of S.req){
     if (!rq || S.phase === 'goal') continue;
-    const p = rq.p, pulse = 1 + .08*Math.sin(S.t*.35);
-    const x = p.x + 16, y = p.y - p.r - 24;
+    const p = rq.p, q = posOf(p), pulse = 1 + .08*Math.sin(S.t*.35);
+    const x = q.x + 16, y = q.y - q.r - 24;
     c.save(); c.translate(x, y); c.scale(pulse, pulse);
     c.font = '800 14px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     const w = c.measureText('Pas!').width + 18;
@@ -516,18 +551,19 @@ function drawReqBubbles(c){
   }
 }
 
-function drawPassInfo(c){
+// ring: pas alıcısının etrafındaki kesikli halka (3B'de sahnede ayrıca çiziliyor)
+function drawPassInfo(c, ring = true){
   drawReqBubbles(c);
   const ps = S.pass;
-  if (ps && S.phase !== 'goal'){
-    const m = ps.to, a = .5 + .4*Math.sin(S.t*.3);
+  if (ring && ps && S.phase !== 'goal'){
+    const m = posOf(ps.to), a = .5 + .4*Math.sin(S.t*.3);
     c.strokeStyle = `rgba(255,255,255,${a})`; c.lineWidth = 2.5; c.setLineDash([3, 6]);
     c.beginPath(); c.arc(m.x, m.y, m.r + 9, 0, Math.PI*2); c.stroke(); c.setLineDash([]);
   }
   for (const p of S.players){
     if (!p.bubble) continue;
     const k = Math.min(1, p.bubble.t/10, (70 - p.bubble.t + 1)/6);
-    const x = p.x + 14, y = p.y - p.r - 22;
+    const q = posOf(p), x = q.x + 14, y = q.y - q.r - 22;
     c.globalAlpha = k;
     c.font = '800 13px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     const w = c.measureText(p.bubble.text).width + 16;
@@ -539,15 +575,17 @@ function drawPassInfo(c){
   }
 }
 
-function drawPops(c){
+// at(q, k): yazının ekrandaki yeri (3B'de havada yükselen nokta yansıtılır)
+function drawPops(c, at = null){
   c.textAlign = 'center'; c.textBaseline = 'middle';
   for (const q of fx.pops){
     const k = q.life/q.max;
-    if (!V.paused) { q.life--; q.y -= .5; }
+    if (!V.paused) { q.life--; if (!at) q.y -= .5; }
+    const pt = at ? at(q, k) : q;
     c.globalAlpha = Math.min(1, k*2);
     c.font = `800 ${16 + (1 - k)*4}px Figtree, system-ui, sans-serif`;
-    c.lineWidth = 4; c.strokeStyle = 'rgba(20,10,30,.8)'; c.strokeText(q.text, q.x, q.y);
-    c.fillStyle = q.color; c.fillText(q.text, q.x, q.y);
+    c.lineWidth = 4; c.strokeStyle = 'rgba(20,10,30,.8)'; c.strokeText(q.text, pt.x, pt.y);
+    c.fillStyle = q.color; c.fillText(q.text, pt.x, pt.y);
   }
   c.globalAlpha = 1;
   fx.pops = fx.pops.filter(q => q.life > 0);
@@ -588,9 +626,11 @@ function drawParticles(c){
 
 function drawBanner(c){
   if (S.phase === 'goal' && S.goalInfo){
-    const k = Math.min(1, (S.t - S.goalInfo.t)/14);
-    const sc = .6 + .4*(1 - Math.pow(1 - k, 3));
-    c.save(); c.translate(W/2, H/2 - 20); c.scale(sc, sc);
+    const t = S.t - S.goalInfo.t, k = Math.min(1, t/14);
+    // ilk ~0,8 sn ortada büyür, sonra küçülüp yukarı kayar ki gol sevinci görünsün
+    const up = Math.min(1, Math.max(0, (t - 45)/25)), ease = up*up*(3 - 2*up);
+    const sc = (.6 + .4*(1 - Math.pow(1 - k, 3)))*(1 - .45*ease);
+    c.save(); c.translate(W/2, H/2 - 20 - (H/2 - 75)*ease); c.scale(sc, sc);
     c.font = '400 110px "Bagel Fat One", Figtree, system-ui, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.lineWidth = 12; c.strokeStyle = 'rgba(20,10,30,.75)'; c.lineJoin = 'round';
@@ -615,9 +655,48 @@ function drawBanner(c){
   }
 }
 
+// gol sevinci konfetisi: düşen, dönen küçük kâğıtlar (h: yerden yükseklik)
+function drawConfetti(c){
+  for (const q of fx.confetti){
+    const a = Math.min(1, q.life/30);
+    c.globalAlpha = a; c.fillStyle = q.color;
+    c.save(); c.translate(q.x, q.y - q.h); c.rotate(q.rot); c.scale(1, Math.abs(Math.cos(q.flip)));
+    c.fillRect(-q.size/2, -q.size*.3, q.size, q.size*.6); c.restore();
+  }
+  c.globalAlpha = 1;
+}
+
+/* 3B: sahne Three.js ile çizilir, isim/çubuk/balon/yazı/HUD bu 2B katmanda üstte kalır.
+   Oyuncunun ayağı ve başı ekrana yansıtılıp 2B katmanın dünya koordinatına çevrilir. */
+function render3DFrame(){
+  R3.render3D(S, V, fx);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  worldTransform(ctx);
+  if (!S.players.length) return;
+  const toWorld = (x, y, h) => { const s = R3.project(x, y, h); return { x: s.x/scale + VIEW.x, y: s.y/scale + VIEW.y }; };
+  const proj = new Map();
+  for (const p of S.players){
+    const j = jumpOf(S, p);
+    const foot = toWorld(p.x, p.y + p.r*.6, j), head = toWorld(p.x, p.y, 2*p.r + 4 + j);
+    proj.set(p, { x: (foot.x + head.x)/2, y: (foot.y + head.y)/2, r: Math.max(6, (foot.y - head.y)/2) });
+  }
+  posOf = p => proj.get(p) || p;
+  try {
+    const sorted = S.players.slice().sort((a, b) => a.y - b.y);
+    for (const p of sorted) drawLabel(ctx, p);
+    drawPassInfo(ctx, false);
+    drawPops(ctx, (q, k) => toWorld(q.x, q.y + 36, 2*PR + 16 + (1 - k)*30));
+  } finally { posOf = p => p; }
+  drawShotHud(ctx);
+  drawBanner(ctx);
+  drawNetInfo(ctx);
+}
+
 export function render(state, view){
   S = state; V = view;
   if (!S) return;
+  if (use3D && R3) return render3DFrame();
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0, 0, cv.width, cv.height);
   let sx = 0, sy = 0;
@@ -632,6 +711,7 @@ export function render(state, view){
   for (const p of sorted) drawLabel(ctx, p);
   drawBall(ctx, S.ball);
   drawParticles(ctx);
+  drawConfetti(ctx);
   drawPassInfo(ctx);
   drawAmbient(ctx);
   drawPops(ctx);

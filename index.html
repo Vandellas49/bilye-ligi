@@ -53,6 +53,11 @@ header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8p
 
 main{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0;padding:0 10px 10px}
 canvas{display:block;border-radius:18px;touch-action:none}
+/* 3B görünüm: sahne #cv3'te, 2B katman (isimler, yazılar, HUD) saydam olarak üstte */
+#view{position:relative}
+#cv3{display:none}
+body.three #cv3{display:block}
+body.three #cv{position:absolute;left:0;top:0;pointer-events:none}
 
 .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:14px;overflow:auto}
 .overlay.on{display:flex}
@@ -182,7 +187,10 @@ details[open] summary{margin-bottom:12px}
 </header>
 <div class="rotate-hint">Telefonu yan çevirirsen saha büyür.</div>
 <main id="stage">
-  <canvas id="cv" aria-label="Oyun sahası"></canvas>
+  <div id="view">
+    <canvas id="cv3" aria-hidden="true"></canvas>
+    <canvas id="cv" aria-label="Oyun sahası"></canvas>
+  </div>
 
   <div id="touch">
     <div id="stickZone"><div id="stick"><div id="knob"></div></div></div>
@@ -248,6 +256,15 @@ details[open] summary{margin-bottom:12px}
         <legend>Saha</legend>
         <div class="seg" id="arenaSeg"></div>
       </fieldset>
+
+      <fieldset>
+        <legend>Görünüm</legend>
+        <div class="seg">
+          <input type="radio" name="view" id="v3" value="3"><label for="v3">3B</label>
+          <input type="radio" name="view" id="v2" value="2"><label for="v2">2B</label>
+        </div>
+      </fieldset>
+      <div class="note" id="viewNote" hidden>3B görünüm bu cihazda açılamadı, 2B kullanılıyor.</div>
 
       <fieldset>
         <legend>Pas yardımı</legend>

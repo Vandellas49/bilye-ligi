@@ -1,19 +1,19 @@
 /* ---------- efektler ----------
    Simülasyonun döndürdüğü olayları parçacık, yazı, sarsıntı ve sese çevirir.
    Buradaki her şey yalnızca istemcide yaşar; maç durumuna (S) yazılmaz. */
-import { H, VIEW, TEAM_COL, shotInfo } from '../shared/constants.js';
+import { W, H, VIEW, TEAM_COL, TEAM_DARK, shotInfo } from '../shared/constants.js';
 import { sfx } from './audio.js';
 
 export const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export const fx = {
-  particles: [], pops: [], trail: [], shake: 0,
+  particles: [], pops: [], trail: [], shake: 0, confetti: [],
   ambient: [], weather: 'sade',
   vis: [],   // oyuncu başına görsel durum (göz kırpma, yürüme, bakış), oyuncu id'siyle
 };
 
 export function resetFx(){
-  fx.particles = []; fx.pops = []; fx.trail = []; fx.shake = 0; fx.vis = [];
+  fx.particles = []; fx.pops = []; fx.trail = []; fx.shake = 0; fx.vis = []; fx.confetti = [];
 }
 
 export function visOf(p){
@@ -25,6 +25,29 @@ export function burst(x, y, color, n, spd, life){
   for (let i = 0; i < n; i++){
     const a = Math.random()*Math.PI*2, s = spd*(.3 + Math.random()*.7);
     fx.particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life, max: life, color, size: 2 + Math.random()*3 });
+  }
+}
+
+/* Gol sevinci: golü atan takımın oyuncuları zıplar (yükseklik, dünya birimi). 2B ve 3B çizim kullanır. */
+export function jumpOf(S, p){
+  if (reduceMotion || S.phase !== 'goal' || !S.goalInfo || p.team !== S.goalInfo.team) return 0;
+  const t = S.t - S.goalInfo.t;
+  const scorer = S.goalInfo.scorer === p ? 1.5 : 1;   // golü atan daha yükseğe
+  return Math.abs(Math.sin(t*.2 + p.id*1.3))*12*scorer;
+}
+
+// takım renklerinde konfeti: kalenin önünden ve gol atanın üstünden yağar
+function confetti(team, x, y){
+  const n = reduceMotion ? 30 : 140, cols = [TEAM_COL[team], TEAM_DARK[team], '#ffffff', TEAM_COL[team]];
+  for (let i = 0; i < n; i++){
+    const around = i % 3 === 0 && x !== null;
+    fx.confetti.push({
+      x: around ? x + (Math.random() - .5)*120 : (team === 0 ? W - 160 : 160) + (Math.random() - .5)*320,
+      y: around ? y + (Math.random() - .5)*80 : H/2 + (Math.random() - .5)*420,
+      h: 60 + Math.random()*160, vh: -(.5 + Math.random()*.9), vx: (Math.random() - .5)*.8, vy: (Math.random() - .5)*.4,
+      rot: Math.random()*6.28, vr: (Math.random() - .5)*.3, flip: Math.random()*6.28, vf: .1 + Math.random()*.2,
+      size: 4 + Math.random()*4, color: cols[i % cols.length], life: 150 + Math.random()*60,
+    });
   }
 }
 
@@ -63,6 +86,7 @@ export function applyEvents(events){
         burst(e.x, H/2, TEAM_COL[e.team], 60, 7, 70);
         burst(e.x, H/2, '#ffffff', 30, 5, 60);
         fx.shake = reduceMotion ? 0 : 16;
+        confetti(e.team, e.sx ?? null, e.sy ?? null);
         sfx.goal(); break;
       case 'overtime': case 'end': sfx.whistle(); break;
       case 'kickoff': fx.trail = []; break;
@@ -90,9 +114,17 @@ export function afterStep(S){
   // iz
   const sp = Math.hypot(b.vx, b.vy);
   const tType = b.fire > 0 ? 'fuze' : b.curve ? 'falso' : b.z > 0 ? 'asirtma' : 'normal';
-  if ((sp > 4.5 || tType !== 'normal') && !reduceMotion) fx.trail.push({ x: b.x, y: b.y - b.z, life: tType === 'normal' ? 14 : 20, max: tType === 'normal' ? 14 : 20, type: tType });
+  // y: 2B'de havadaki topun ekrandaki yeri; gy ve z: 3B için yerdeki konum ve yükseklik
+  if ((sp > 4.5 || tType !== 'normal') && !reduceMotion) fx.trail.push({ x: b.x, y: b.y - b.z, gy: b.y, z: b.z, life: tType === 'normal' ? 14 : 20, max: tType === 'normal' ? 14 : 20, type: tType });
   for (const t of fx.trail) t.life--;
   fx.trail = fx.trail.filter(t => t.life > 0);
+
+  // konfeti: süzülerek düşer, yere değince kaybolur
+  for (const q of fx.confetti){
+    q.h += q.vh; q.x += q.vx + Math.sin(q.flip)*.3; q.y += q.vy; q.rot += q.vr; q.flip += q.vf; q.life--;
+    if (q.h <= 0){ q.h = 0; q.life = Math.min(q.life, 20); }
+  }
+  fx.confetti = fx.confetti.filter(q => q.life > 0);
 
   // göz yönü ve yürüme
   for (const p of S.players){
