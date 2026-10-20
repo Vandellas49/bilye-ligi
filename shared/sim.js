@@ -12,7 +12,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  CENTER_R, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
+  CENTER_R, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
@@ -67,10 +67,15 @@ function buildPlayers(S, n, humans){
       d.charge = 0; d.shot = null; d.kickLock = false;   // şut güç barı (bkz. chargeShot)
       d.slideT = 0; d.slideCd = 0; d.slideA = 0; d.slideHit = false; d.slidePrev = false;   // kayma (bkz. startSlide)
       d.num = h ? [10, 8, 23][i] : [7, 4, 9, 11, 5, 8, 3, 6, 14, 17][(team*3 + i + randInt(rng, 10)) % 10];
-      const accs = S.weather === 'kar' ? ['beanie','beanie','earmuffs','scarf','cap','headband','sprout','none']
-                                       : ['cap','cap','headband','sprout','beanie','scarf','none'];
+      // şapka daha seyrek: saçlar görünsün
+      const accs = S.weather === 'kar' ? ['beanie','earmuffs','scarf','headband','sprout','none','none','none']
+                                       : ['cap','headband','sprout','scarf','none','none','none'];
       d.acc = accs[randInt(rng, accs.length)];
       d.accCol = ['#e8455c','#ffffff','#5b3fd9','#2a2233','#ff8a3d','#2fb67c'][randInt(rng, 6)];
+      d.skin = SKINS[randInt(rng, SKINS.length)];
+      d.hair = HAIRS[randInt(rng, HAIRS.length)];
+      d.hairCol = HAIR_COLS[randInt(rng, HAIR_COLS.length)];
+      d.tattoo = random(rng) < .3 ? TATTOOS[randInt(rng, TATTOOS.length)] : null;
       S.players.push(d);
     }
   }
@@ -760,7 +765,12 @@ function celebrateInput(S, p){
   if (!g || p.team !== g.team) return NEUTRAL_INPUT;
   const sc = g.scorer && g.scorer.team === g.team ? g.scorer : null;
   let tx, ty, near;
-  if (sc === p){ tx = p.team === 0 ? W - 60 : 60; ty = p.y < H/2 ? 50 : H - 50; near = 20; }
+  if (sc === p){
+    // gol atan: sevince göre koşar. kulak: en yakın kenar çizgisine, seyirciye; takla: yerinde; diğerleri köşeye
+    if (g.cele === 'takla') return NEUTRAL_INPUT;
+    if (g.cele === 'kulak'){ tx = p.x + (p.team === 0 ? 60 : -60); ty = p.y < H/2 ? 46 : H - 46; near = 16; }
+    else { tx = p.team === 0 ? W - 60 : 60; ty = p.y < H/2 ? 50 : H - 50; near = 20; }
+  }
   else if (sc){ tx = sc.x; ty = sc.y; near = PR*2 + 14; }
   else { tx = W/2 + (p.team === 0 ? -120 : 120); ty = H/2; near = 60; }
   const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
@@ -774,7 +784,8 @@ function goal(S, team){
   S.phase = 'goal'; S.goalT = GOAL_PAUSE; S.pass = null; S.req = [null, null];
   S.kickoffTeam = 1 - team;
   const scorer = S.lastTouch;
-  S.goalInfo = { team, t: S.t, scorer, own: scorer && scorer.team !== team };
+  // sevinç türü (golü atan yapar); kendi kalesine golde sevinç yok
+  S.goalInfo = { team, t: S.t, scorer, own: scorer && scorer.team !== team, cele: CELEBRATIONS[randInt(S.rng, CELEBRATIONS.length)] };
   for (const p of S.players){ p.mood = p.team === team ? 'happy' : 'sad'; p.moodT = 150; }
   emit(S, 'goal', { team, x: team === 0 ? W + 10 : -10, scorer: scorer ? scorer.id : null, sx: scorer ? scorer.x : null, sy: scorer ? scorer.y : null });
 }

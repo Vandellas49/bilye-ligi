@@ -13,7 +13,7 @@ const r2 = v => Math.round(v*100)/100;
 export function roster(S){
   return S.players.map(p => ({
     id: p.id, team: p.team, slot: p.slot, uid: p.uid, name: p.name, num: p.num,
-    face: p.face, acc: p.acc, accCol: p.accCol, r: p.r,
+    face: p.face, acc: p.acc, accCol: p.accCol, r: p.r, skin: p.skin, hair: p.hair, hairCol: p.hairCol, tattoo: p.tattoo,
   }));
 }
 
@@ -29,7 +29,7 @@ export function snapshot(S){
     owner: S.owner ? S.owner.id : null,
     pass: S.pass ? { to: S.pass.to.id, x: r2(S.pass.x), y: r2(S.pass.y) } : null,
     req: S.req.map(q => q ? q.p.id : null),
-    goal: S.goalInfo ? { team: S.goalInfo.team, t: S.goalInfo.t, scorer: S.goalInfo.scorer ? S.goalInfo.scorer.id : null, own: !!S.goalInfo.own } : null,
+    goal: S.goalInfo ? { team: S.goalInfo.team, t: S.goalInfo.t, scorer: S.goalInfo.scorer ? S.goalInfo.scorer.id : null, own: !!S.goalInfo.own, cele: S.goalInfo.cele } : null,
     ball: [r2(b.x), r2(b.y), r2(b.vx), r2(b.vy), r2(b.z), b.fire, b.curve ? Math.sign(b.curve) : 0, r2(b.spin)],
     players: S.players.map(p => [
       r2(p.x), r2(p.y), r2(p.vx), r2(p.vy), r2(p.dirA), r2(p.sta),
@@ -62,7 +62,7 @@ export function applySnapshot(V, s){
   V.owner = s.owner != null ? P[s.owner] : null;
   V.pass = s.pass ? { to: P[s.pass.to], x: s.pass.x, y: s.pass.y } : null;
   V.req = s.req.map(id => id != null ? { p: P[id] } : null);
-  V.goalInfo = s.goal ? { team: s.goal.team, t: s.goal.t, scorer: s.goal.scorer != null ? P[s.goal.scorer] : null, own: s.goal.own } : null;
+  V.goalInfo = s.goal ? { team: s.goal.team, t: s.goal.t, scorer: s.goal.scorer != null ? P[s.goal.scorer] : null, own: s.goal.own, cele: s.goal.cele } : null;
   const b = V.ball, sb = s.ball;
   b.x = sb[0]; b.y = sb[1]; b.vx = sb[2]; b.vy = sb[3]; b.z = sb[4]; b.fire = sb[5]; b.curve = sb[6]; b.spin = sb[7];
   s.players.forEach((a, i) => {

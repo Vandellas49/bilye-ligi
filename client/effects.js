@@ -31,9 +31,33 @@ export function burst(x, y, color, n, spd, life){
 /* Gol sevinci: golü atan takımın oyuncuları zıplar (yükseklik, dünya birimi). 2B ve 3B çizim kullanır. */
 export function jumpOf(S, p){
   if (reduceMotion || S.phase !== 'goal' || !S.goalInfo || p.team !== S.goalInfo.team) return 0;
-  const t = S.t - S.goalInfo.t;
+  const t = S.t - S.goalInfo.t, c = celeOf(S, p);
+  if (c){
+    // takla atan yüksek sıçrar; el hareketi yapan (gözlük, kulak, uçak, diz) yerde kalır
+    if (c.type !== 'takla') return 0;
+    const k = taklaPhase(c.t);
+    return k < 0 ? 0 : Math.sin(k*Math.PI)*34;
+  }
   const scorer = S.goalInfo.scorer === p ? 1.5 : 1;   // golü atan daha yükseğe
   return Math.abs(Math.sin(t*.2 + p.id*1.3))*12*scorer;
+}
+
+/* Golü atanın sevinci: { type: 'takla' | 'gozluk' | 'kulak' | 'ucak' | 'diz', t: golden beri tick } ya da null.
+   Tür simülasyonda seçilir (goalInfo.cele), kendi kalesine golde sevinç yok. */
+export function celeOf(S, p){
+  const g = S.goalInfo;
+  if (S.phase !== 'goal' || !g || g.own || !g.cele || g.scorer !== p) return null;
+  return { type: g.cele, t: S.t - g.t };
+}
+// takla: 20. tickten başlayıp 40'ar tickte bir tur, iki kez; 0..1 tur içi ilerleme, dışında -1
+function taklaPhase(t){ return t >= 20 && t < 100 ? ((t - 20) % 40)/40 : -1; }
+// takla dönüş açısı (radyan); 2B'de çizim döner, 3B'de gövde ve yüz kartı
+export function flipOf(S, p){
+  if (reduceMotion) return 0;
+  const c = celeOf(S, p);
+  if (!c || c.type !== 'takla') return 0;
+  const k = taklaPhase(c.t);
+  return k < 0 ? 0 : k*Math.PI*2*(p.team === 0 ? 1 : -1);
 }
 
 // takım renklerinde konfeti: kalenin önünden ve gol atanın üstünden yağar

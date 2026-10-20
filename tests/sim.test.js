@@ -446,3 +446,50 @@ test('şut yardımı: düz vuruş kalecinin uzak köşesine, yardım kapalıysa 
   const raw = shotAt([Math.SQRT1_2, -Math.SQRT1_2], false);
   assert.ok(raw < TOP, `yardımsız çapraz şut kalenin dışına gider (y ${raw.toFixed(0)})`);
 });
+
+/* ---------- görünüm ve gol sevinci ---------- */
+import { SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS } from '../shared/constants.js';
+import { roster, matchInfo, snapshot, createView, applySnapshot } from '../shared/net.js';
+
+test('oyuncu görünümü: ten, saç, dövme tohumla belirlenir ve çeşitlidir', () => {
+  const a = createMatch({ size: 3, seed: 9 }), b = createMatch({ size: 3, seed: 9 });
+  const look = S => S.players.map(p => [p.skin, p.hair, p.hairCol, p.tattoo]);
+  assert.deepEqual(look(a), look(b));
+  const skins = new Set(), hairs = new Set(); let tattoos = 0, n = 0;
+  for (let seed = 1; seed <= 40; seed++){
+    for (const p of createMatch({ size: 3, seed }).players){
+      assert.ok(SKINS.includes(p.skin) && HAIRS.includes(p.hair) && HAIR_COLS.includes(p.hairCol));
+      assert.ok(p.tattoo === null || TATTOOS.includes(p.tattoo));
+      skins.add(p.skin); hairs.add(p.hair); tattoos += !!p.tattoo; n++;
+    }
+  }
+  assert.equal(skins.size, SKINS.length, 'her ten rengi çıkmalı');
+  assert.equal(hairs.size, new Set(HAIRS).size, 'her saç modeli çıkmalı');
+  assert.ok(tattoos > n*.15 && tattoos < n*.45, `dövmeli oran: ${tattoos}/${n}`);
+});
+
+test('golde sevinç türü seçilir; görünüm ve sevinç çevrimiçi görünüme taşınır', () => {
+  let S = null;
+  for (let seed = 1; seed <= 6 && !S; seed++){
+    const M = createMatch({ size: 3, diff: 2, minutes: 2, seed });
+    for (let i = 0; i < 60*60*2 && M.phase !== 'over'; i++){ step(M, {}); if (M.phase === 'goal'){ S = M; break; } }
+  }
+  assert.ok(S, 'gol olmadı');
+  assert.ok(CELEBRATIONS.includes(S.goalInfo.cele));
+  const V = createView(roster(S), matchInfo(S), null);
+  applySnapshot(V, snapshot(S));
+  assert.equal(V.goalInfo.cele, S.goalInfo.cele);
+  for (const p of S.players){ const q = V.players[p.id]; assert.deepEqual([q.skin, q.hair, q.hairCol, q.tattoo], [p.skin, p.hair, p.hairCol, p.tattoo]); }
+});
+
+test('kulak sevinci: golü atan bot kenar çizgisine, seyirciye koşar; takla atan yerinde durur', () => {
+  for (const [cele, check] of [['kulak', (p, y0) => Math.min(p.y, H_TEST - p.y) < 90 && Math.abs(p.y - y0) > 100], ['takla', (p, y0, x0) => Math.hypot(p.x - x0, p.y - y0) < 15]]){
+    const S = createMatch({ size: 3, seed: 3 });
+    const sc = S.players.find(p => p.team === 0);
+    Object.assign(sc, { x: W_TEST - 200, y: H_TEST/2 - 30, vx: 0, vy: 0 });
+    const x0 = sc.x, y0 = sc.y;
+    S.phase = 'goal'; S.goalT = 400; S.goalInfo = { team: 0, t: S.t, scorer: sc, own: false, cele };
+    for (let i = 0; i < 150; i++) step(S, {});
+    assert.ok(check(sc, y0, x0), `${cele}: (${sc.x.toFixed(0)}, ${sc.y.toFixed(0)})`);
+  }
+});

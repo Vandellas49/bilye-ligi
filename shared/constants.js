@@ -75,6 +75,13 @@ export function normShot(s){
 }
 export const COMBO_WAIT = 6;   // ilk tuştan sonra ikinci tuş için beklenen süre (tick, ~0,1 sn)
 export const FACES = ['bead','big','sleepy','cyclops','grumpy','bead','big','smug'];
+// görünüm: ten rengi (açıktan koyuya), saç modeli ve rengi, dövme
+export const SKINS = ['#f6d3b3', '#e8b48a', '#c98e62', '#a8693f', '#7a4a2b', '#4e2f1c'];
+export const HAIRS = ['kisa', 'kisa', 'uzun', 'uzun', 'kivircik', 'mohikan', 'topuz', 'orgu', 'kel'];
+export const HAIR_COLS = ['#1c1410', '#1c1410', '#3b2416', '#6b4226', '#d9b25c', '#a8432a', '#b9b4ae', '#3fa9f5', '#ff6fb5'];
+export const TATTOOS = ['yildiz', 'kalp', 'kabile', 'damla'];
+// gol sevinçleri: golü atan oyuncu yapar (golde rastgele seçilir)
+export const CELEBRATIONS = ['takla', 'gozluk', 'kulak', 'ucak', 'diz'];
 export const POSTS = [{x:0,y:TOP},{x:0,y:BOT},{x:W,y:TOP},{x:W,y:BOT}];
 
 export const ARENAS = [

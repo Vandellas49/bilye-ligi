@@ -4,7 +4,7 @@
    İsimler, çubuklar, balonlar ve HUD 2B katmanda (render.js) üstte çizilir; project() ile yansıtılır.
    THREE global'i client/three.min.js ile gelir (render.js yükler). */
 import { W, H, GH, GD, TOP, BOT, PR, BR, VIEW, TEAM_COL, TEAM_DARK, ARENAS, shotInfo } from '../shared/constants.js';
-import { visOf, reduceMotion, jumpOf } from './effects.js';
+import { visOf, reduceMotion, jumpOf, flipOf } from './effects.js';
 import { isTouch } from './ui.js';
 
 const ARENA3D = {
@@ -136,12 +136,14 @@ function buildStadium(){
   G3.seatMat = new T.MeshStandardMaterial({ color: 0x3a3048, roughness: .9 });
   const fans = [], gap = light() ? 26 : 17;
   const ROWS = light() ? 4 : 6, RD = 26, RH = 15;
+  const LZ = (z1 + 30) - (z0 + 10), LX = (x1 + 110) - (x0 - 110);
+  G3.waveL = 2*LZ + LX;
   for (let r = 0; r < ROWS; r++){                          // uzak tribün
     const z = z0 - TB - 18 - r*RD, h = 12 + r*RH;
     box(x1 - x0 + 260, h, RD, (x0 + x1)/2, h/2, z, r % 2 ? G3.seatMat : G3.standMat);
     for (let x = x0 - 110; x <= x1 + 110; x += gap){
       if (Math.random() < .12) continue;
-      fans.push({ x: x + (Math.random() - .5)*5, y: h + 7, z: z + (Math.random() - .5)*4, team: x < 0 ? 0 : 1, mix: true });
+      fans.push({ x: x + (Math.random() - .5)*5, y: h + 7, z: z + (Math.random() - .5)*4, team: x < 0 ? 0 : 1, mix: true, u: LZ + (x - (x0 - 110)) });
     }
   }
   for (const side of [0, 1]){                              // kale arkası tribünleri: o takımın taraftarı
@@ -150,7 +152,7 @@ function buildStadium(){
       box(RD, h, z1 - z0 + 40, x, h/2, (z0 + z1)/2 + 20, r % 2 ? G3.seatMat : G3.standMat);
       for (let z = z0 + 10; z <= z1 + 30; z += gap){
         if (Math.random() < .1) continue;
-        fans.push({ x: x + (Math.random() - .5)*4, y: h + 7, z: z + (Math.random() - .5)*5, team: side, mix: false });
+        fans.push({ x: x + (Math.random() - .5)*4, y: h + 7, z: z + (Math.random() - .5)*5, team: side, mix: false, u: side ? LZ + LX + (z - (z0 + 10)) : (z1 + 30) - z });
       }
     }
   }
@@ -296,8 +298,10 @@ function drawFaceSprite(p, o){
   c.fillStyle = 'rgba(255,255,255,.95)';
   c.font = '800 8px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(String(p.num), p.x, p.y + 13.8);
+  SH.drawHairBack(c, p, p.y, r);
   SH.drawFace(c, p, p.y - 2, v);
   SH.drawAccessory(c, p, p.y, r);
+  SH.drawGesture(c, p, p.y, r);
   const y0 = p.y;
   if (p.mood === 'dizzy'){
     c.fillStyle = '#ffe36b';
@@ -393,6 +397,8 @@ function syncPlayers(){
   for (const p of S.players) if (!G3.players.has(p)) G3.players.set(p, makePlayer(p));
 }
 
+const WAVE_CYCLE = 2100, WAVE_SPEED = 6.5, WAVE_W = 85;   // ~35 sn'de bir, ~10 sn sürer; dalga genişliği (birim)
+
 function updateScene(){
   syncPlayers();
   const cam = G3.camera, paused = V.paused, move = !paused && V.mode !== 'end';
@@ -409,7 +415,9 @@ function updateScene(){
     let st = Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
     if (sliding) st = .3;
     // eğilme: depar öne, kayma geriye yatık; gol sevincinde dönerek zıplar
-    o.pivot.rotation.set(0, -va + (jump > 0 ? S.t*.15 : 0), sliding ? .5 : p.sprinting ? -.22*run : -.06*run);
+    const flip = flipOf(S, p);
+    o.pivot.rotation.set(0, flip ? 0 : -va + (jump > 0 ? S.t*.15 : 0), flip ? -flip : sliding ? .5 : p.sprinting ? -.22*run : -.06*run);
+    o.sprite.material.rotation = -flip;
     o.body.position.set(0, PR + bob - (sliding ? 6 : 0), 0);
     o.body.scale.set(1 + st, (1 - st*.5)*(lose ? .88 : 1), 1 - st*.2);
     o.mat.emissive.setHex(p.input && p.input.kick ? 0x3a3a3a : p.stun > 0 ? 0x221100 : 0x000000);
@@ -494,14 +502,19 @@ function updateScene(){
   flushPoints(SN);
   // seyirciler: golde gol atan takımın taraftarı zıplar, o takımın LED'leri yanıp söner
   const dm = G3.fanDummy, cheer = goalPhase ? S.goalInfo.team : -1;
+  // meksika dalgası: WAVE_CYCLE tickte bir, tribünlerin çevresinde WAVE_SPEED hızla dolaşır
+  const wt = S.t % WAVE_CYCLE, wave = !reduceMotion && S.mode !== 'end' ? wt*WAVE_SPEED - 120 : -1e9;
+  const waving = wave > -120 && wave < G3.waveL + 120;
   if (G3.frame % 2 === 0) G3.fans.forEach((f, i) => {
-    let y = f.y;
+    let y = f.y, up = 0;
     if (!reduceMotion){
       y += Math.abs(Math.sin(S.t*.05*f.sp + f.ph))*1.5;
       if (f.team === cheer) y += Math.abs(Math.sin(S.t*.22*f.sp + f.ph))*14;
+      if (waving){ const d = Math.abs(f.u - wave)/WAVE_W; if (d < 1){ up = (1 - d*d); y += up*16; } }
     }
-    dm.position.set(f.x, y, f.z); dm.updateMatrix(); G3.fanMesh.setMatrixAt(i, dm.matrix);
+    dm.position.set(f.x, y, f.z); dm.scale.set(1, 1 + up*.8, 1); dm.updateMatrix(); G3.fanMesh.setMatrixAt(i, dm.matrix);
   });
+  dm.scale.set(1, 1, 1);
   if (G3.frame % 2 === 0) G3.fanMesh.instanceMatrix.needsUpdate = true;
   G3.leds.forEach((m, i) => { m.emissiveIntensity = cheer === i ? .7 + .6*Math.abs(Math.sin(S.t*.3)) : .7; });
 }

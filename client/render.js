@@ -1,8 +1,8 @@
 /* ---------- çizim ----------
    Maç durumunu okur, değiştirmez. Parçacık, iz, yazı ve oyuncu animasyonları
    istemci tarafındaki efekt durumunda (fx) tutulur. */
-import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, shotInfo } from '../shared/constants.js';
-import { fx, visOf, reduceMotion, jumpOf } from './effects.js';
+import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, shotInfo } from '../shared/constants.js';
+import { fx, visOf, reduceMotion, jumpOf, celeOf, flipOf } from './effects.js';
 import { shotKeyLabel } from './input.js';
 import { isTouch, keyLayout } from './ui.js';
 
@@ -24,6 +24,7 @@ export function initRender(canvas, stageEl, canvas3d){ cv = canvas; ctx = cv.get
 export const share = {
   ART_R, get bg(){ return bg; }, get bgVersion(){ return bgVersion; },
   drawFace: (...a) => drawFace(...a), drawAccessory: (...a) => drawAccessory(...a),
+  drawHairBack: (...a) => drawHairBack(...a), drawGesture: (...a) => drawGesture(...a),
 };
 
 /* Görünüm: 3B istenirse Three.js (client/three.min.js) ve client/render3d.js yüklenir.
@@ -261,6 +262,8 @@ function drawPlayerArt(c, p, r){
   // gölge
   c.fillStyle = 'rgba(0,0,0,.3)';
   c.beginPath(); c.ellipse(p.x + 3, p.y + 8, r*.95 - bob*.3, r*.6, 0, 0, Math.PI*2); c.fill();
+  const flip = flipOf(S, p);
+  if (flip){ c.save(); c.translate(p.x, y0); c.rotate(flip); c.translate(-p.x, -y0); }
   // ayakkabılar
   for (const s of [-1, 1]){
     const lift = Math.max(0, Math.sin(v.walk + (s > 0 ? 0 : Math.PI)))*4*run;
@@ -297,6 +300,7 @@ function drawPlayerArt(c, p, r){
     c.strokeStyle = shade(col, 40); c.globalAlpha = a; c.lineWidth = 3;
     c.beginPath(); c.ellipse(p.x, p.y + 6, r + 7, r*.7 + 4, 0, 0, Math.PI*2); c.stroke(); c.globalAlpha = 1;
   }
+  drawHairBack(c, p, y0, r);
   // gövde
   // kayarken hareket yönünde belirgin şekilde uzayıp yassılır
   const st = p.slideT > 0 ? .3 : Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
@@ -339,6 +343,7 @@ function drawPlayerArt(c, p, r){
   }
   drawFace(c, p, y0 - 2, v);
   drawAccessory(c, p, y0, r);
+  drawGesture(c, p, y0, r);
   // üzgünken ter damlası, sevinçte yıldız
   if (p.mood === 'dizzy'){
     const t = S.t*.2;
@@ -355,6 +360,177 @@ function drawPlayerArt(c, p, r){
       const a = t + i*2.1, sx = p.x + Math.cos(a)*(r + 8), sy = y0 - 4 + Math.sin(a)*(r*.6 + 6);
       c.beginPath(); for (let j = 0; j < 8; j++){ const rr2 = j % 2 ? 1.3 : 3.4, aa = j*Math.PI/4; c.lineTo(sx + Math.cos(aa)*rr2, sy + Math.sin(aa)*rr2); } c.closePath(); c.fill();
     }
+  }
+  if (flip) c.restore();
+}
+
+/* ---------- görünüm: ten, saç, dövme, sevinç hareketleri ----------
+   Gövde takım renginde bir top; yüz bölgesi ten renginde, saç üstte (uzun saç, örgü ve afro
+   gövdenin arkasından da taşar). Hepsi ART_R ölçüsünde çizilir; 3B yüz kartı da bunları kullanır. */
+const HATS = ['beanie', 'cap'];
+const isDark = p => SKINS.indexOf(p.skin) >= 4;
+
+// gövdenin arkasında kalan saç: uzun saç, örgüler, afro
+function drawHairBack(c, p, yBody, r){
+  const col = p.hairCol, x = p.x;
+  if (!col) return;
+  c.fillStyle = col;
+  if (p.hair === 'uzun'){
+    const sw = Math.sin(S.t*.12 + p.slot)*1.5;
+    c.beginPath(); c.ellipse(x + sw*.5, yBody + 3, r + 4, r + 3, 0, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.moveTo(x - r - 4, yBody + 3); c.quadraticCurveTo(x - r - 2 + sw, yBody + r + 6, x - r*.4, yBody + r + 3);
+    c.lineTo(x + r*.4, yBody + r + 3); c.quadraticCurveTo(x + r + 2 + sw, yBody + r + 6, x + r + 4, yBody + 3); c.fill();
+  } else if (p.hair === 'orgu'){
+    for (const s of [-1, 1]){
+      const sw = Math.sin(S.t*.15 + p.slot + s)*2;
+      for (let i = 0; i < 6; i++){
+        const t = i/5, bx = x + s*(r - 1 + t*2) + sw*t, by = yBody - 4 + t*(r + 8);
+        c.beginPath(); c.arc(bx + (i % 2 ? 1 : -1)*.8, by, 3.4 - t*.6, 0, Math.PI*2); c.fill();
+      }
+      c.fillStyle = p.accCol; c.beginPath(); c.arc(x + s*(r + 1) + sw, yBody + r + 5, 2, 0, Math.PI*2); c.fill(); c.fillStyle = col;
+    }
+  } else if (p.hair === 'kivircik' && !HATS.includes(p.acc)){
+    for (let i = 0; i <= 9; i++){
+      const a = Math.PI*(1.02 + i*.096);
+      c.beginPath(); c.arc(x + Math.cos(a)*(r + 1), yBody - 2 + Math.sin(a)*(r + 2), 6.5, 0, Math.PI*2); c.fill();
+    }
+  }
+}
+
+// yüzün üstündeki saç (gövdeye kırpılmış) ve tepeden taşan kısımlar (mohikan, topuz)
+function drawHairFront(c, p, yBody, r){
+  const col = p.hairCol, x = p.x, hat = HATS.includes(p.acc);
+  if (!col || p.hair === 'kel' || !p.hair){
+    if (p.hair === 'kel' && !hat){ c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.ellipse(x - 4, yBody - r + 6, 5, 2.4, -.4, 0, Math.PI*2); c.fill(); }
+    return;
+  }
+  const hi = shade(col, 40);
+  if (!hat){
+    c.save(); c.beginPath(); c.arc(x, yBody, r + .5, 0, Math.PI*2); c.clip();
+    c.fillStyle = col;
+    if (p.hair === 'mohikan'){
+      // yanlar kazınmış: hafif gölge, ortada şerit
+      c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(x, yBody - r + 2, r + 2, 8, 0, 0, Math.PI*2); c.fill();
+      c.fillStyle = col; c.fillRect(x - 3.5, yBody - r - 2, 7, 11);
+    } else {
+      const ry = p.hair === 'uzun' || p.hair === 'orgu' ? 9 : 8;
+      c.beginPath(); c.ellipse(x, yBody - r + 2, r + 2, ry, 0, 0, Math.PI*2); c.fill();
+      if (p.hair === 'kisa'){
+        // perçem
+        c.beginPath();
+        for (let i = -2; i <= 2; i++){ const fx0 = x + i*5 + Math.cos(p.dirA)*2; c.moveTo(fx0 - 3, yBody - r + 8); c.lineTo(fx0, yBody - r + 12); c.lineTo(fx0 + 3, yBody - r + 8); }
+        c.fill();
+      } else if (p.hair === 'kivircik'){
+        for (let i = -3; i <= 3; i++){ c.beginPath(); c.arc(x + i*5.2, yBody - r + 9 + (i % 2 ? 1 : 0), 3.6, 0, Math.PI*2); c.fill(); }
+      } else if (p.hair === 'uzun' || p.hair === 'orgu'){
+        // ortadan ayrık, yüzü yanlardan çerçeveler
+        for (const s of [-1, 1]){ c.beginPath(); c.ellipse(x + s*(r - 2), yBody - 2, 4.5, 11, s*.15, 0, Math.PI*2); c.fill(); }
+        c.strokeStyle = shade(col, -30); c.lineWidth = 1.2; c.beginPath(); c.moveTo(x, yBody - r); c.lineTo(x + 1, yBody - r + 9); c.stroke();
+      }
+    }
+    // parlaklık
+    c.fillStyle = hi; c.globalAlpha = .55;
+    c.beginPath(); c.ellipse(x - 6, yBody - r + 4, 4.5, 1.8, -.35, 0, Math.PI*2); c.fill();
+    c.globalAlpha = 1;
+    c.restore();
+  }
+  // tepeden taşanlar (şapka yoksa)
+  if (hat) return;
+  if (p.hair === 'mohikan'){
+    c.fillStyle = col;
+    c.beginPath();
+    for (let i = 0; i < 4; i++){ const by = yBody - r + 2 + i*3.5, lean = -i*.4; c.moveTo(x - 3.5, by + 3); c.lineTo(x + lean, by - 8 + i*1.5); c.lineTo(x + 3.5, by + 3); }
+    c.fill();
+    c.fillStyle = hi; c.beginPath(); c.moveTo(x - 1, yBody - r + 4); c.lineTo(x, yBody - r - 5); c.lineTo(x + 1, yBody - r + 4); c.fill();
+  } else if (p.hair === 'topuz'){
+    c.fillStyle = col; c.beginPath(); c.arc(x, yBody - r - 3, 6.5, 0, Math.PI*2); c.fill();
+    c.fillStyle = hi; c.globalAlpha = .5; c.beginPath(); c.arc(x - 2, yBody - r - 5, 2.2, 0, Math.PI*2); c.fill(); c.globalAlpha = 1;
+    c.fillStyle = p.accCol; c.fillRect(x - 4.5, yBody - r + 1.5, 9, 2.2);
+  }
+}
+
+// yüz bölgesi ten renginde (gövdeye ve forma şeridinin üstüne kırpılır), üstüne dövme
+function drawSkin(c, p, cx, cy, yBody, r){
+  if (!p.skin) return;
+  c.save();
+  c.beginPath(); c.arc(p.x, yBody, r - .4, 0, Math.PI*2); c.clip();
+  c.beginPath(); c.rect(p.x - r - 2, yBody - r - 2, 2*r + 4, r + 7.5); c.clip();
+  const g = c.createRadialGradient(cx - 4, cy - 6, 1, cx, cy, 16);
+  g.addColorStop(0, shade(p.skin, 22)); g.addColorStop(1, shade(p.skin, -12));
+  c.fillStyle = g; c.beginPath(); c.ellipse(cx, cy - 1, 14.5, 12.5, 0, 0, Math.PI*2); c.fill();
+  c.restore();
+  if (!p.tattoo) return;
+  // dövme sol şakakta/yanakta; koyu tende açık mürekkep
+  const ink = isDark(p) ? 'rgba(225,235,255,.8)' : 'rgba(30,50,95,.78)';
+  const tx = cx - 12, ty = cy - 1;
+  c.fillStyle = ink; c.strokeStyle = ink; c.lineCap = 'round';
+  if (p.tattoo === 'yildiz'){
+    c.beginPath(); for (let j = 0; j < 10; j++){ const rr2 = j % 2 ? 1.1 : 2.7, a = -Math.PI/2 + j*Math.PI/5; c.lineTo(tx + Math.cos(a)*rr2, ty + Math.sin(a)*rr2); } c.closePath(); c.fill();
+  } else if (p.tattoo === 'kalp'){
+    c.fillStyle = isDark(p) ? 'rgba(255,170,190,.9)' : 'rgba(190,30,60,.8)';
+    c.beginPath(); c.moveTo(tx, ty + 2.4); c.bezierCurveTo(tx - 3.6, ty - .4, tx - 1.8, ty - 3.2, tx, ty - 1.2); c.bezierCurveTo(tx + 1.8, ty - 3.2, tx + 3.6, ty - .4, tx, ty + 2.4); c.fill();
+  } else if (p.tattoo === 'kabile'){
+    c.lineWidth = 1.3;
+    c.beginPath(); c.moveTo(tx + 1, ty - 6); c.quadraticCurveTo(tx - 3, ty - 2, tx + 1, ty + 1); c.quadraticCurveTo(tx - 2, ty + 3, tx, ty + 6); c.stroke();
+    c.beginPath(); c.moveTo(tx + 2.5, ty - 3); c.lineTo(tx + .5, ty - 1.5); c.stroke();
+  } else if (p.tattoo === 'damla'){
+    const dx = cx - 6, dy = cy + 2.5;
+    c.beginPath(); c.moveTo(dx, dy - 2); c.quadraticCurveTo(dx + 1.6, dy + .8, dx, dy + 1.6); c.quadraticCurveTo(dx - 1.6, dy + .8, dx, dy - 2); c.fill();
+  }
+}
+
+// el: ten renginde yuvarlak, ince kontur
+function hand(c, p, x, y, rad = 4.2){
+  c.fillStyle = p.skin || '#e8b48a'; c.strokeStyle = 'rgba(30,20,30,.55)'; c.lineWidth = 1;
+  c.beginPath(); c.arc(x, y, rad, 0, Math.PI*2); c.fill(); c.stroke();
+}
+// kol: forma renginde, dövmeli oyuncuda kolda desen
+function arm(c, p, x0, y0, x1, y1){
+  c.strokeStyle = TEAM_DARK[p.team]; c.lineWidth = 5; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+  c.strokeStyle = p.skin || '#e8b48a'; c.lineWidth = 3.6;
+  const mx = x0 + (x1 - x0)*.45, my = y0 + (y1 - y0)*.45;
+  c.beginPath(); c.moveTo(mx, my); c.lineTo(x1, y1); c.stroke();
+  if (p.tattoo){
+    c.strokeStyle = isDark(p) ? 'rgba(225,235,255,.85)' : 'rgba(30,50,95,.85)'; c.lineWidth = 1.2;
+    const nx = -(y1 - y0), ny = x1 - x0, L = Math.hypot(nx, ny) || 1;
+    for (const t of [.6, .75]){ const px = x0 + (x1 - x0)*t, py = y0 + (y1 - y0)*t; c.beginPath(); c.moveTo(px - nx/L*1.6, py - ny/L*1.6); c.lineTo(px + nx/L*1.6, py + ny/L*1.6); c.stroke(); }
+  }
+  hand(c, p, x1, y1);
+}
+
+// golü atanın el hareketleri (takla dönüşle çizilir, burada değil)
+function drawGesture(c, p, yBody, r){
+  const ce = celeOf(S, p);
+  if (!ce || ce.t < 8) return;
+  const x = p.x, t = ce.t, slow = Math.hypot(p.vx, p.vy) < 1.2;
+  const cx = x + Math.cos(p.dirA)*3, cy = yBody - 2 + Math.sin(p.dirA)*2;
+  if (ce.type === 'gozluk' && (slow || t > 50)){
+    // parmaklarla gözlük: gözlerin çevresinde halka, avuçlar yanaklarda
+    c.strokeStyle = p.skin || '#e8b48a'; c.lineWidth = 2.4;
+    for (const s of [-1, 1]){ c.beginPath(); c.arc(cx + s*5.5, cy - 3, 4.6, 0, Math.PI*2); c.stroke(); }
+    c.strokeStyle = 'rgba(30,20,30,.45)'; c.lineWidth = .8;
+    for (const s of [-1, 1]){ c.beginPath(); c.arc(cx + s*5.5, cy - 3, 5.9, 0, Math.PI*2); c.stroke(); }
+    for (const s of [-1, 1]) hand(c, p, cx + s*12.5, cy + 4, 4.6);
+  } else if (ce.type === 'kulak' && (slow || t > 60)){
+    // eli kulağa atıp seyirciyi dinler: avuç ve ses dalgaları; 45 tickte bir taraf değişir
+    const s = Math.floor(t/45) % 2 ? 1 : -1, hx = x + s*(r + 3), hy = yBody - 5;
+    c.fillStyle = p.skin || '#e8b48a'; c.strokeStyle = 'rgba(30,20,30,.55)'; c.lineWidth = 1;
+    c.beginPath(); c.ellipse(hx, hy, 4, 6.5, s*.25, 0, Math.PI*2); c.fill(); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.6;
+    for (let i = 0; i < 3; i++){
+      const k = ((t*.06 + i/3) % 1), rad = 6 + k*12;
+      c.globalAlpha = 1 - k; c.beginPath(); c.arc(hx + s*2, hy, rad, s > 0 ? -.7 : Math.PI - .7, s > 0 ? .7 : Math.PI + .7); c.stroke();
+    }
+    c.globalAlpha = 1;
+  } else if (ce.type === 'ucak'){
+    // kollar açık uçak: koşarken iki yana yatar
+    const tilt = Math.sin(t*.09)*7;
+    for (const s of [-1, 1]) arm(c, p, x + s*(r - 4), yBody + 3, x + s*(r + 15), yBody + 2 + s*tilt);
+  } else if (ce.type === 'diz'){
+    // dizlerin üstünde kayar, yumruklar havada
+    const pump = Math.sin(t*.25)*2.5;
+    for (const s of [-1, 1]) arm(c, p, x + s*(r - 5), yBody - 4, x + s*(r + 5), yBody - r - 8 + (s > 0 ? pump : -pump));
   }
 }
 
@@ -417,8 +593,10 @@ function drawFace(c, p, y0, v){
   const ink = '#241c2e';
   const lx = v.lookX, ly = v.lookY, mood = p.mood, f = p.face;
   const cx = p.x + Math.cos(p.dirA)*3, cy = y0 + Math.sin(p.dirA)*2;
+  drawSkin(c, p, cx, cy, y0 + 2, ART_R);
+  drawHairFront(c, p, y0 + 2, ART_R);
   // yanak
-  c.fillStyle = 'rgba(255,110,140,.38)';
+  c.fillStyle = isDark(p) ? 'rgba(255,110,140,.22)' : 'rgba(255,110,140,.38)';
   c.beginPath(); c.ellipse(cx - 10.5, cy + 3, 3.6, 2.2, 0, 0, Math.PI*2); c.fill();
   c.beginPath(); c.ellipse(cx + 10.5, cy + 3, 3.6, 2.2, 0, 0, Math.PI*2); c.fill();
   if (V.mode !== 'end' && !V.paused && --v.blink < 0) v.blink = 150 + Math.random()*220|0;
@@ -437,6 +615,7 @@ function drawFace(c, p, y0, v){
     }
     if (blinking){ c.lineWidth = 2; c.beginPath(); c.moveTo(ex - 3, ey); c.lineTo(ex + 3, ey); c.stroke(); continue; }
     if (f === 'bead' || f === 'grumpy' || f === 'smug'){
+      if (isDark(p)){ c.fillStyle = '#fff'; c.beginPath(); c.arc(ex + lx*.4, ey + ly*.4, 4.4, 0, Math.PI*2); c.fill(); c.fillStyle = ink; }
       c.beginPath(); c.arc(ex + lx*.8, ey + ly*.8, 3.1, 0, Math.PI*2); c.fill();
       c.fillStyle = '#fff'; c.beginPath(); c.arc(ex + lx*.8 - 1.1, ey + ly*.8 - 1.1, 1.1, 0, Math.PI*2); c.fill();
     } else if (f === 'big' || f === 'cyclops'){
