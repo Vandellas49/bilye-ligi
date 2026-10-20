@@ -10,7 +10,7 @@ import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, ro
 import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
-import { initRender, resize, renderBg, render, setView3D } from './render.js';
+import { initRender, resize, renderBg, render, setView3D, viewInfo } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
 import { $, initMenu, readCfg, readCreate, saveCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
   updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D } from './ui.js';
@@ -44,7 +44,7 @@ function startMatch(cfg, extra = {}){
     size: +cfg.size, humans, diff: +cfg.diff, arena: cfg.arena, weather,
     minutes: +cfg.time, specials: true, seed: randomSeed(), teamNames: extra.teamNames,
   });
-  G.online = false; G.netM = null;
+  G.online = false; G.netM = null; prevPos.clear();
   resetFx(); buildAmbient(weather);
   document.body.classList.remove('nospecial');
   setMode('match'); G.paused = false; G.menuOpen = false;
@@ -57,7 +57,7 @@ function startMatch(cfg, extra = {}){
 
 function startDemo(){
   setMode('menu');
-  G.online = false; G.netM = null; G.paused = false; G.menuOpen = false; G.tourMatch = null;
+  G.online = false; G.netM = null; G.paused = false; G.menuOpen = false; G.tourMatch = null; prevPos.clear();
   const weather = (G.cfg && G.cfg.weather) || (saved && saved.weather) || 'kar';
   G.state = createMatch({ size: 2, humans: [], diff: 2, arena: 'r', weather, minutes: 0, specials: true, seed: randomSeed(), kickoffTeam: 0 });
   resetFx(); buildAmbient(weather);
@@ -288,8 +288,32 @@ function handleEvents(events){
   }
 }
 
+/* Çizim enterpolasyonu (yerel maç): fizik 60 Hz'te adım atar, ekran kareleri her zaman denk düşmez
+   (bazı karede 2 adım, bazısında hiç). Her adımdan önce konumlar saklanır; çizimde iki adım arasındaki
+   ara konum kullanılır, çizimden hemen sonra gerçek konumlar geri konur (simülasyon etkilenmez). */
+const prevPos = new Map();   // nesne -> [x, y, z]
+function savePrev(S){
+  for (const p of S.players) prevPos.set(p, [p.x, p.y, 0]);
+  prevPos.set(S.ball, [S.ball.x, S.ball.y, S.ball.z]);
+}
+function withLerp(S, alpha, fn){
+  if (alpha >= 1 || !prevPos.size) return fn();
+  const real = [];
+  for (const o of [...S.players, S.ball]){
+    const pv = prevPos.get(o);
+    if (!pv) continue;
+    // ışınlanmada (başlama vuruşu, gol sonrası) ara değer yok
+    if (Math.abs(o.x - pv[0]) + Math.abs(o.y - pv[1]) > 60) continue;
+    real.push([o, o.x, o.y, o.z]);
+    o.x = pv[0] + (o.x - pv[0])*alpha; o.y = pv[1] + (o.y - pv[1])*alpha;
+    if (o === S.ball) o.z = pv[2] + (o.z - pv[2])*alpha;
+  }
+  try { fn(); } finally { for (const [o, x, y, z] of real){ o.x = x; o.y = y; if (o === S.ball) o.z = z; } }
+}
+
 function tick(){
   const S = G.state, inputs = {};
+  savePrev(S);
   const friend = !!(G.cfg && G.cfg.opp === 'friend');
   const assist = passAssist();
   for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = { ...readInput(p.ctrl, friend), assist };
@@ -307,8 +331,20 @@ function netFrame(now){
 }
 
 let last = performance.now(), acc = 0, hudTick = 0;
+/* Performans göstergesi (F2): kare hızı, en uzun kare, simülasyon ve çizim süresi (yarım saniyelik ortalama) */
+const perf = { on: false, frames: 0, sim: 0, draw: 0, worst: 0, since: 0 };
+addEventListener('keydown', e => { if (e.code === 'F2'){ e.preventDefault(); perf.on = !perf.on; $('perf').hidden = !perf.on; } });
+function perfReport(now, dt, simMs, drawMs){
+  perf.frames++; perf.sim += simMs; perf.draw += drawMs; perf.worst = Math.max(perf.worst, dt);
+  if (now - perf.since < 500) return;
+  const n = perf.frames, secs = (now - perf.since)/1000;
+  $('perf').textContent = `${Math.round(n/secs)} kare/sn · en uzun kare ${perf.worst.toFixed(0)} ms · sim ${(perf.sim/n).toFixed(1)} ms · çizim ${(perf.draw/n).toFixed(1)} ms · ${viewInfo()}`;
+  Object.assign(perf, { frames: 0, sim: 0, draw: 0, worst: 0, since: now });
+}
+
 function frame(now){
   let dt = now - last; last = now;
+  const rawDt = dt, t0 = perf.on ? performance.now() : 0;
   if (dt > 250) dt = 250;
   if (G.online){
     if (G.mode === 'match' && G.netM) netFrame(now);
@@ -320,7 +356,11 @@ function frame(now){
     if (++hudTick % 10 === 0) updateHud(G.state);
     updateTouchCooldowns(G.state);
   }
-  render(G.state, G);
+  const t1 = perf.on ? performance.now() : 0;
+  // yerel maç sürerken iki fizik adımı arasındaki ara konumla çiz (duraklatınca/bitince son konum)
+  const alpha = !G.online && !G.paused && G.mode !== 'end' && G.state ? acc/TICK : 1;
+  withLerp(G.state, alpha, () => render(G.state, G));
+  if (perf.on) perfReport(now, rawDt, t1 - t0, performance.now() - t1);
   requestAnimationFrame(frame);
 }
 

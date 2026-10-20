@@ -19,6 +19,10 @@ let T, SH, S, V, FX;               // THREE, render.js paylaşımı, maç durumu
 const light = () => isTouch();     // dokunmatik cihazda daha hafif ayarlar
 
 const toV = (x, y, h) => new T.Vector3(x - W/2, h, y - H/2);
+// her karede yeni nesne üretmemek için tekrar kullanılan geçiciler (çöp toplayıcı takılması olmasın)
+const TMP = {};
+function tmp(){ if (!TMP.a){ TMP.a = new T.Vector3(); TMP.b = new T.Vector3(); TMP.c = new T.Vector3(); TMP.up = new T.Vector3(); TMP.ax = new T.Vector3(); TMP.q = new T.Quaternion(); } return TMP; }
+const setV = (v, x, y, h) => v.set(x - W/2, h, y - H/2);
 
 const colCache = new Map();
 function parseCol(str){
@@ -104,6 +108,7 @@ export function init3D(canvas, share){
   G3.snowList = []; G3.trail = []; G3.players = new Map();
   G3.prevBall = { x: W/2, y: H/2 };
   G3.key = '';   // saha/hava değişince yeniden ayarlamak için
+  G3.quality = 2; G3.qScale = 1; G3.ft = []; G3.lastT = 0;   // otomatik kalite (bkz. adaptQuality)
   G3.ready = true;
 }
 
@@ -333,7 +338,8 @@ function applyArena(){
 /* ---------- kamera ---------- */
 export function resize3D(cw, ch, dpr){
   if (!G3.ready) return;
-  const d = light() ? Math.min(dpr, 1.5) : dpr;
+  G3.dpr = dpr;
+  const d = Math.min(dpr, light() ? 1.25 : 1.5)*G3.qScale;   // yüksek DPI ekranda piksel sayısı sınırlı; kalite düşünce daha da az
   G3.renderer.setPixelRatio(d); G3.renderer.setSize(cw, ch, false);
   G3.cw = cw; G3.ch = ch;
   const cam = G3.camera;
@@ -390,13 +396,14 @@ function syncPlayers(){
 function updateScene(){
   syncPlayers();
   const cam = G3.camera, paused = V.paused, move = !paused && V.mode !== 'end';
-  const camDir = new T.Vector3(), camUp = new T.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
+  const tp = tmp(), camDir = tp.a, camUp = tp.up.set(0, 1, 0).applyQuaternion(cam.quaternion);
+  G3.frame = (G3.frame || 0) + 1;
   const goalPhase = S.phase === 'goal' && S.goalInfo;
   for (const [p, o] of G3.players){
     const v = visOf(p);
     const sp = Math.hypot(p.vx, p.vy), run = Math.min(1, sp/2.2);
     const bob = Math.abs(Math.sin(v.walk))*2.4*run, jump = jumpOf(S, p);
-    o.g.position.copy(toV(p.x, p.y, jump));
+    setV(o.g.position, p.x, p.y, jump);
     const va = Math.atan2(p.vy, p.vx), sliding = p.slideT > 0;
     const lose = goalPhase && p.team !== S.goalInfo.team;
     let st = Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
@@ -412,8 +419,10 @@ function updateScene(){
     }
     // yüz kartı: gövdenin kameraya bakan yüzünde
     camDir.copy(cam.position).sub(o.g.position).setY(cam.position.y - (PR + bob)).normalize();
-    o.sprite.position.copy(o.g.position).add(new T.Vector3(0, PR + bob - (sliding ? 6 : 0), 0)).addScaledVector(camDir, PR*1.02).addScaledVector(camUp, 3.7);
-    drawFaceSprite(p, o);
+    o.sprite.position.copy(o.g.position); o.sprite.position.y += PR + bob - (sliding ? 6 : 0);
+    o.sprite.position.addScaledVector(camDir, PR*1.02).addScaledVector(camUp, 3.7);
+    // yüz dokusu iki karede bir (oyuncular sırayla) yeniden çizilir: çizim ve ekran kartına yükleme ucuzlar
+    if ((G3.frame + p.id) % 2 === 0) drawFaceSprite(p, o);
     // halkalar: topun sahibi takım renginde, özel şut/kombo hazırsa onun renginde
     const own = S.owner === p;
     o.halo.visible = own || !!p.armed;
@@ -431,14 +440,14 @@ function updateScene(){
     const showG = p.sprinting && sp > 2.4 && !reduceMotion;  // depar yansımaları
     o.ghosts.forEach((m, i) => {
       m.visible = showG;
-      if (showG){ m.position.copy(o.g.position).add(new T.Vector3(-p.vx/sp*(i + 1)*9, PR + bob, -p.vy/sp*(i + 1)*9)); m.scale.setScalar(1 - (i + 1)*.08); }
+      if (showG){ m.position.set(o.g.position.x - p.vx/sp*(i + 1)*9, o.g.position.y + PR + bob, o.g.position.z - p.vy/sp*(i + 1)*9); m.scale.setScalar(1 - (i + 1)*.08); }
     });
   }
   // top
   const b = S.ball;
-  G3.ball.position.copy(toV(b.x, b.y, b.z + BR));
+  setV(G3.ball.position, b.x, b.y, b.z + BR);
   const dx = b.x - G3.prevBall.x, dz = b.y - G3.prevBall.y, dist = Math.hypot(dx, dz);
-  if (dist > 0 && dist < 60) G3.ball.quaternion.premultiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(dz/dist, 0, -dx/dist), dist/BR));
+  if (dist > 0 && dist < 60) G3.ball.quaternion.premultiply(tp.q.setFromAxisAngle(tp.ax.set(dz/dist, 0, -dx/dist), dist/BR));
   G3.prevBall.x = b.x; G3.prevBall.y = b.y;
   const fire = b.fire > 0;
   G3.ballMat.emissive.setHex(fire ? 0xff5a10 : 0x000000); G3.ballMat.emissiveIntensity = fire ? .55 : 0;
@@ -485,7 +494,7 @@ function updateScene(){
   flushPoints(SN);
   // seyirciler: golde gol atan takımın taraftarı zıplar, o takımın LED'leri yanıp söner
   const dm = G3.fanDummy, cheer = goalPhase ? S.goalInfo.team : -1;
-  G3.fans.forEach((f, i) => {
+  if (G3.frame % 2 === 0) G3.fans.forEach((f, i) => {
     let y = f.y;
     if (!reduceMotion){
       y += Math.abs(Math.sin(S.t*.05*f.sp + f.ph))*1.5;
@@ -493,11 +502,37 @@ function updateScene(){
     }
     dm.position.set(f.x, y, f.z); dm.updateMatrix(); G3.fanMesh.setMatrixAt(i, dm.matrix);
   });
-  G3.fanMesh.instanceMatrix.needsUpdate = true;
+  if (G3.frame % 2 === 0) G3.fanMesh.instanceMatrix.needsUpdate = true;
   G3.leds.forEach((m, i) => { m.emissiveIntensity = cheer === i ? .7 + .6*Math.abs(Math.sin(S.t*.3)) : .7; });
 }
 
+/* Otomatik kalite: son ~2 sn'de kare süresi ortalaması 22 ms'yi (≈45 kare/sn) aşarsa bir kademe düşer:
+   2 → 1: çözünürlük %75, gölge haritası 1024;  1 → 0: gölgeler kapalı, kar azalır. Geri yükselmez. */
+function adaptQuality(now){
+  if (G3.lastT){ const dt = now - G3.lastT; if (dt < 1000) G3.ft.push(dt); }
+  G3.lastT = now;
+  const span = G3.ft.reduce((a, b) => a + b, 0);
+  if (span < 2000 || G3.ft.length < 8) return;     // ~2 sn'lik ölçüm biriksin
+  const avg = span/G3.ft.length;
+  G3.ft = [];
+  if (avg <= 22 || G3.quality === 0) return;
+  G3.quality--;
+  if (G3.quality === 1){
+    G3.qScale = .75;
+    G3.sun.shadow.mapSize.set(1024, 1024);
+    if (G3.sun.shadow.map){ G3.sun.shadow.map.dispose(); G3.sun.shadow.map = null; }
+  } else {
+    G3.renderer.shadowMap.enabled = false;
+    G3.scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+    G3.snowList.length = Math.min(G3.snowList.length, 300);
+  }
+  resize3D(G3.cw, G3.ch, G3.dpr);
+  console.info('3B kalite düşürüldü:', G3.quality, '(ortalama kare ' + avg.toFixed(1) + ' ms)');
+}
+export const quality3D = () => G3.quality;
+
 export function render3D(state, view, fx){
+  adaptQuality(performance.now());
   S = state; V = view; FX = fx;
   const key = S.arena + '|' + S.weather;
   if (key !== G3.key){ G3.key = key; applyArena(); }

@@ -55,6 +55,8 @@ main{flex:1;position:relative;display:flex;align-items:center;justify-content:ce
 canvas{display:block;border-radius:18px;touch-action:none}
 /* 3B görünüm: sahne #cv3'te, 2B katman (isimler, yazılar, HUD) saydam olarak üstte */
 #view{position:relative}
+#perf{position:fixed;left:8px;bottom:8px;z-index:50;pointer-events:none;font:600 12px/1.3 ui-monospace,Consolas,monospace;
+  background:rgba(0,0,0,.7);color:#fff;padding:5px 8px;border-radius:8px}
 #cv3{display:none}
 body.three #cv3{display:block}
 body.three #cv{position:absolute;left:0;top:0;pointer-events:none}
@@ -185,6 +187,7 @@ details[open] summary{margin-bottom:12px}
     <button class="icon-btn" id="pauseBtn" aria-label="Duraklat" title="Duraklat (Esc)" hidden>❚❚</button>
   </div>
 </header>
+<div id="perf" hidden></div>
 <div class="rotate-hint">Telefonu yan çevirirsen saha büyür.</div>
 <main id="stage">
   <div id="view">

@@ -47,6 +47,8 @@ export async function setView3D(on){
   }
 }
 export const is3D = () => use3D;
+// performans göstergesi için: görünüm ve 3B kalite kademesi (2 en yüksek)
+export const viewInfo = () => use3D && R3 ? '3B, kalite ' + R3.quality3D() : '2B';
 
 export function resize(){
   const r = stage.getBoundingClientRect();
