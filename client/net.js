@@ -17,6 +17,7 @@ export const net = {
   ping: 0,                       // ölçülen gidiş-dönüş süresi (ms, yumuşatılmış)
   me: null,                      // { id, name }
   name: loadStore().name || '',
+  look: null,                    // menüde seçilen oyuncu görünümü (main.js verir)
   handlers: {},                  // type -> fn(msg); ayrıca 'status' -> fn(status)
   wanted: false, everConnected: false, fails: 0,
 };
@@ -41,7 +42,7 @@ export function connect(name){
     // birkaç saniyede WebSocket'e geçilemezse ağ engelliyor demektir
     const check = setTimeout(() => { if (s.connected && engine.transport.name === 'polling'){ net.slow = true; if (net.me) setStatus('on'); } }, 3000);
     engine.once('upgrade', () => { clearTimeout(check); net.slow = false; if (net.me) setStatus('on'); });
-    s.emit('m', { type: 'hello', name: net.name || 'Oyuncu', sessionKey: loadStore().key });
+    s.emit('m', { type: 'hello', name: net.name || 'Oyuncu', sessionKey: loadStore().key, look: net.look });
   });
   s.on('m', m => {
     if (!m || typeof m.type !== 'string') return;

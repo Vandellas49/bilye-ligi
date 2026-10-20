@@ -82,6 +82,18 @@ export const HAIR_COLS = ['#1c1410', '#1c1410', '#3b2416', '#6b4226', '#d9b25c',
 export const TATTOOS = ['yildiz', 'kalp', 'kabile', 'damla'];
 // gol sevinçleri: golü atan oyuncu yapar (golde rastgele seçilir)
 export const CELEBRATIONS = ['takla', 'gozluk', 'kulak', 'ucak', 'diz'];
+export const ACCS = ['none', 'cap', 'beanie', 'headband', 'scarf', 'earmuffs', 'sprout'];
+/* Oyuncunun seçtiği görünüm (menü "Oyuncum"): { skin, hair, hairCol, tattoo, face, acc }.
+   Geçerli alanlar kalır, eksik ya da geçersiz alan maçta rastgele olur. tattoo: 'yok' = dövmesiz. */
+export function cleanLook(look){
+  const out = {};
+  if (!look || typeof look !== 'object') return out;
+  const pick = (k, list) => { if (typeof look[k] === 'string' && list.includes(look[k])) out[k] = look[k]; };
+  pick('skin', SKINS); pick('hair', HAIRS); pick('hairCol', HAIR_COLS); pick('face', FACES); pick('acc', ACCS);
+  if (look.tattoo === 'yok' || look.tattoo === null) out.tattoo = null;
+  else pick('tattoo', TATTOOS);
+  return out;
+}
 export const POSTS = [{x:0,y:TOP},{x:0,y:BOT},{x:W,y:TOP},{x:W,y:BOT}];
 
 export const ARENAS = [

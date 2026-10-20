@@ -80,6 +80,17 @@ legend{font-weight:800;font-size:14px;margin-bottom:6px;padding:0}
 .seg input:disabled+label{opacity:.45;cursor:not-allowed}
 .sw{width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
 .note{font-size:13px;color:var(--muted);margin:-4px 0 10px}
+#lookBox{margin:0 0 12px;border:1px solid var(--line);border-radius:16px;background:var(--chip)}
+#lookBox summary{display:flex;align-items:center;gap:12px;padding:8px 12px;cursor:pointer;font-weight:800;font-size:14px;list-style:none}
+#lookBox summary::-webkit-details-marker{display:none}
+#lookBox summary .hint{font-weight:600;color:var(--muted);font-size:13px}
+#lookBox summary::after{content:"▾";margin-left:auto;color:var(--muted)}
+#lookBox[open] summary::after{content:"▴"}
+#lookPrev{width:72px;height:72px;flex:none}
+#lookRows{padding:4px 12px 2px}
+#lookRows .seg label{padding:6px 11px;font-size:13px}
+#lookRows .seg label.swonly{padding:6px 8px}
+#lookRows .sw{width:18px;height:18px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .btn{border:0;border-radius:14px;padding:13px 20px;font-weight:800;font-size:16px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
 .btn.ghost{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
@@ -237,6 +248,11 @@ details[open] summary{margin-bottom:12px}
         </div>
       </fieldset>
 
+
+      <details id="lookBox">
+        <summary><canvas id="lookPrev" aria-hidden="true"></canvas><span>Oyuncum<br><span class="hint">Saç, ten, yüz, dövme seç</span></span></summary>
+        <div id="lookRows"></div>
+      </details>
 
       <fieldset id="diffField">
         <legend>Bot seviyesi</legend>

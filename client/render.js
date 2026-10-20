@@ -364,6 +364,23 @@ function drawPlayerArt(c, p, r){
   if (flip) c.restore();
 }
 
+/* Menüdeki "Oyuncum" önizlemesi: seçilen görünümle tek oyuncu çizer. Seçilmeyen alanlar örnek değerle gösterilir. */
+export function drawLookPreview(canvas, look, team = 0){
+  const c = canvas.getContext('2d'), d = Math.min(2, window.devicePixelRatio || 1);
+  const w = canvas.clientWidth || 72, h = canvas.clientHeight || 72;
+  if (canvas.width !== w*d){ canvas.width = w*d; canvas.height = h*d; }
+  const p = { id: 999, x: 0, y: 0, vx: 0, vy: 0, r: ART_R, team, ctrl: 'ai', slot: 0, num: 10, mood: 'idle', dirA: Math.PI/2,
+    input: {}, face: 'bead', acc: 'none', accCol: '#e8455c', skin: '#e8b48a', hair: 'kisa', hairCol: '#3b2416', tattoo: null, ...look };
+  const keepS = S, keepV = V;
+  S = { t: 0, owner: null, phase: 'play', goalInfo: null, players: [p] }; V = { mode: 'menu', paused: true };
+  try {
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, canvas.width, canvas.height);
+    const k = d*h/(ART_R*3.4);
+    c.setTransform(k, 0, 0, k, canvas.width/2, canvas.height/2 + 4*k);
+    drawPlayerArt(c, p, ART_R);
+  } finally { S = keepS; V = keepV; }
+}
+
 /* ---------- görünüm: ten, saç, dövme, sevinç hareketleri ----------
    Gövde takım renginde bir top; yüz bölgesi ten renginde, saç üstte (uzun saç, örgü ve afro
    gövdenin arkasından da taşar). Hepsi ART_R ölçüsünde çizilir; 3B yüz kartı da bunları kullanır. */

@@ -1,5 +1,5 @@
 /* ---------- menü, HUD ve ekranlar ---------- */
-import { ARENAS, SHOTS, SHOT_TYPES, TEAM_NAME } from '../shared/constants.js';
+import { ARENAS, SHOTS, SHOT_TYPES, TEAM_NAME, SKINS, HAIRS, HAIR_COLS, TATTOOS, FACES, ACCS, cleanLook } from '../shared/constants.js';
 import { roundName, TOUR_TEAMS } from '../shared/tournament.js';
 
 export const $ = id => document.getElementById(id);
@@ -64,6 +64,42 @@ export function initMenu(){
   document.querySelectorAll('input[name="crType"]').forEach(el => el.addEventListener('change', syncCreate));
   syncCreate();
   return saved;
+}
+
+/* "Oyuncum": görünüm seçimi. Her satırda ilk seçenek Rastgele (alan kaydedilmez, maçta rastgele olur).
+   Seçim bilye-cfg.look'ta saklanır; onChange(look) önizlemeyi çizer ve çevrimiçine bildirir. */
+const LOOK_ROWS = [
+  { key: 'skin', title: 'Ten', opts: SKINS.map(v => [v, null, v]) },
+  { key: 'hair', title: 'Saç', opts: [...new Set(HAIRS)].map(v => [v, { kisa: 'Kısa', uzun: 'Uzun', kivircik: 'Afro', mohikan: 'Mohikan', topuz: 'Topuz', orgu: 'Örgü', kel: 'Kel' }[v]]) },
+  { key: 'hairCol', title: 'Saç rengi', opts: [...new Set(HAIR_COLS)].map(v => [v, null, v]) },
+  { key: 'face', title: 'Yüz', opts: [...new Set(FACES)].map(v => [v, { bead: 'Boncuk', big: 'İri göz', sleepy: 'Uykulu', cyclops: 'Tek göz', grumpy: 'Asık', smug: 'Havalı' }[v]]) },
+  { key: 'acc', title: 'Aksesuar', opts: ACCS.map(v => [v, { none: 'Yok', cap: 'Şapka', beanie: 'Bere', headband: 'Saç bandı', scarf: 'Atkı', earmuffs: 'Kulaklık', sprout: 'Filiz' }[v]]) },
+  { key: 'tattoo', title: 'Dövme', opts: [['yok', 'Yok'], ...TATTOOS.map(v => [v, { yildiz: 'Yıldız', kalp: 'Kalp', kabile: 'Kabile', damla: 'Damla' }[v]])] },
+];
+export function loadLook(){
+  const l = (loadCfg() || {}).look;
+  const out = cleanLook(l);
+  if (out.tattoo === null) out.tattoo = 'yok';   // önizleme ve kayıt biçimi
+  return out;
+}
+export function initLookEditor(onChange){
+  const box = $('lookRows');
+  const look = loadLook();
+  box.innerHTML = LOOK_ROWS.map(r => {
+    const chips = [['', 'Rastgele'], ...r.opts].map(([v, label, col], i) => {
+      const id = 'lk-' + r.key + '-' + i, on = (look[r.key] || '') === v ? ' checked' : '';
+      const inner = col ? `<span class="sw" style="background:${col}"></span>` : esc(label);
+      return `<input type="radio" name="lk-${r.key}" id="${id}" value="${v}"${on}><label for="${id}"${col ? ` aria-label="${r.title} ${i}" class="swonly"` : ''}>${inner}</label>`;
+    }).join('');
+    return `<fieldset><legend>${r.title}</legend><div class="seg">${chips}</div></fieldset>`;
+  }).join('');
+  const read = () => {
+    const l = {};
+    for (const r of LOOK_ROWS){ const v = radio('lk-' + r.key); if (v) l[r.key] = v; }
+    return l;
+  };
+  box.addEventListener('change', () => { const l = read(); saveCfg({ ...(loadCfg() || {}), look: l }); onChange(l); });
+  onChange(look);
 }
 
 // pas yardımı tercihi (menüdeki seçim; çevrimiçinde de kullanılır)

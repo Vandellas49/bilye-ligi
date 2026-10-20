@@ -12,7 +12,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  CENTER_R, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
+  CENTER_R, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
@@ -76,6 +76,8 @@ function buildPlayers(S, n, humans){
       d.hair = HAIRS[randInt(rng, HAIRS.length)];
       d.hairCol = HAIR_COLS[randInt(rng, HAIR_COLS.length)];
       d.tattoo = random(rng) < .3 ? TATTOOS[randInt(rng, TATTOOS.length)] : null;
+      // insan oyuncunun seçtiği görünüm (rastgele çekilişlerden sonra: tohum sırası değişmesin)
+      if (h && h.look) Object.assign(d, cleanLook(h.look));
       S.players.push(d);
     }
   }

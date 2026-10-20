@@ -10,7 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
-import { TICK, ARENAS, TEAM_NAME } from '../shared/constants.js';
+import { TICK, ARENAS, TEAM_NAME, cleanLook } from '../shared/constants.js';
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
 import { roster, snapshot, matchInfo } from '../shared/net.js';
@@ -129,9 +129,10 @@ function hello(socket, msg, current){
     // aynı oturumla geri dönüş: eski bağlantıyı bırak
     if (c.socket !== socket && c.socket.connected) c.socket.disconnect(true);
     c.socket = socket; c.connected = true; c.goneAt = 0; c.name = name;
+    if (msg.look) c.look = cleanLook(msg.look);
   } else {
     if (current) return current;
-    c = { id: nextClientId++, key: crypto.randomBytes(16).toString('hex'), name, socket, connected: true, goneAt: 0, room: null, input: null };
+    c = { id: nextClientId++, key: crypto.randomBytes(16).toString('hex'), name, socket, connected: true, goneAt: 0, room: null, input: null, look: cleanLook(msg.look) };
     clients.set(c.id, c); sessions.set(c.key, c);
   }
   send(c, 'welcome', { id: c.id, sessionKey: c.key, name: c.name });
@@ -165,6 +166,7 @@ function handle(c, m){
   const room = c.room && rooms.get(c.room);
   switch (m.type){
     case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); break;
+    case 'setLook': c.look = cleanLook(m.look); break;   // sonraki maçta geçerli
     case 'listRooms': send(c, 'rooms', { rooms: roomList() }); break;
     case 'ping': if (typeof m.t === 'number' && Number.isFinite(m.t)) send(c, 'pong', { t: m.t }); break;
     case 'createRoom': {
@@ -329,7 +331,7 @@ function startLiveMatch(r, { sides, names, diff, round = null, index = null, lab
   const s = r.settings, humans = [];
   sides.forEach((teamIdx, side) => {
     for (const id of r.members){
-      if (r.teams.get(id) === teamIdx) humans.push({ team: side, ctrl: 'net', name: clients.get(id).name, uid: id });
+      if (r.teams.get(id) === teamIdx) humans.push({ team: side, ctrl: 'net', name: clients.get(id).name, uid: id, look: clients.get(id).look });
     }
   });
   const S = createMatch({

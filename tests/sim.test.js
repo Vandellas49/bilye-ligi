@@ -493,3 +493,17 @@ test('kulak sevinci: golü atan bot kenar çizgisine, seyirciye koşar; takla at
     assert.ok(check(sc, y0, x0), `${cele}: (${sc.x.toFixed(0)}, ${sc.y.toFixed(0)})`);
   }
 });
+
+test('insan oyuncunun seçtiği görünüm maça geçer, geçersiz alanlar rastgele kalır, tohum sırası bozulmaz', () => {
+  const look = { skin: SKINS[5], hair: 'mohikan', hairCol: HAIR_COLS[7], tattoo: 'yok', face: 'cyclops', acc: 'cap' };
+  const S = createMatch({ size: 3, seed: 4, humans: [{ team: 0, ctrl: 'h1', name: 'Sen', look }] });
+  const me = S.players.find(p => p.ctrl === 'h1');
+  assert.deepEqual([me.skin, me.hair, me.hairCol, me.tattoo, me.face, me.acc], [SKINS[5], 'mohikan', HAIR_COLS[7], null, 'cyclops', 'cap']);
+  const bad = createMatch({ size: 3, seed: 4, humans: [{ team: 0, ctrl: 'h1', name: 'Sen', look: { hair: '<script>', skin: 'red', tattoo: 'kalp' } }] });
+  const me2 = bad.players.find(p => p.ctrl === 'h1');
+  assert.ok(HAIRS.includes(me2.hair) && SKINS.includes(me2.skin));
+  assert.equal(me2.tattoo, 'kalp');
+  // diğer oyuncuların görünümü seçimden etkilenmez
+  const plain = createMatch({ size: 3, seed: 4, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+  assert.deepEqual(S.players.slice(1).map(p => p.hair + p.skin), plain.players.slice(1).map(p => p.hair + p.skin));
+});

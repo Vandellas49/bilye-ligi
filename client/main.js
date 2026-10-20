@@ -10,9 +10,9 @@ import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, ro
 import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
-import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler } from './render.js';
+import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
-import { $, initMenu, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
+import { $, initMenu, initLookEditor, loadLook, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
   updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D, keyLayout } from './ui.js';
 
 /* istemci durumu
@@ -26,6 +26,12 @@ const G = { mode: 'menu', paused: false, cfg: null, state: null, online: false, 
   tour: null, tourMatch: null, room: null };
 
 const saved = initMenu();
+// "Oyuncum": önizleme, çevrimiçi sunucuya bildirim (sonraki maçta geçerli)
+initLookEditor(look => {
+  drawLookPreview($('lookPrev'), look);
+  net.look = look;
+  if (net.status === 'on') send('setLook', { look });
+});
 
 function setMode(mode){
   G.mode = mode;
@@ -36,7 +42,7 @@ function setMode(mode){
 // extra: { teamNames } turnuva maçı için
 function startMatch(cfg, extra = {}){
   if (!extra.teamNames) G.cfg = cfg;
-  const humans = [{team:0, ctrl:'h1', name:'Sen'}];
+  const humans = [{team:0, ctrl:'h1', name:'Sen', look: loadLook()}];
   const weather = cfg.weather || 'kar';
   G.state = createMatch({
     size: +cfg.size, humans, diff: +cfg.diff, arena: cfg.arena, weather,
@@ -261,7 +267,7 @@ $('muteBtn').onclick = () => {
   $('muteBtn').textContent = muted ? '🔇' : '🔊'; $('muteBtn').setAttribute('aria-label', muted ? 'Sesi aç' : 'Sesi kapat');
 };
 $('startBtn').onclick = () => {
-  const cfg = readCfg(); saveCfg(cfg);
+  const cfg = readCfg(); saveCfg({ ...(loadCfg() || {}), ...cfg });   // menüde ayrıca kaydedilenler (görünüm) silinmesin
   if (cfg.mode === 'tour') startTournament(cfg); else startMatch(cfg);
 };
 $('onlineBtn').onclick = openOnline;

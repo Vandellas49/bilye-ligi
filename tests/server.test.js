@@ -91,6 +91,7 @@ test('oda kur, katıl, takım seç, maç oyna, kopup geri dön', async () => {
   const st = await a.wait(m => m.type === 'roomState' && m.room.members.find(x => x.id === wb.id)?.team === 1);
   assert.equal(st.room.members.find(x => x.id === wa.id).team, 0);
 
+  b.send('setLook', { look: { hair: 'topuz', skin: '#4e2f1c', face: 'hack' } });   // seçilen görünüm maça geçer
   // yalnızca oda sahibi başlatabilir
   b.send('start');
   a.send('start');
@@ -98,6 +99,7 @@ test('oda kur, katıl, takım seç, maç oyna, kopup geri dön', async () => {
   assert.equal(ms.roster.length, 4);
   const pb = ms.roster.find(p => p.uid === wb.id);
   assert.equal(pb.team, 1);
+  assert.equal(pb.hair, 'topuz'); assert.equal(pb.skin, '#4e2f1c'); assert.notEqual(pb.face, 'hack');
 
   // B aşağı basar: sunucudaki oyuncusu aşağı gitmeli
   const snapOf = () => b.last.snap.s.players[pb.id];
