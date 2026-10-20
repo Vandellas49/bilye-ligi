@@ -118,7 +118,7 @@ function keysHelpHtml(layout){
   return [
     `<b>FIFA düzeni.</b> Hareket: ok tuşları. Depar: ${kbd('E')}. Topu koru: ${kbd('Shift')}.`,
     `Topu sürerken: ${kbd('S')} pas (arkadaşına), ${kbd('D')} sert şut (bar dolunca alevli), ${kbd('A')}+${kbd('D')} havadan sert şut, ${kbd('W')} ara pas (arkadaşının önüne), ${kbd('A')} havadan pas / orta. Basılı tuttukça güç barı dolar, bırakınca vurursun.`,
-    `Rakip toptayken: ${kbd('S')} ya da ${kbd('A')} müdahale, ${kbd('D')} kayarak müdahale.`,
+    `Rakip toptayken: ${kbd('S')} basılı: baskı (oyuncun topu tutana kendiliğinden kapanır, ${kbd('E')} ile depar), ${kbd('D')} ayak koyma (topu almak için müdahale), ${kbd('A')} kayarak müdahale.`,
     `Oyuncu değiştir: ${kbd('Q')} (topa en yakın arkadaşına geçersin). Pas iste: ${kbd('F')}.`,
     `Özel şutlar: ${kbd('Z')} falso, ${kbd('X')} füze, ${kbd('C')} aşırtma; birlikte basınca kombo (${kbd('Z')}+${kbd('X')}, ${kbd('X')}+${kbd('C')}, ${kbd('Z')}+${kbd('C')}, üçü birden).`,
     `Duraklat: ${kbd('Esc')}.`].join('<br>');

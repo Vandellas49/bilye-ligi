@@ -1,6 +1,6 @@
 /* ---------- girdi ----------
    Klavye, sanal joystick ve dokunmatik düğmeler -> girdi nesnesi:
-   { x, y, kick, kind, special, call, hold, sprint, slide, swap }
+   { x, y, kick, kind, special, call, hold, sprint, slide, swap, press }
    kind: vuruşun türü. 'pass' yardımlı pas, 'shot' şut (arkadaşa kilitlenmez), 'through' ara pas
    (arkadaşın önüne), 'lob' havadan pas. Güç barı tuş bırakılınca vurduğu için tür, tuş bırakıldıktan
    sonra da hatırlanır.
@@ -22,7 +22,8 @@ const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW'
   'KeyQ','KeyE','KeyR','KeyF','ShiftLeft','ShiftRight','KeyC','KeyV','Tab'];
 const touchIn = { x:0, y:0, active:false, id:null, ox:0, oy:0 };   // sanal joystick
 let kindLatch = 'pass';
-let prevKick = false;   // FIFA A+D (havadan sert şut): aynı basışta ikisi de görülürse
+let prevKick = false;
+let pressHeld = false;   // S baskı için basılıyken top kapılırsa, S bırakılana kadar pas sayılmaz (bar dolup kendiliğinden vurmasın)   // FIFA A+D (havadan sert şut): aynı basışta ikisi de görülürse
 
 export function clearKeys(){ keys.clear(); downAt.clear(); }
 
@@ -74,12 +75,12 @@ export function initInput({ onPause, isPlaying }){
 }
 
 /* layout: 'fifa' | 'klasik'
-   ctx.defending: rakip takım topu kontrol ediyor. FIFA düzeninde S/A müdahale, D kayarak müdahale olur. */
+   ctx.defending: rakip takım topu kontrol ediyor. FIFA düzeninde S baskı, D ayak koyma (müdahale), A kayarak müdahale olur. */
 export function readInput(layout = 'fifa', ctx = {}){
   const now = performance.now();
   const k = c => keys.has(c) || now - (downAt.get(c) || -1e9) < TAP_MS;
   const arrX = (k('ArrowRight')?1:0) - (k('ArrowLeft')?1:0), arrY = (k('ArrowDown')?1:0) - (k('ArrowUp')?1:0);
-  let x, y, kick, slide, sprint, hold, swap;
+  let x, y, kick, slide, sprint, hold, swap, press = false;
   if (layout === 'klasik'){
     x = (k('KeyD')?1:0) - (k('KeyA')?1:0) + arrX; y = (k('KeyS')?1:0) - (k('KeyW')?1:0) + arrY;
     kick = k('Space') || k('KeyX') || k('Enter') || k('NumpadEnter');
@@ -91,10 +92,13 @@ export function readInput(layout = 'fifa', ctx = {}){
   } else {
     x = arrX; y = arrY;
     if (ctx.defending){
-      kick = k('KeyS') || k('KeyA');   // müdahale
-      slide = k('KeyD');               // kayarak müdahale
+      kick = k('KeyD');                // ayak koyma (müdahale)
+      slide = k('KeyA');               // kayarak müdahale
+      press = k('KeyS');               // baskı: basılı tutunca topu tutana kendiliğinden kapanır
+      pressHeld = press;
     } else {
-      const s = k('KeyS'), d = k('KeyD'), w = k('KeyW'), a = k('KeyA');
+      if (pressHeld && !k('KeyS')) pressHeld = false;
+      const s = k('KeyS') && !pressHeld, d = k('KeyD'), w = k('KeyW'), a = k('KeyA');
       kick = s || d || w || a;
       // A ile D birlikte (ya da biri basılıyken öteki): havadan sert şut, tuşlar bırakılana kadar öyle kalır
       const both = (a && d) || (prevKick && (a || d) && (kindLatch === 'lobshot' || (kindLatch === 'lob' && d) || (kindLatch === 'shot' && a)));
@@ -117,5 +121,5 @@ export function readInput(layout = 'fifa', ctx = {}){
   const special = normShot(SHOT_TYPES.filter(t => k(shots[t]) || k('T:' + t)));
   const call = k('KeyF') || k('T:call');
   prevKick = !!kick;
-  return { x, y, kick, kind: kindLatch, special, call, hold, sprint, slide, swap };
+  return { x, y, kick, kind: kindLatch, special, call, hold, sprint, slide, swap, press };
 }

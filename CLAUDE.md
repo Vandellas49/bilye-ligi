@@ -141,8 +141,9 @@ Menüde "Tuş düzeni: FIFA / Klasik" (varsayılan FIFA, `bilye-cfg.keys`). FIFA
 | Havadan sert şut (`kind: lobshot`; aynı basışta A ve D) | A+D | – | – |
 | Ara pas (arkadaşın önüne) | W | – | – |
 | Havadan pas / orta | A | – | – |
-| Müdahale (rakip toptayken) | S ya da A | Boşluk | ŞUT |
-| Kayarak müdahale | D (rakip toptayken) | V | KAY |
+| Ayak koyma / müdahale (rakip toptayken) | D | Boşluk | ŞUT |
+| Kayarak müdahale | A (rakip toptayken) | V | KAY |
+| Baskı (basılı; topu tutana kale tarafından kapanır, `press`, `pressDir`) | S (rakip toptayken) | – | – |
 | Depar | E | Shift | Joystick'i sonuna kadar itmek |
 | Topu tut / koru | Shift | C | TUT |
 | Oyuncu değiştir (yerel maç) | Q | Tab | – |

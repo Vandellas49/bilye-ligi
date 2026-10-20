@@ -17,7 +17,7 @@ import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
-export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, kind: 'pass', special: null, call: false, hold: false, sprint: false, slide: false, assist: true, swap: false });
+export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, kind: 'pass', special: null, call: false, hold: false, sprint: false, slide: false, assist: true, swap: false, press: false });
 const KINDS = ['pass', 'shot', 'through', 'lob', 'lobshot'];   // lobshot: havadan sert şut (FIFA A+D)
 
 const num = v => typeof v === 'number' && Number.isFinite(v) ? v : 0;
@@ -34,6 +34,7 @@ export function sanitizeInput(raw){
     assist: raw.assist !== false,   // pas yardımı (oyuncunun tercihi, varsayılan açık)
     kind: KINDS.includes(raw.kind) ? raw.kind : 'pass',   // vuruş türü: pas, şut, ara pas, havadan pas
     swap: !!raw.swap,               // oyuncu değiştir (yalnızca izin verilen maçlarda)
+    press: !!raw.press,             // baskı (FIFA D, savunmada): oyuncu kendiliğinden topu tutana kapanır
   };
 }
 
@@ -197,6 +198,22 @@ function kickoffConstraint(S, p){
   }
 }
 
+/* Baskı: topu tutan rakibe kale tarafından kapanır (aradan kaleye yol vermez), top boştaysa topa koşar.
+   Takım arkadaşı toptaysa etkisiz. Dönüş: hareket yönü (uzunluk ≤ 1) ya da null. Depar tuşu ayrıca basılır. */
+function pressDir(S, p){
+  const b = S.ball, c = S.owner;
+  let tx, ty;
+  if (c && c.team !== p.team){
+    const gx = (p.team === 0 ? 0 : W) - c.x, gy = H/2 - c.y, gl = Math.hypot(gx, gy) || 1, gap = c.r + p.r + 10;
+    tx = c.x + gx/gl*gap + c.vx*6; ty = c.y + gy/gl*gap + c.vy*6;
+  } else if (!c){ tx = b.x + b.vx*8; ty = b.y + b.vy*8; }
+  else return null;
+  const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
+  if (d < 4) return { x: 0, y: 0 };
+  const k = Math.min(1, d/30);
+  return { x: dx/d*k, y: dy/d*k };
+}
+
 /* ---------- ana tick ---------- */
 export function step(S, inputs = {}){
   const events = S.events = [];
@@ -209,6 +226,7 @@ export function step(S, inputs = {}){
   for (const p of S.players){
     let inp = sanitizeInput(p.ctrl === 'ai' ? aiInput(S, p) : inputs[p.id]);
     if (S.phase === 'goal' && p.ctrl === 'ai') inp = sanitizeInput(celebrateInput(S, p));   // gol sevinci
+    if (inp.press && p.ctrl !== 'ai' && S.phase === 'play'){ const v = pressDir(S, p); if (v) inp = { ...inp, x: v.x, y: v.y }; }
     const { x, y } = inp;
     const special = S.specials ? inp.special : null;
     p.input = { x, y, kick: inp.kick, hold: inp.hold, assist: inp.assist, kind: inp.kind };

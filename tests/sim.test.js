@@ -543,3 +543,27 @@ test('havadan sert şut (kind: lobshot, FIFA A+D): sert ve havalanır, aradaki r
   assert.ok(maxZ > 20, `yükseklik ${maxZ.toFixed(1)}`);
   assert.ok(!touched, 'top aradaki rakibe çarpmamalı');
 });
+
+test('baskı (press): insan oyuncu topu tutan rakibe kale tarafından kapanır, arkadaş toptayken etkisiz', () => {
+  const S = createMatch({ size: 2, seed: 5, humans: [{ team: 0, ctrl: 'h1', name: 'A' }] });
+  const me = S.players.find(p => p.ctrl === 'h1'), opp = S.players.find(p => p.team === 1);
+  for (const p of S.players) if (p !== me) p.ctrl = 'h9';   // diğerleri dursun
+  S.phase = 'play';
+  Object.assign(me, { x: 200, y: 600, vx: 0, vy: 0 });
+  Object.assign(opp, { x: 600, y: 300, vx: 0, vy: 0, dirA: Math.PI });
+  Object.assign(S.ball, { x: 564, y: 300, vx: 0, vy: 0 }); S.owner = opp;
+  let close = null;
+  for (let i = 0; i < 240 && !close; i++){
+    step(S, { [me.id]: { press: true } });
+    if (S.owner === me || Math.hypot(me.x - opp.x, me.y - opp.y) < opp.r + me.r + 30) close = { x: me.x };   // kapandı ya da topu kaptı
+  }
+  assert.ok(close, 'rakibe kapanmalı');
+  assert.ok(close.x < opp.x, 'kale tarafından gelmeli');
+  // takım arkadaşı toptayken baskı hareket ettirmez
+  const mate = S.players.find(p => p.team === 0 && p !== me);
+  Object.assign(mate, { x: 900, y: 100 }); Object.assign(me, { vx: 0, vy: 0 }); S.owner = mate;
+  Object.assign(S.ball, { x: 936, y: 100, vx: 0, vy: 0 });
+  const x0 = me.x, y0 = me.y;
+  for (let i = 0; i < 30; i++) step(S, { [me.id]: { press: true }, [mate.id]: { hold: true } });
+  assert.ok(Math.hypot(me.x - x0, me.y - y0) < 3);
+});
