@@ -70,6 +70,8 @@ export function assignRoles(S){
       const prev = ai.find(p => p.role === 'chaser');
       chaser = (prev && dist(prev) < dist(nearestAI) + 30) ? prev : nearestAI;
       if (human && dist(human) + 40 < dist(chaser)) chaser = null;
+      // top takım arkadaşındaysa (insan) kimse topa koşmaz: bot boşa çıkıp pas bekler
+      if (S.owner && S.owner.team === team) chaser = null;
       if (ai.length === 1 && !human) chaser = ai[0];
     }
     const rest = ai.filter(p => p !== chaser && p !== receiver);
@@ -146,6 +148,7 @@ export function aiInput(S, p){
     tx = p.team === 0 ? Math.min(tx, W*.42) : Math.max(tx, W*.58);
     if (waiting){ tx = p.team === 0 ? Math.min(tx, W/2 - 110) : Math.max(tx, W/2 + 110); if (p.slot > 0) ty = formation(S.players.length/2, p.slot, p.team).y; }
     const mateHas = S.owner && S.owner.team === p.team;
+    if (!waiting && mateHas && S.owner !== p && (b.x - ownX)*dir > 300){ const sp = openSpot(S, p, dir, true); tx = sp.x; ty = sp.y; }
     if (!waiting && !mateHas && gap < KICK_RANGE + 1 && (b.x - p.x)*dir > -4) kick = true;
     if (!waiting && !mateHas && gap < 70 && (b.x - ownX)*dir < 260){ tx = b.x - dir*(PR + BR); ty = b.y; }
     if (!waiting && S.owner && S.owner.team !== p.team){
@@ -154,10 +157,10 @@ export function aiInput(S, p){
       if (canSprint && Math.abs(b.x - ownX) < 300) p.aiSprint = true;
     }
   } else {
-    // hücumda boşa çık, savunmada geride kal
+    // hücumda boşa çık (pas yolu açık, rakipten uzak, ileride), savunmada geride kal
     const poss = S.lastTouch && S.lastTouch.team === p.team;
-    tx = poss ? b.x + dir*210 : b.x - dir*150;
-    ty = b.y < H/2 ? H*.74 : H*.26;
+    if (poss && S.owner && S.owner.team === p.team){ const sp = openSpot(S, p, dir, false); tx = sp.x; ty = sp.y; }
+    else { tx = poss ? b.x + dir*210 : b.x - dir*150; ty = b.y < H/2 ? H*.74 : H*.26; }
     tx = Math.max(60, Math.min(W - 60, tx));
     if (!(S.owner && S.owner.team === p.team) && gap < KICK_RANGE + 1 && (b.x - p.x)*dir > 0) kick = true;
   }
@@ -171,6 +174,27 @@ export function aiInput(S, p){
   // kayarken yön, hedefe (topa) doğru
   if (slide){ const sl = Math.hypot(tx - p.x, ty - p.y) || 1; return { x: (tx - p.x)/sl, y: (ty - p.y)/sl, kick: false, special: null, hold: false, sprint: false, slide: true }; }
   return { x: mx, y: my, kick, special, hold: p.aiHold, sprint: p.aiSprint };
+}
+
+/* Boşa çıkma: topu tutan arkadaşın çevresinde aday noktalar (ileri ya da geri), pas yolu açık, rakipten uzak,
+   (ileride olan için) ileri olan seçilir. 20 tickte bir yeniden seçilir ki bot kararsız kalmasın. */
+function openSpot(S, p, dir, back){
+  if (p.spot && p.spotT > S.t && p.spot.back === back) return p.spot;
+  const b = S.ball, base = back ? (dir > 0 ? Math.PI : 0) : (dir > 0 ? 0 : Math.PI);
+  let best = null;
+  for (const da of [-1.15, -.75, -.38, 0, .38, .75, 1.15]){
+    for (const r of back ? [150, 210] : [190, 260, 330]){
+      const a = base + da, x = b.x + Math.cos(a)*r, y = b.y + Math.sin(a)*r;
+      if (x < 50 || x > W - 50 || y < 45 || y > H - 45) continue;
+      let near = 1e9;
+      for (const o of S.players) if (o.team !== p.team) near = Math.min(near, Math.hypot(o.x - x, o.y - y));
+      const open = laneOpen(S, b.x, b.y, x, y, p.team);
+      const score = (open ? 220 : 0) + Math.min(near, 220) + (back ? 0 : (x - b.x)*dir*.25) - Math.hypot(x - p.x, y - p.y)*.12;
+      if (!best || score > best.score) best = { x, y, score, back };
+    }
+  }
+  p.spot = best || { x: b.x - dir*150, y: H/2, back }; p.spotT = S.t + 20;
+  return p.spot;
 }
 
 function pickAiShot(S, p, goalDist, oppX){

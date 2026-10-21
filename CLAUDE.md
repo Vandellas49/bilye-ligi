@@ -88,7 +88,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 **Tick sırası (`step`).** Roller atanır → girdiler (insan: `inputs[id]`, bot: `aiInput`) → depar/dayanıklılık → ivme → hareket → top fiziği → şutlar ve müdahaleler → çarpışmalar (2 iterasyon) → `updateOwner` → gol/süre kontrolü. Yerel maçta her tick: `readInput` → `step` → `applyEvents` → `afterStep`.
 
-**Şut güç barı.** İnsan oyuncuda şut tuşu basılı tutuldukça `p.charge` 0→1 dolar (`chargeShot`); bırakınca o güçte vuruş 10 tick bekler (`p.shot`), bar dolunca kendiliğinden vurur ve tuş bırakılana kadar kilitlenir (`p.kickLock`). Rakip toptayken tuş anında müdahale yapar, bar dolmaz. Bar oyuncunun etrafında halka olarak çizilir (`drawCharge`) ve anlık görüntüyle gönderilir. Botlar sabit güçle vurur.
+**Şut güç barı.** İnsan oyuncuda şut tuşu basılı tutuldukça `p.charge` 0→1 dolar (`chargeShot`, `CHARGE_TICKS` 28 tick ≈ 0,47 sn); bırakınca o güçte vuruş 10 tick bekler (`p.shot`), bar dolunca kendiliğinden vurur ve tuş bırakılana kadar kilitlenir (`p.kickLock`). Rakip toptayken tuş anında müdahale yapar, bar dolmaz. Bar oyuncunun etrafında halka olarak çizilir (`drawCharge`) ve anlık görüntüyle gönderilir. Botlar sabit güçle vurur.
 
 **Kayarak müdahale.** `slide` girdisine basıldığı an (`startSlide`, basılı tutmak tekrarlamaz) oyuncu baktığı/bastığı yöne `SLIDE_SPEED` ile kayar, `SLIDE_TICKS` boyunca yön değiştiremez ve şut atamaz. Topa `SLIDE_REACH` kadar yaklaşırsa `slideHit`: top rakipteyse kapma şansı (önden yüksek, arkadan gövde topu kapattığı için değmez; koruma azaltır, depar/yorgunluk artırır), başarılıysa top rakibin yanından çapraz dürtülür, rakip sendeler; boştaki top kayma yönüne itilir. Kayma bitince yerden kalkma (`SLIDE_GETUP`, ıskalarsa `SLIDE_MISS_GETUP`), bekleme `SLIDE_CD`. Botlar `DIFF[].slide` olasılığıyla, yol açıksa (`slideOpen`) kayar; Kolay botlar kaymaz. Olaylar: `slide`, `slideWin`, `slideKick`, `slideMiss`; anlık görüntüde 16. bit.
 
@@ -157,7 +157,7 @@ Menüde "Tuş düzeni: FIFA / Klasik" (varsayılan FIFA, `bilye-cfg.keys`). FIFA
 | Kombo (birlikte bas) | Z+X, X+C, Z+C, üçü | Q+E, E+R, Q+R, üçü | Düğmelere iki/üç parmakla |
 | Mola (çevrimiçide menü) | Esc, P | Esc, P | Üstteki düğme |
 
-Vuruş tuşları basılı tutuldukça güç barı dolar, bırakınca vurur. Girdideki `kind` vuruşun türünü taşır (`'pass' | 'shot' | 'through' | 'lob'`) ve tuş bırakıldıktan sonra da hatırlanır (`kindLatch`), çünkü vuruş bırakınca olur. Simülasyonda: `pass` pas yardımı ayarına göre arkadaşa kilitlenir; `shot` kilitlenmez; `through` arkadaşın koşu yönüne `THROUGH_LEAD` kadar ileriye (duruyorsa rakip kaleye doğru), `lob` havadan (`vz`) arkadaşın biraz önüne, aradaki rakiplerin üstünden gider; ikisi de pas yardımı kapalıyken de yardımlıdır. Oyuncu değiştirme (`swap`, `swapControl`) yalnızca `settings.allowSwitch` ile (yerel maçlar); kontrol topa en yakın bot arkadaşa geçer, ad ve numara da geçer; takım başına 20 tick bekleme.
+Vuruş tuşları basılı tutuldukça güç barı dolar, bırakınca vurur. Girdideki `kind` vuruşun türünü taşır (`'pass' | 'shot' | 'through' | 'lob'`) ve tuş bırakıldıktan sonra da hatırlanır (`kindLatch`), çünkü vuruş bırakınca olur. Simülasyonda: `pass` pas yardımı ayarına göre arkadaşa kilitlenir; `shot` kilitlenmez; `through` (W) savunmanın arkasındaki boşluğa, rakip kaleye doğru (koşuyorsa koşu yönüyle karışık) `THROUGH_LEAD` + güç barı × `THROUGH_BAR` kadar ileriye; top, arkadaş oraya depar atarak vardığında gelecek hızda gider; öndeki arkadaş tercih edilir (`THROUGH_CONE`). `lob` (A) havadan (`vz`) arkadaşın biraz önüne, aradaki rakiplerin üstünden (`LOB_CONE`, geniş); uygun arkadaş yoksa güç barıyla uzağa ve yükseğe orta. İkisi de pas yardımı kapalıyken de yardımlıdır. Bot arkadaşlar takım toptayken boşa çıkar (`openSpot`, ai.js: pas yolu açık, rakipten uzak, ileride; savunmacı geride açık pas yolunda). Oyuncu değiştirme (`swap`, `swapControl`) yalnızca `settings.allowSwitch` ile (yerel maçlar); kontrol topa en yakın bot arkadaşa geçer, ad ve numara da geçer; takım başına 20 tick bekleme.
 
 ## Ayarlanabilir değerler
 
@@ -193,7 +193,7 @@ Faydalı senaryolar: pas isteme başarı oranı, botların pas sayısı ve tamam
 - Çevrimiçi turnuvada oyuncusuz maçlar sunucuda senkron simüle edilir (maç başına ~200 ms); bu sırada diğer odaların döngüsü kısa süre bekler. Çok odalı yoğun kullanımda worker'a taşınmalı.
 - Sunucu durumu bellekte; yeniden başlatınca odalar ve oturumlar kaybolur.
 - Aynı tohum aynı JS motorunda aynı maçı verir; farklı motorlar arasında bit düzeyinde aynılık garanti değil (sunucu otoriteli yapıda sorun değil).
-- Bot dengesi elle ayarlandı. Büyük sahada (16 maçlık ölçüm, 2 dk 3'e 3) Zor botlar maç başına ~4,5 gol, Orta botlar ~2,4 gol buluyor (eski sahada ~4,3); pas tamamlama %64–72.
+- Bot dengesi elle ayarlandı. Büyük sahada (12–16 maçlık ölçüm, 2 dk 3’e 3) Zor botlar maç başına ~4,4 gol, Orta botlar ~2,9 gol buluyor (boşa çıkma eklendikten sonra) (eski sahada ~4,3); pas tamamlama %64–72.
 - Dikey telefonda saha küçük kalıyor (yan çevirme ipucu gösteriliyor).
 
 ## Yol haritası

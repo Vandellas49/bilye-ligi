@@ -12,7 +12,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SHOT_KEY_MIN, SHOT_KEY_MAX, SHOT_KEY_FIRE, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation } from './constants.js';
+  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
@@ -336,10 +336,10 @@ export function step(S, inputs = {}){
         const base = il > .3 ? Math.atan2(p.input.y, p.input.x) : contact;
         // gelen topa tek vuruşta topun arkasından çok sapamaz (en fazla ~100°)
         const canTurn = owned || angDiff(base, contact) < 1.75, kind = p.input.kind || 'pass';
-        if (canTurn && (kind === 'through' || kind === 'lob')) pass = passTarget(S, p, base, kind);   // her zaman yardımlı
+        if (canTurn && (kind === 'through' || kind === 'lob')) pass = passTarget(S, p, base, kind, power);   // her zaman yardımlı
         else if (canTurn && kind === 'pass' && p.input.assist && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
         // havadan pas için uygun arkadaş yoksa top basılan yöne havalanır
-        if (!pass && kind === 'lob') pass = { a: base, nx: Math.cos(base), ny: Math.sin(base), speed: KICK*.85, vz: 5, mix: 0 };
+        if (!pass && kind === 'lob') pass = { a: base, nx: Math.cos(base), ny: Math.sin(base), speed: KICK*(.75 + .75*power), vz: 4 + 2.6*power, mix: 0 };
         // pas yoksa şut yardımı: kaleye yaklaşık nişan alındıysa top kale ağzına gider
         if (!pass && p.input.assist && (kind === 'shot' || kind === 'lobshot' || kind === 'pass')){
           // şut tuşu (D) açıkça şut der: kaleye bakan hemen her yön kabul; ortak tuşta dar açı (kanattan pas şuta dönmesin)
@@ -451,7 +451,7 @@ function chargeShot(S, p, held){
   }
   if (tackling || p.kickLock || S.phase === 'goal'){ p.charge = 0; return; }
   p.charge = Math.min(1, p.charge + 1/CHARGE_TICKS);
-  if (p.charge >= 1){ p.shot = { power: 1, t: 10 }; p.charge = 0; p.kickLock = true; }
+  if (p.charge >= 1 - 1e-9){ p.shot = { power: 1, t: 10 }; p.charge = 0; p.kickLock = true; }   // kayan nokta: 28 × 1/28 tam 1 etmeyebilir
 }
 
 /* Kayarak müdahale: oyuncu baktığı/bastığı yöne hızla kayar, kayarken yönünü değiştiremez.
@@ -608,13 +608,13 @@ const angDiff = (a, c) => Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c)))
    Topun arkadaşa varış süresini (B_DAMP yavaşlamasıyla) hesaplayıp arkadaşın o anki yerine nişan alır,
    top oraya PASS_ARRIVE hızıyla varacak şekilde gücü ayarlar. Arada rakip olmayan arkadaş tercih edilir.
    Dönüş: { a, nx, ny, speed, mate } ya da null. */
-function passTarget(S, p, base, mode = 'ground'){
-  const b = S.ball;
+function passTarget(S, p, base, mode = 'ground', power = .5){
+  const b = S.ball, cone = mode === 'lob' ? LOB_CONE : mode === 'through' ? THROUGH_CONE : PASS_CONE, attack = p.team === 0 ? 1 : -1;
   let best = null;
   for (const m of S.players){
     if (m.team !== p.team || m === p) continue;
     const d0 = Math.hypot(m.x - b.x, m.y - b.y);
-    if (d0 < 50 || d0 > 875 || angDiff(Math.atan2(m.y - b.y, m.x - b.x), base) > PASS_CONE) continue;
+    if (d0 < 50 || d0 > 875 || angDiff(Math.atan2(m.y - b.y, m.x - b.x), base) > cone) continue;
     let tx = m.x, ty = m.y, speed = 0;
     for (let k = 0; k < 3; k++){
       const d = Math.hypot(tx - b.x, ty - b.y), ux = (tx - b.x)/(d || 1), uy = (ty - b.y)/(d || 1);
@@ -630,13 +630,18 @@ function passTarget(S, p, base, mode = 'ground'){
     }
     let vz = 0, mix = PASS_POWER_MIX;
     if (mode === 'through'){
-      // ara pas: arkadaşın koştuğu yöne (duruyorsa rakip kaleye doğru) boşluğa at; arkadaş topa koşarak yetişir
-      const f0 = predictPos(m, 20), f1 = predictPos(m, 21), vl = Math.hypot(f1.x - f0.x, f1.y - f0.y);
-      const dir = vl > .8 ? [(f1.x - f0.x)/vl, (f1.y - f0.y)/vl] : [p.team === 0 ? 1 : -1, 0];
-      tx = Math.max(PR, Math.min(W - PR, tx + dir[0]*THROUGH_LEAD)); ty = Math.max(PR, Math.min(H - PR, ty + dir[1]*THROUGH_LEAD));
-      const d = Math.hypot(tx - b.x, ty - b.y);
-      speed = Math.max(KICK*KICK_MIN, Math.min(KICK*KICK_MAX, d*(1 - B_DAMP) + PASS_ARRIVE + 1));
-      mix = .15;
+      // ara pas: savunmanın arkasındaki boşluğa, rakip kaleye doğru (koşuyorsa koşu yönüyle karışık).
+      // Güç barı ne kadar ileri atılacağını belirler; top, arkadaş oraya depar atarak vardığında gelecek hızda gider.
+      const gx = p.team === 0 ? W - 90 : 90, gdx = gx - m.x, gdy = H/2 - m.y, gl = Math.hypot(gdx, gdy) || 1;
+      let dx = gdx/gl, dy = gdy/gl*.6;
+      const f0 = predictPos(m, 20), f1 = predictPos(m, 21), vx = f1.x - f0.x, vy = f1.y - f0.y, vl = Math.hypot(vx, vy);
+      if (vl > .8 && vx*attack > -.2){ dx = dx*.45 + vx/vl*.55; dy = dy*.45 + vy/vl*.55; }
+      const dl = Math.hypot(dx, dy) || 1, lead = THROUGH_LEAD + THROUGH_BAR*power;
+      tx = Math.max(PR*2, Math.min(W - PR*2, m.x + dx/dl*lead)); ty = Math.max(PR*2, Math.min(H - PR*2, m.y + dy/dl*lead));
+      const run = Math.hypot(tx - m.x, ty - m.y)/4.2;                 // arkadaşın depar atarak varma süresi (tick)
+      const d = Math.hypot(tx - b.x, ty - b.y), n = Math.max(12, run);
+      speed = Math.max(KICK*KICK_MIN*.8, Math.min(KICK*KICK_MAX*1.1, d*(1 - B_DAMP)/(1 - Math.pow(B_DAMP, n))));
+      mix = 0;
     } else if (mode === 'lob'){
       // havadan pas: savunmanın üstünden, arkadaşın biraz önüne düşer
       const d = Math.hypot(tx - b.x, ty - b.y);
@@ -646,10 +651,11 @@ function passTarget(S, p, base, mode = 'ground'){
       mix = 0;
     }
     const a = Math.atan2(ty - b.y, tx - b.x), err = angDiff(a, base);
-    if (err > PASS_CONE) continue;
+    if (err > cone) continue;
     // havadan pasın yolu rakiplerin üstünden geçer, açık yol aranmaz
     const open = mode === 'lob' || laneOpen(S, b.x, b.y, tx, ty, p.team);
-    const score = err + (open ? 0 : .35) + d0/2000;
+    // ara paste öndeki arkadaş tercih edilir
+    const score = err + (open ? 0 : .35) + d0/2000 + (mode === 'through' && (m.x - b.x)*attack < 0 ? .5 : 0);
     if (!best || score < best.score) best = { score, a, nx: Math.cos(a), ny: Math.sin(a), speed, mate: m, vz, mix };
   }
   return best;
