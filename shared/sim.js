@@ -12,7 +12,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SHOT_KEY_MIN, SHOT_KEY_MAX, SHOT_KEY_FIRE, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE, HUMAN_REACH, HUMAN_GRAB, HUMAN_GRAB_SPEED, SHOT_WAIT, GOAL_PAUSE_REPLAY, REPLAY_SKIP_AFTER, KEEPER_OUT, KEEPER_GRAB_SPEED, KEEPER_BOX, FK_DIST, FK_TICKS, SENDOFF_TICKS } from './constants.js';
+  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE, HUMAN_REACH, HUMAN_GRAB, HUMAN_GRAB_SPEED, SHOT_WAIT, GOAL_PAUSE_REPLAY, REPLAY_SKIP_AFTER, KEEPER_OUT, KEEPER_GRAB_SPEED, KEEPER_BOX, FK_DIST, FK_TICKS, SENDOFF_TICKS, FK_SET } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen, segDist } from './pass.js';
 import { initStats, statKick, statOwner, statStep } from './stats.js';
@@ -223,9 +223,11 @@ function foul(S, fouler, victim, card){
   const fx = Math.max(70, Math.min(W - 70, b.x)), fy = Math.max(40, Math.min(H - 40, b.y));
   Object.assign(b, { x: fx, y: fy, vx: 0, vy: 0, z: 0, vz: 0, curve: 0, fire: 0 });
   S.owner = null; S.pass = null; S.lastTouch = victim;
-  Object.assign(victim, { x: fx - dir*(PR + BR + 6), y: fy, vx: 0, vy: 0, dirA: dir > 0 ? 0 : Math.PI, stun: 0, slideT: 0, noGrab: 0 });
+  // atıcı: faul yapılan; botsa kaleye yakınsa şut, değilse açık arkadaşa pas yönünde topun arkasına geçer
+  const aim = victim.ctrl === 'ai' ? freekickAim(S, victim, fx, fy) : (dir > 0 ? 0 : Math.PI);
+  Object.assign(victim, { x: fx - Math.cos(aim)*(PR + BR + 8), y: fy - Math.sin(aim)*(PR + BR + 8), vx: 0, vy: 0, dirA: aim, stun: 0, slideT: 0, noGrab: 0 });
   fouler.slideT = 0; fouler.lunge = 0; fouler.stun = Math.max(fouler.stun, 20);
-  S.phase = 'freekick'; S.fk = { team, x: fx, y: fy, t: FK_TICKS };
+  S.phase = 'freekick'; S.fk = { team, x: fx, y: fy, t: FK_TICKS, set: FK_SET, taker: victim.id };
   for (const p of S.players) freekickConstraint(S, p);
 }
 /* Kayan ya da hamle yapan oyuncu topu tutan rakibin gövdesine arkadan çarparsa (rakibin bakış yönüne göre) faul.
@@ -239,6 +241,18 @@ function bodyFoul(S, p, chance){
   p.slideHit = true;
   foul(S, p, o, random(S.rng) < (p.slideT > 0 ? .75 : .35) ? 'sari' : null);
   return true;
+}
+// bot atıcının yönü: rakip kaleye 450'den yakınsa kalenin uzak köşesine, değilse öndeki açık arkadaşa (yoksa ileri)
+function freekickAim(S, p, fx, fy){
+  const dir = p.team === 0 ? 1 : -1, gx = p.team === 0 ? W : 0;
+  if (Math.abs(gx - fx) < 450) return Math.atan2((fy < H/2 ? BOT - 24 : TOP + 24) - fy, gx - fx);
+  let best = null;
+  for (const m of S.players){
+    if (m.team !== p.team || m === p || m.out > 0) continue;
+    const sc = (laneOpen(S, fx, fy, m.x, m.y, p.team) ? 300 : 0) + (m.x - fx)*dir*.5 - Math.abs(Math.hypot(m.x - fx, m.y - fy) - 260)*.3;
+    if (!best || sc > best.sc) best = { m, sc };
+  }
+  return best ? Math.atan2(best.m.y - fy, best.m.x - fx) : (dir > 0 ? 0 : Math.PI);
 }
 function freekickConstraint(S, p){
   if (S.phase !== 'freekick' || p.team === S.fk.team || p.out > 0) return;
@@ -358,6 +372,12 @@ export function step(S, inputs = {}){
     if (p.moodT > 0 && --p.moodT === 0) p.mood = 'idle';
   }
 
+  // serbest vuruş hazırlığı: herkes durur, top yerinde
+  if (S.phase === 'freekick'){
+    if (S.fk.set > 0) for (const p of S.players){ p.vx = 0; p.vy = 0; }
+    b.vx = 0; b.vy = 0;
+  }
+
   // hareket
   for (let t = 0; t < 2; t++) if (S.req[t] && --S.req[t].t <= 0) S.req[t] = null;
   updatePass(S);
@@ -395,6 +415,7 @@ export function step(S, inputs = {}){
   for (const p of S.players){
     if (S.phase === 'goal' || b.z > 12 || p.slideT > 0 || p.out > 0) continue;   // kayan oyuncu şut atmaz
     if (S.phase === 'penalty' && (p.id !== S.pens.shooter || S.pens.state !== 'ready')) continue;   // penaltıda yalnızca atan
+    if (S.phase === 'freekick' && (p.id !== S.fk.taker || S.fk.set > 0)) continue;   // serbest vuruşta yalnızca atıcı, düdükten sonra
     const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy);
     // özel şut hazırsa top menzildeyken atılır; kombo için ikinci tuş beklenirken normal vuruş da yapılmaz
     if (p.armed && d - p.r - b.r < KICK_RANGE + 3){ if (p.armed.wait <= 0) specialKick(S, p, p.armed.type); continue; }
@@ -492,7 +513,7 @@ export function step(S, inputs = {}){
   for (let it = 0; it < 2; it++){
     for (let i = 0; i < ps.length; i++){
       for (let j = i + 1; j < ps.length; j++) collide(ps[i], ps[j], .5);
-      if (b.z < PR*.9 && collide(ps[i], b, .5) > 0){
+      if (b.z < PR*.9 && !(S.phase === 'freekick' && ps[i].id !== S.fk.taker) && collide(ps[i], b, .5) > 0){
         S.lastTouch = ps[i];
         if (!(b.grace > 0)) b.curve = 0;
         if (b.fire > 0 && !(b.grace > 0)){ ps[i].mood = 'sad'; ps[i].moodT = 30; b.fire = 0; emit(S, 'fireStop', { x: b.x, y: b.y }); }
@@ -515,7 +536,7 @@ export function step(S, inputs = {}){
 
   statStep(S);
   if (S.phase === 'penalty'){ penaltyStep(S, emit, endMatch); return events; }
-  if (S.phase === 'freekick' && --S.fk.t <= 0) S.phase = 'play';   // serbest vuruş kullanılmazsa oyun kendiliğinden başlar
+  if (S.phase === 'freekick'){ if (S.fk.set > 0) S.fk.set--; if (--S.fk.t <= 0) S.phase = 'play'; }   // kullanılmazsa oyun kendiliğinden başlar
 
   // süre
   if (S.timed && S.phase === 'play' && !S.overtime){
@@ -558,7 +579,7 @@ function chargeShot(S, p, held){
    Topa değerse topu kayma yönüne iter; top rakipteyse önce kapma şansı hesaplanır.
    Kayma bitince yerden kalkar (stun); ıskaladıysa daha uzun sürer. */
 function startSlide(S, p, x, y){
-  if (p.slideCd > 0 || p.slideT > 0 || p.stun > 0 || S.owner === p || S.phase === 'goal' || S.phase === 'penalty') return;
+  if (p.slideCd > 0 || p.slideT > 0 || p.stun > 0 || S.owner === p || S.phase === 'goal' || S.phase === 'penalty' || S.phase === 'freekick') return;
   const a = Math.hypot(x, y) > .2 ? Math.atan2(y, x) : p.dirA;
   p.dirA = p.slideA = a; p.slideT = SLIDE_TICKS; p.slideCd = SLIDE_CD; p.slideHit = false;
   p.vx = Math.cos(a)*SLIDE_SPEED; p.vy = Math.sin(a)*SLIDE_SPEED;
@@ -672,7 +693,7 @@ function updateOwner(S){
       return;
     }
   } else {
-    if (S.phase === 'freekick' && FK_TICKS - S.fk.t < 30) return;   // serbest vuruş yarım sn görünsün (vurmak serbest)
+    if (S.phase === 'freekick') return;   // serbest vuruşta top kimseye yapışmaz: atıcı vurur
     let best = null, bd = 1e9;
     for (const p of S.players){
       if (p.noGrab > 0 || p.kickCd > 0 || p.out > 0) continue;

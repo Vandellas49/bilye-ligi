@@ -1,6 +1,6 @@
 /* ---------- yapay zekâ ----------
    Bot girdileri insan girdisiyle aynı biçimde üretilir: {x, y, kick, special, hold, sprint}. */
-import { W, H, GH, TOP, BOT, PR, BR, P_ACC, KICK_RANGE, WALL_REST, DIFF, AIR_MIN, AIR_MAX, AIR_REACH, KEEPER_OUT, KEEPER_BOX, formation } from './constants.js';
+import { W, H, GH, TOP, BOT, PR, BR, P_ACC, KICK_RANGE, WALL_REST, DIFF, AIR_MIN, AIR_MAX, AIR_REACH, KEEPER_OUT, KEEPER_BOX, FK_SET, FK_TICKS, formation } from './constants.js';
 import { random, shuffle } from './rng.js';
 import { laneOpen, segDist } from './pass.js';
 
@@ -103,6 +103,11 @@ export function aiInput(S, p){
   const waiting = S.phase === 'kickoff' && p.team !== S.kickoffTeam;
 
   p.aiHold = false; p.aiSprint = false;
+  if (S.phase === 'freekick' && S.fk && S.fk.taker === p.id){
+    if (S.fk.set > 0 || FK_TICKS - S.fk.t < FK_SET + 35) return { x: 0, y: 0 };
+    const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy) || 1;
+    return { x: dx/d, y: dy/d, kick: d - PR - BR < KICK_RANGE };
+  }
   if (p.keeper && p.ctrl === 'ai') return keeperInput(S, p, D, dir, ownX, waiting);
   if (S.owner === p && !waiting) return aiOwnerInput(S, p, D, oppX);
   const canSprint = !p.tired && p.sta > (1 - D.sprint*.55);

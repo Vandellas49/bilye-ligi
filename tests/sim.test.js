@@ -772,3 +772,30 @@ test('penaltı atışları: beraberlikte başlar, seri kurala göre biter, sonu�
   for (let i = 0; i < 5; i++) step(G, {});
   assert.equal(G.overtime, true); assert.notEqual(G.phase, 'penalty');
 });
+
+test('serbest vuruş: düdükten sonra herkes durur, top sabit; yalnızca atıcı vurur (bot bekleyip vurur, insan vurana kadar beklenir)', async () => {
+  const { FK_SET } = await import('../shared/constants.js');
+  const run = humanVictim => {
+    const S = createMatch({ size: 2, seed: 9, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }, ...(humanVictim ? [{ team: 1, ctrl: 'h2', name: 'O' }] : [])] });
+    const me = S.players.find(p => p.ctrl === 'h1'), o = S.players.find(p => p.team === 1);
+    S.phase = 'play';
+    Object.assign(o, { x: 600, y: 350, vx: 0, vy: 0, dirA: 0 }); Object.assign(S.ball, { x: 636, y: 350, vx: 0, vy: 0, z: 0 }); S.owner = o;
+    Object.assign(me, { x: 520, y: 350, vx: 0, vy: 0, dirA: 0, slideCd: 0 });
+    let ev = [];
+    for (let i = 0; i < 30 && S.phase !== 'freekick'; i++) ev = step(S, { [me.id]: i === 0 ? { x: 1, y: 0, slide: true } : {} });
+    assert.equal(S.phase, 'freekick'); assert.equal(S.fk.taker, o.id);
+    const bx = S.ball.x, by = S.ball.y;
+    // hazırlık: kimse kıpırdamaz, insan bassa da top yerinde
+    const pos = S.players.map(p => [p.x, p.y]);
+    for (let i = 0; i < FK_SET - 5; i++) step(S, { [me.id]: { x: -1, y: 0, kick: true, sprint: true } });
+    S.players.forEach((p, i) => assert.ok(Math.hypot(p.x - pos[i][0], p.y - pos[i][1]) < 1, 'hazırlıkta kımıldamamalı'));
+    assert.equal(S.ball.x, bx); assert.equal(S.ball.y, by);
+    let kicked = false;
+    for (let i = 0; i < 200 && S.phase === 'freekick'; i++){ const e2 = step(S, {}); if (e2.some(e => e.type === 'kick' && e.id === o.id)) kicked = true; }
+    return { S, kicked };
+  };
+  const bot = run(false);
+  assert.ok(bot.kicked && bot.S.phase !== 'freekick', 'bot atıcı vurmalı');
+  const hum = run(true);
+  assert.equal(hum.S.phase, 'freekick', 'insan atıcı vurana kadar beklenir');
+});

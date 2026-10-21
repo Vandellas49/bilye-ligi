@@ -25,7 +25,7 @@ export function matchInfo(S){
 export function snapshot(S){
   const b = S.ball;
   return {
-    t: S.t, phase: S.phase, score: S.score.slice(), timeLeft: S.timeLeft, overtime: S.overtime, kickoffTeam: S.kickoffTeam, pens: S.pens ? { kicks: S.pens.kicks, turn: S.pens.turn, state: S.pens.state, shooter: S.pens.shooter, keeper: S.pens.keeper, last: S.pens.last } : null, penScore: S.penScore || null, fk: S.phase === 'freekick' && S.fk ? [S.fk.team, r2(S.fk.x), r2(S.fk.y)] : null,
+    t: S.t, phase: S.phase, score: S.score.slice(), timeLeft: S.timeLeft, overtime: S.overtime, kickoffTeam: S.kickoffTeam, pens: S.pens ? { kicks: S.pens.kicks, turn: S.pens.turn, state: S.pens.state, shooter: S.pens.shooter, keeper: S.pens.keeper, last: S.pens.last } : null, penScore: S.penScore || null, fk: S.phase === 'freekick' && S.fk ? [S.fk.team, r2(S.fk.x), r2(S.fk.y), S.fk.taker] : null,
     owner: S.owner ? S.owner.id : null,
     pass: S.pass ? { to: S.pass.to.id, x: r2(S.pass.x), y: r2(S.pass.y) } : null,
     req: S.req.map(q => q ? q.p.id : null),
@@ -57,7 +57,7 @@ export function createView(rosterList, info, myUid){
 }
 
 export function applySnapshot(V, s){
-  V.t = s.t; V.phase = s.phase; V.score = s.score; V.timeLeft = s.timeLeft; V.overtime = s.overtime; V.kickoffTeam = s.kickoffTeam; V.pens = s.pens || null; V.penScore = s.penScore || null; V.fk = s.fk ? { team: s.fk[0], x: s.fk[1], y: s.fk[2] } : null;
+  V.t = s.t; V.phase = s.phase; V.score = s.score; V.timeLeft = s.timeLeft; V.overtime = s.overtime; V.kickoffTeam = s.kickoffTeam; V.pens = s.pens || null; V.penScore = s.penScore || null; V.fk = s.fk ? { team: s.fk[0], x: s.fk[1], y: s.fk[2], taker: s.fk[3] } : null;
   const P = V.players;
   V.owner = s.owner != null ? P[s.owner] : null;
   V.pass = s.pass ? { to: P[s.pass.to], x: s.pass.x, y: s.pass.y } : null;
