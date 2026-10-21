@@ -91,6 +91,17 @@ legend{font-weight:800;font-size:14px;margin-bottom:6px;padding:0}
 #lookRows .seg label{padding:6px 11px;font-size:13px}
 #lookRows .seg label.swonly{padding:6px 8px}
 #lookRows .sw{width:18px;height:18px}
+.kitsw{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.3);flex:none;display:inline-block}
+.seg.kits label{padding:6px 11px 6px 7px;font-size:13px}
+#teamName{font:inherit;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px;width:min(260px,100%);margin-bottom:8px}
+#teamName:focus-visible{border-color:var(--accent);outline:none}
+.tcfg{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:6px}
+.tcfg input{font:inherit;font-weight:600;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 9px;width:100%;box-sizing:border-box}
+.tcfg .kitrow{display:flex;flex-wrap:wrap;gap:5px}
+.tcfg .kitrow button{padding:2px;border-radius:50%;border:2px solid transparent;background:none;cursor:pointer;line-height:0}
+.tcfg .kitrow button.on{border-color:var(--accent)}
+.tcfg .kitrow button:disabled{opacity:.3;cursor:not-allowed}
+.tcfg .hint{font-size:12px;color:var(--muted)}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .btn{border:0;border-radius:14px;padding:13px 20px;font-weight:800;font-size:16px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
 .btn.ghost{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
@@ -253,6 +264,16 @@ details[open] summary{margin-bottom:12px}
         <summary><canvas id="lookPrev" aria-hidden="true"></canvas><span>Oyuncum<br><span class="hint">Saç, ten, yüz, dövme seç</span></span></summary>
         <div id="lookRows"></div>
       </details>
+
+      <fieldset id="teamField">
+        <legend>Takımım</legend>
+        <input id="teamName" maxlength="16" placeholder="Takım adı (boşsa forma adı)" aria-label="Takım adı">
+        <div class="seg kits" id="kitSeg"></div>
+      </fieldset>
+      <fieldset id="oppKitField">
+        <legend>Rakip forma</legend>
+        <div class="seg kits" id="okitSeg"></div>
+      </fieldset>
 
       <fieldset id="diffField">
         <legend>Bot seviyesi</legend>

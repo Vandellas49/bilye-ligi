@@ -92,6 +92,16 @@ test('oda kur, katıl, takım seç, maç oyna, kopup geri dön', async () => {
   assert.equal(st.room.members.find(x => x.id === wa.id).team, 0);
 
   b.send('setLook', { look: { hair: 'topuz', skin: '#4e2f1c', face: 'hack' } });   // seçilen görünüm maça geçer
+  // takım adı ve forma: yalnızca o takımın kaptanı (ilk giren); diğer takımın formasını alamaz
+  a.send('setTeamCfg', { team: 1, name: 'Başka' });
+  b.send('setTeamCfg', { name: 'Kartallar <b>', kit: 'limon' });
+  assert.equal((await b.wait(m => m.type === 'error' && /diğer takımda/.test(m.message))).message, 'Bu forma diğer takımda.');
+  b.send('setTeamCfg', { kit: 'siyahbeyaz' });
+  a.send('setTeamCfg', { name: 'Aslanlar', kit: 'sarikirmizi' });
+  const tc = await a.wait(m => m.type === 'roomState' && m.room.teamCfg[0].kit === 'sarikirmizi' && m.room.teamCfg[1].kit === 'siyahbeyaz' && m.room.teamCfg[1].name !== 'Buz');
+  assert.equal(tc.room.teamCfg[1].name, 'Kartallar b');
+  assert.equal(tc.room.teamCfg[0].name, 'Aslanlar');
+  assert.deepEqual(tc.room.captains, [wa.id, wb.id]);
   // yalnızca oda sahibi başlatabilir
   b.send('start');
   a.send('start');
@@ -99,6 +109,7 @@ test('oda kur, katıl, takım seç, maç oyna, kopup geri dön', async () => {
   assert.equal(ms.roster.length, 4);
   const pb = ms.roster.find(p => p.uid === wb.id);
   assert.equal(pb.team, 1);
+  assert.deepEqual(ms.info.kits, ['sarikirmizi', 'siyahbeyaz']); assert.deepEqual(ms.info.teamNames, ['Aslanlar', 'Kartallar b']);
   assert.equal(pb.hair, 'topuz'); assert.equal(pb.skin, '#4e2f1c'); assert.notEqual(pb.face, 'hack');
 
   // B aşağı basar: sunucudaki oyuncusu aşağı gitmeli

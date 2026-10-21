@@ -3,10 +3,10 @@
    - tek maç: simülasyon tarayıcıda çalışır (bota karşı ya da aynı klavyede iki kişi)
    - turnuva: tek kişilik eleme tablosu; senin maçların tarayıcıda, diğerleri ekransız simüle edilir
    - çevrimiçi: maç sunucuda çalışır; bu istemci girdisini gönderir, gelen anlık görüntüleri çizer */
-import { TICK, W, H } from '../shared/constants.js';
+import { TICK, W, H, KITS, kitById } from '../shared/constants.js';
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, NEUTRAL_INPUT } from '../shared/sim.js';
-import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, roundName, alive } from '../shared/tournament.js';
+import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, roundName, alive, tourKit } from '../shared/tournament.js';
 import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
@@ -39,6 +39,14 @@ function setMode(mode){
 }
 
 /* ---------- yerel maç ---------- */
+// takım adları ve formalar: benim takımım menüden; rakip menüdeki rakip formadan (ya da rastgele), turnuvada takımın kendi formasından
+function localTeams(cfg, extra){
+  const mine = kitById(cfg.kit) || KITS[0];
+  let opp = extra.oppKit ? kitById(extra.oppKit) : cfg.okit && cfg.okit !== 'r' ? kitById(cfg.okit) : null;
+  if (!opp || opp.id === mine.id){ const free = KITS.filter(k => k.id !== mine.id); opp = free[Math.random()*free.length|0]; }
+  const names = extra.teamNames || [cfg.teamName || mine.name, opp.name];
+  return { teamNames: names, kits: [mine.id, opp.id] };
+}
 // extra: { teamNames } turnuva maçı için
 function startMatch(cfg, extra = {}){
   if (!extra.teamNames) G.cfg = cfg;
@@ -46,7 +54,7 @@ function startMatch(cfg, extra = {}){
   const weather = cfg.weather || 'kar';
   G.state = createMatch({
     size: +cfg.size, humans, diff: +cfg.diff, arena: cfg.arena, weather,
-    minutes: +cfg.time, specials: true, seed: randomSeed(), teamNames: extra.teamNames,
+    minutes: +cfg.time, specials: true, seed: randomSeed(), ...localTeams(cfg, extra),
     allowSwitch: true,   // yerel maçta Q/Tab ile bot takım arkadaşına geçilebilir
   });
   G.online = false; G.netM = null; prevPos.clear();
@@ -99,6 +107,7 @@ function togglePause(){
 function startTournament(cfg){
   G.cfg = cfg;
   const T = createTournament({ size: +cfg.tsize, seed: randomSeed() });
+  T.teams[0].name = cfg.teamName || (kitById(cfg.kit) || KITS[0]).name;   // benim takımım menüdeki ad
   G.tour = { T, me: 0 };
   showTour('Turnuva', `${T.size} takım, eleme usulü. Takımın: ${T.teams[0].name}. Rakipler her turda zorlaşır.`);
 }
@@ -142,7 +151,7 @@ async function tourNext(){
   }
   const opp = nm.a === me ? nm.b : nm.a;
   G.tourMatch = nm;
-  startMatch({ ...cfg, diff: roundDiff(T, nm.round) }, { teamNames: [T.teams[me].name, T.teams[opp].name] });
+  startMatch({ ...cfg, diff: roundDiff(T, nm.round) }, { teamNames: [T.teams[me].name, T.teams[opp].name], oppKit: tourKit(T.teams[opp].name, opp) });
 }
 
 function endTourMatch(){
@@ -219,6 +228,7 @@ function drawLobby(){
     onTeam: team => send('setTeam', { team }),
     onStart: () => send('start'),
     onDiff: diff => send('setSettings', { settings: { diff } }),
+    onTeamCfg: c => send('setTeamCfg', c),
   });
 }
 // turnuvada maçlar arası geri sayım

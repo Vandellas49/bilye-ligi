@@ -5,6 +5,9 @@ import { createRng, random, shuffle } from './rng.js';
 import { createMatch, step } from './sim.js';
 
 export const TOUR_TEAMS = ['Limon', 'Buz', 'Nar', 'Erik', 'Kivi', 'Zeytin', 'Ayva', 'Dut'];
+// turnuva takımlarının formaları (adına göre; listede olmayan ad için sırayla)
+const TOUR_KITS = { Limon: 'limon', Buz: 'buz', Nar: 'kirmizi', Erik: 'mor', Kivi: 'yesilbeyaz', Zeytin: 'siyahbeyaz', Ayva: 'turuncu', Dut: 'bordomavi' };
+export const tourKit = (name, i = 0) => TOUR_KITS[name] || Object.values(TOUR_KITS)[i % 8];
 
 // names verilmezse TOUR_TEAMS'ten karışık seçilir (ilk takım her zaman verilen sırada kalır)
 export function createTournament({ size = 4, names, seed = 1 } = {}){

@@ -10,11 +10,11 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
-import { TICK, ARENAS, TEAM_NAME, cleanLook } from '../shared/constants.js';
+import { TICK, ARENAS, TEAM_NAME, cleanLook, kitById } from '../shared/constants.js';
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
 import { roster, snapshot, matchInfo } from '../shared/net.js';
-import { createTournament, nextMatch, recordResult, simulateMatch, roundName, TOUR_TEAMS } from '../shared/tournament.js';
+import { createTournament, nextMatch, recordResult, simulateMatch, roundName, TOUR_TEAMS , tourKit } from '../shared/tournament.js';
 
 // IIS (ASP.NET Core Module ya da HttpPlatformHandler) portu kendi değişkeniyle verir
 const PORT = +(process.env.PORT || process.env.ASPNETCORE_PORT || process.env.HTTP_PLATFORM_PORT) || 8080;
@@ -178,6 +178,8 @@ function handle(c, m){
         password: cleanText(m.password, 24, ''),
         settings: cleanSettings(m.settings), hostId: c.id,
         members: [], teams: new Map(), phase: 'lobby',
+        // maç odası: takım adı ve forma (her takımın kaptanı, yani takıma ilk giren değiştirir)
+        teamCfg: [{ name: TEAM_NAME[0], kit: 'limon' }, { name: TEAM_NAME[1], kit: 'buz' }], teamSeq: new Map(), seqN: 0,
         match: null, tour: null, lastResult: null, nextAt: 0, timer: null,
       };
       rooms.set(r.id, r);
@@ -212,7 +214,24 @@ function handle(c, m){
         const n = room.members.filter(id => room.teams.get(id) === t).length;
         if (room.teams.get(c.id) !== t && n >= room.settings.size) return send(c, 'error', { message: 'Bu takım dolu.' });
       }
+      if (room.teams.get(c.id) !== t) room.teamSeq.set(c.id, ++room.seqN);
       room.teams.set(c.id, t);
+      broadcastRoom(room);
+      break;
+    }
+    case 'setTeamCfg': {
+      // takım adı / forma: yalnızca maç odasında, lobide, o takımın kaptanı
+      if (!room || room.settings.type !== 'match') return;
+      if (room.phase !== 'lobby' && room.phase !== 'done') return send(c, 'error', { message: 'Maç sürerken değiştirilemez.' });
+      const t = room.teams.get(c.id);
+      if (t == null || captainOf(room, t) !== c.id) return send(c, 'error', { message: 'Takım adını ve formayı takıma ilk giren değiştirebilir.' });
+      const cfg = room.teamCfg[t];
+      if (m.name !== undefined) cfg.name = cleanText(m.name, 16, cfg.name);
+      if (m.kit !== undefined){
+        if (!kitById(m.kit)) return;
+        if (room.teamCfg[1 - t].kit === m.kit) return send(c, 'error', { message: 'Bu forma diğer takımda.' });
+        cfg.kit = m.kit;
+      }
       broadcastRoom(room);
       break;
     }
@@ -225,7 +244,7 @@ function handle(c, m){
         advanceTournament(room);
       } else {
         room.tour = null;
-        startLiveMatch(room, { sides: [0, 1], names: TEAM_NAME.slice(), diff: room.settings.diff });
+        startLiveMatch(room, { sides: [0, 1], names: room.teamCfg.map(t => t.name), kits: room.teamCfg.map(t => t.kit), diff: room.settings.diff });
       }
       broadcastRoomList();
       break;
@@ -251,6 +270,12 @@ function cleanSettings(s){
   };
 }
 const teamCount = room => room.settings.type === 'tournament' ? room.settings.tSize : 2;
+// takımın kaptanı: o takıma en önce giren üye
+function captainOf(r, t){
+  let best = null, seq = Infinity;
+  for (const id of r.members) if (r.teams.get(id) === t){ const s = r.teamSeq.get(id) ?? 0; if (s < seq){ seq = s; best = id; } }
+  return best;
+}
 
 /* ---------- odalar ---------- */
 function roomList(){
@@ -270,6 +295,7 @@ function roomPublic(r){
     id: r.id, name: r.name, locked: !!r.password, hostId: r.hostId, settings: r.settings, phase: r.phase,
     members: r.members.map(id => { const c = clients.get(id); return { id, name: c.name, team: r.teams.get(id) ?? null, connected: c.connected }; }),
     tour: r.tour, lastResult: r.lastResult,
+    teamCfg: r.teamCfg, captains: [0, 1].map(t => captainOf(r, t)),
     current: m ? { names: m.S.teamNames, label: m.label, round: m.round, index: m.index } : null,
     nextIn: r.phase === 'between' ? Math.max(0, r.nextAt - Date.now()) : 0,
   };
@@ -289,7 +315,7 @@ function joinRoom(c, r){
         if (r.members.filter(id => r.teams.get(id) === t).length < r.settings.size) team = t;
       }
     }
-    r.teams.set(c.id, team);
+    r.teamSeq.set(c.id, ++r.seqN); r.teams.set(c.id, team);
   }
   c.room = r.id;
   broadcastRoom(r);
@@ -327,7 +353,7 @@ function setControl(r, c, connected){
 }
 
 /* ---------- maç ---------- */
-function startLiveMatch(r, { sides, names, diff, round = null, index = null, label = '' }){
+function startLiveMatch(r, { sides, names, kits, diff, round = null, index = null, label = '' }){
   const s = r.settings, humans = [];
   sides.forEach((teamIdx, side) => {
     for (const id of r.members){
@@ -336,7 +362,7 @@ function startLiveMatch(r, { sides, names, diff, round = null, index = null, lab
   });
   const S = createMatch({
     size: s.size, humans, diff, arena: s.arena, weather: s.weather, minutes: s.minutes,
-    specials: s.specials, seed: randomSeed(), teamNames: names,
+    specials: s.specials, seed: randomSeed(), teamNames: names, kits,
   });
   for (const p of S.players) if (p.uid != null && !clients.get(p.uid).connected) p.ctrl = 'ai';
   r.match = { S, round, index, label, n: 0, pending: [] };
@@ -399,7 +425,7 @@ function advanceTournament(r){
       recordResult(T, nm.round, nm.index, res.sa, res.sb, res.pen);
       continue;
     }
-    startLiveMatch(r, { sides: [nm.a, nm.b], names, diff: s.diff, round: nm.round, index: nm.index, label: roundName(T, nm.round) });
+    startLiveMatch(r, { sides: [nm.a, nm.b], names, kits: [tourKit(names[0], nm.a), tourKit(names[1], nm.b)], diff: s.diff, round: nm.round, index: nm.index, label: roundName(T, nm.round) });
     return;
   }
   broadcastRoom(r);

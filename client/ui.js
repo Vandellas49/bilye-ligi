@@ -1,5 +1,5 @@
 /* ---------- menü, HUD ve ekranlar ---------- */
-import { ARENAS, SHOTS, SHOT_TYPES, TEAM_NAME, SKINS, HAIRS, HAIR_COLS, TATTOOS, FACES, ACCS, cleanLook } from '../shared/constants.js';
+import { ARENAS, SHOTS, SHOT_TYPES, TEAM_NAME, KITS, kitById, SKINS, HAIRS, HAIR_COLS, TATTOOS, FACES, ACCS, cleanLook } from '../shared/constants.js';
 import { roundName, TOUR_TEAMS } from '../shared/tournament.js';
 
 export const $ = id => document.getElementById(id);
@@ -28,6 +28,14 @@ export function initMenu(){
     seg.insertAdjacentHTML('beforeend', `<input type="radio" name="${name}" id="${prefix}r" value="r" checked><label for="${prefix}r">Rastgele</label>`);
   };
   arenaRadios($('arenaSeg'), 'arena', 'a');
+  // forma seçimi: benim formam ve rakip forma (rakipte Rastgele de var)
+  const kitRadios = (seg, name, withRandom) => {
+    if (withRandom) seg.insertAdjacentHTML('beforeend', `<input type="radio" name="${name}" id="${name}-r" value="r" checked><label for="${name}-r">Rastgele</label>`);
+    KITS.forEach((k, i) => seg.insertAdjacentHTML('beforeend',
+      `<input type="radio" name="${name}" id="${name}-${i}" value="${k.id}"${!withRandom && i === 0 ? ' checked' : ''}><label for="${name}-${i}"><span class="kitsw" style="background:${kitCss(k)}"></span>${esc(k.name)}</label>`));
+  };
+  kitRadios($('kitSeg'), 'kit', false);
+  kitRadios($('okitSeg'), 'okit', true);
   arenaRadios($('crArenaSeg'), 'crArena', 'cra');
 
   if (isTouchOnly) {
@@ -38,6 +46,7 @@ export function initMenu(){
   if (saved) {
     const setR = (name, v) => { const el = document.querySelector(`input[name="${name}"][value="${v}"]`); if (el && !el.disabled) el.checked = true; };
     setR('mode', saved.mode); setR('tsize', saved.tsize);
+    setR('kit', saved.kit); setR('okit', saved.okit); if (typeof saved.teamName === 'string') $('teamName').value = saved.teamName;
     setR('size', saved.size); setR('keys', saved.keys); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist); setR('view', saved.view);
   }
 
@@ -128,7 +137,7 @@ function keysHelpHtml(layout){
 export const want3D = () => radio('view') === '3';
 
 export function readCfg(){
-  return { view: radio('view'), keys: radio('keys'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), diff: radio('diff'),
+  return { kit: radio('kit'), okit: radio('okit'), teamName: $('teamName').value.trim().slice(0, 16), view: radio('view'), keys: radio('keys'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), diff: radio('diff'),
     arena: radio('arena'), time: radio('time'), weather: radio('weather') };
 }
 
@@ -241,7 +250,15 @@ export function renderRooms(list, onJoin){
 }
 
 /* ---------- çevrimiçi: lobi ---------- */
-export function renderLobby(room, myId, { onTeam, onStart, onDiff }){
+// formanın CSS önizlemesi (yuvarlak örnek)
+export function kitCss(k){
+  if (k.pat === 'serit') return `repeating-linear-gradient(90deg, ${k.c1} 0 4px, ${k.c2} 4px 8px)`;
+  if (k.pat === 'yarim') return `linear-gradient(90deg, ${k.c2} 50%, ${k.c1} 50%)`;
+  if (k.pat === 'yatay') return `repeating-linear-gradient(0deg, ${k.c1} 0 5px, ${k.c2} 5px 9px)`;
+  return k.c1;
+}
+
+export function renderLobby(room, myId, { onTeam, onStart, onDiff, onTeamCfg }){
   const s = room.settings, tour = s.type === 'tournament';
   $('lobbyName').textContent = room.name;
   const arena = s.arena === 'r' ? 'Rastgele saha' : ARENAS[s.arena].name;
@@ -258,7 +275,8 @@ export function renderLobby(room, myId, { onTeam, onStart, onDiff }){
   $('lobbyStatus').textContent = status;
 
   // takım sütunları + izleyiciler
-  const names = tour ? TOUR_TEAMS.slice(0, s.tSize) : TEAM_NAME;
+  const tcfg = !tour && room.teamCfg ? room.teamCfg : null;
+  const names = tour ? TOUR_TEAMS.slice(0, s.tSize) : tcfg ? tcfg.map(t => t.name) : TEAM_NAME;
   const me = room.members.find(m => m.id === myId);
   const canMove = room.phase === 'lobby' || room.phase === 'done';
   const col = (title, team, members, cap) => {
@@ -267,11 +285,30 @@ export function renderLobby(room, myId, { onTeam, onStart, onDiff }){
     const items = members.map(m => `<li class="${m.connected ? '' : 'off'}">${m.id === room.hostId ? '👑 ' : ''}${esc(m.name)}${m.id === myId ? ' (sen)' : ''}${m.connected ? '' : ' · bağlantı koptu'}</li>`);
     if (cap !== null) for (let i = members.length; i < cap; i++) items.push('<li class="bot">bot</li>');
     const btn = !isMine && canMove && !full ? `<button class="btn ghost small" type="button" data-team="${team}">${team === null ? 'İzle' : 'Katıl'}</button>` : '';
-    return `<div class="tcol ${isMine ? 'mine' : ''}"><h4>${team !== null && !tour ? `<span class="sw" style="background:var(--team-${team ? 'b' : 'a'})"></span>` : ''}${esc(title)}${cap !== null ? `<span class="cnt">${members.length}/${cap}</span>` : ''}</h4><ul>${items.join('')}</ul>${btn}</div>`;
+    const kit = tcfg && team !== null ? kitById(tcfg[team].kit) : null;
+    // kaptan (takıma ilk giren) takım adını ve formayı değiştirebilir
+    let edit = '';
+    if (kit && canMove && room.captains && room.captains[team] === myId){
+      const other = tcfg[1 - team].kit;
+      edit = `<div class="tcfg"><input data-tname="${team}" id="tname-${team}" maxlength="16" value="${esc(tcfg[team].name)}" aria-label="Takım adı">
+        <div class="kitrow">${KITS.map(k => `<button type="button" data-kit="${k.id}" class="${k.id === kit.id ? 'on' : ''}" title="${esc(k.name)}" aria-label="${esc(k.name)}"${k.id === other ? ' disabled' : ''}><span class="kitsw" style="background:${kitCss(k)}"></span></button>`).join('')}</div>
+        <span class="hint">Takıma ilk giren olarak adı ve formayı sen seçiyorsun.</span></div>`;
+    }
+    const sw = kit ? `<span class="kitsw" style="background:${kitCss(kit)}" title="${esc(kit.name)}"></span>` : team !== null && !tour ? `<span class="sw" style="background:var(--team-${team ? 'b' : 'a'})"></span>` : '';
+    return `<div class="tcol ${isMine ? 'mine' : ''}"><h4>${sw}${esc(title)}${cap !== null ? `<span class="cnt">${members.length}/${cap}</span>` : ''}</h4><ul>${items.join('')}</ul>${edit}${btn}</div>`;
   };
   const cols = names.map((n, t) => col(n, t, room.members.filter(m => m.team === t), s.size));
   cols.push(col('İzleyiciler', null, room.members.filter(m => m.team === null), null));
+  // yazarken gelen oda güncellemesi takım adı kutusunu sıfırlamasın
+  const act = document.activeElement, keep = act && act.dataset && act.dataset.tname !== undefined ? { id: act.id, v: act.value, s: act.selectionStart } : null;
   $('lobbyTeams').innerHTML = cols.join('');
+  if (keep && $(keep.id)){ const el = $(keep.id); el.value = keep.v; el.focus(); try { el.setSelectionRange(keep.s, keep.s); } catch(e){} }
+  $('lobbyTeams').querySelectorAll('input[data-tname]').forEach(el => {
+    const commit = () => { const v = el.value.trim(); if (v && v !== tcfg[+el.dataset.tname].name) onTeamCfg({ name: v }); };
+    el.onchange = commit;
+    el.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); el.blur(); } };
+  });
+  $('lobbyTeams').querySelectorAll('button[data-kit]').forEach(b => { b.onclick = () => onTeamCfg({ kit: b.dataset.kit }); });
   $('lobbyTeams').querySelectorAll('button[data-team]').forEach(b => {
     b.onclick = () => onTeam(b.dataset.team === 'null' ? null : +b.dataset.team);
   });

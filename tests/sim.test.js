@@ -567,3 +567,15 @@ test('baskı (press): insan oyuncu topu tutan rakibe kale tarafından kapanır, 
   for (let i = 0; i < 30; i++) step(S, { [me.id]: { press: true }, [mate.id]: { hold: true } });
   assert.ok(Math.hypot(me.x - x0, me.y - y0) < 3);
 });
+
+test('formalar: seçilen formalar maça geçer, aynı forma çakışmaz, geçersiz forma varsayılana döner', async () => {
+  const { KITS, matchKits } = await import('../shared/constants.js');
+  assert.deepEqual(createMatch({ seed: 1, kits: ['sarilacivert', 'siyahbeyaz'] }).kits, ['sarilacivert', 'siyahbeyaz']);
+  const same = createMatch({ seed: 1, kits: ['buz', 'buz'] }).kits;
+  assert.equal(same[0], 'buz'); assert.notEqual(same[1], 'buz');
+  assert.deepEqual(matchKits('yok', '<x>'), [KITS[0].id, KITS[1].id]);
+  assert.deepEqual(createMatch({ seed: 1 }).kits, ['limon', 'buz']);
+  const S = createMatch({ seed: 2, kits: ['sarikirmizi', 'mor'], teamNames: ['Aslanlar', 'Kartallar'] });
+  const V = createView(roster(S), matchInfo(S), null);
+  assert.deepEqual(V.kits, ['sarikirmizi', 'mor']); assert.deepEqual(V.teamNames, ['Aslanlar', 'Kartallar']);
+});

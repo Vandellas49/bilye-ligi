@@ -3,9 +3,11 @@
    3B kaleler ve file, tribünlerde seyirciler, LED panolar, projektörler, gerçek derinlikte kar/parıltı.
    İsimler, çubuklar, balonlar ve HUD 2B katmanda (render.js) üstte çizilir; project() ile yansıtılır.
    THREE global'i client/three.min.js ile gelir (render.js yükler). */
-import { W, H, GH, GD, TOP, BOT, PR, BR, VIEW, TEAM_COL, TEAM_DARK, ARENAS, shotInfo } from '../shared/constants.js';
+import { W, H, GH, GD, TOP, BOT, PR, BR, VIEW, TEAM_COL, TEAM_DARK, ARENAS, shotInfo, SKINS, KITS, kitById } from '../shared/constants.js';
 import { visOf, reduceMotion, jumpOf, flipOf } from './effects.js';
 import { isTouch } from './ui.js';
+
+const kitOf = (S, t) => kitById(S && S.kits ? S.kits[t] : null) || KITS[t];   // maçın formaları
 
 const ARENA3D = {
   gece:  { sky: 0x0b1020, fog: 0x0b1020, hs: 0x9fc0ff, hg: 0x1a1020, hi: .62, sun: 0xd6e8ff, si: .95, outer: 0x15101c, stand: 0x2a2236, seat: 0x3a3048, glow: 0xbff0ff },
@@ -156,17 +158,19 @@ function buildStadium(){
       }
     }
   }
-  const inst = new T.InstancedMesh(new T.SphereGeometry(6.5, 10, 8), new T.MeshStandardMaterial({ roughness: .7 }), fans.length);
-  const others = ['#f05a5a', '#ffffff', '#7c6cf0', '#5bd18b', '#ff9f43', '#e86fb5'];
+  // seyirci: takımının formasını giymiş gövde + ten renginde baş (renkler applyKits'te formaya göre)
+  const bodyGeo = new T.SphereGeometry(7.5, 10, 8); bodyGeo.scale(1, 1.3, .9);
+  const inst = new T.InstancedMesh(bodyGeo, new T.MeshStandardMaterial({ roughness: .6, emissive: 0x161616 }), fans.length);
+  const heads = new T.InstancedMesh(new T.SphereGeometry(4.6, 8, 6), new T.MeshStandardMaterial({ roughness: .7 }), fans.length);
   const c = new T.Color();
   fans.forEach((f, i) => {
-    const hex = f.mix ? (Math.random() < .55 ? TEAM_COL[f.team] : others[Math.random()*others.length|0])
-                      : (Math.random() < .8 ? TEAM_COL[f.team] : '#ffffff');
-    c.set(hex); inst.setColorAt(i, c);
     f.ph = Math.random()*6.28; f.sp = .6 + Math.random()*.8;
+    f.r = Math.random();   // forma rengi seçimi (c1/c2), karışık tribünde başka renk
+    c.set(SKINS[Math.random()*SKINS.length|0]); heads.setColorAt(i, c);
+    c.set('#ffffff'); inst.setColorAt(i, c);   // renk tamponu ilk çizimden önce olmalı (yoksa gölgelendirici renksiz derlenir)
   });
-  inst.receiveShadow = true; g.add(inst);
-  G3.fans = fans; G3.fanMesh = inst; G3.fanDummy = new T.Object3D();
+  inst.receiveShadow = true; g.add(inst); g.add(heads);
+  G3.fans = fans; G3.fanMesh = inst; G3.fanHeads = heads; G3.fanDummy = new T.Object3D(); G3.kitKey = '';
   // projektör direkleri
   G3.lampMat = new T.MeshBasicMaterial({ color: 0xfff6d8 });
   const poleMat = new T.MeshStandardMaterial({ color: 0x55505e, roughness: .6, metalness: .3 });
@@ -215,6 +219,7 @@ function buildGoals(){
     for (const pp of [pT, pB]){                              // direk dibinde takım renkli halka
       const ring = new T.Mesh(new T.CylinderGeometry(pr + 3, pr + 3, 3, 16), new T.MeshStandardMaterial({ color: TEAM_COL[s], roughness: .4 }));
       ring.position.copy(pp).setY(1.5); g.add(ring);
+      (G3.postRings || (G3.postRings = [[], []]))[s].push(ring);
     }
   }
 }
@@ -249,19 +254,30 @@ function dashedRing(r, w, color, n){
 }
 
 /* ---------- karakter ---------- */
+/* Forma dokusu (küre UV'si: u çevre, v yukarıdan aşağı). Formaya göre önbellekli. */
+const kitTex = new Map();
+function kitTexture(kit){
+  if (kitTex.has(kit.id)) return kitTex.get(kit.id);
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+  // desen gövdenin tamamında (yüz kartı önü kapatır, forma yanlarda ve altta görünür); ince beyaz yaka, en altta şort
+  const c = cv.getContext('2d'), h = 128, collar = h*(1 - .44), shorts = h*(1 - .14);
+  c.fillStyle = kit.c1; c.fillRect(0, 0, 256, h);
+  c.fillStyle = kit.c2;
+  if (kit.pat === 'serit') for (let x = 0; x < 256; x += 16) c.fillRect(x, 0, 8, h);
+  else if (kit.pat === 'yarim') c.fillRect(0, 0, 128, h);
+  else if (kit.pat === 'yatay') for (const y of [collar + 14, collar + 34, collar - 26]) c.fillRect(0, y, 256, 8);
+  c.fillStyle = '#ffffff'; c.fillRect(0, collar, 256, 4);
+  c.fillStyle = kit.dark; c.fillRect(0, shorts, 256, h - shorts);
+  const tex = new T.CanvasTexture(cv);
+  kitTex.set(kit.id, tex);
+  return tex;
+}
+
 function makePlayer(p){
   const g = new T.Group();
   // gövde: tepe takım rengi, altta beyaz şerit ve koyu forma (köşe renkleriyle)
   const geo = new T.SphereGeometry(PR, 36, 26);
-  const cols = [], pa = geo.attributes.position, c = new T.Color();
-  const base = new T.Color(TEAM_COL[p.team]), dark = new T.Color(TEAM_DARK[p.team]).multiplyScalar(1.15), white = new T.Color(0xffffff);
-  for (let i = 0; i < pa.count; i++){
-    const yy = pa.getY(i)/PR;
-    c.copy(yy < -.44 ? dark : yy < -.33 ? white : base);
-    cols.push(c.r, c.g, c.b);
-  }
-  geo.setAttribute('color', new T.Float32BufferAttribute(cols, 3));
-  const mat = new T.MeshStandardMaterial({ vertexColors: true, roughness: .4, metalness: .05, emissive: 0x000000 });
+  const mat = new T.MeshStandardMaterial({ map: kitTexture(kitOf(S, p.team)), roughness: .4, metalness: .05, emissive: 0x000000 });
   const pivot = new T.Group(); g.add(pivot);
   const body = new T.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true;
   pivot.add(body);
@@ -399,8 +415,27 @@ function syncPlayers(){
 
 const WAVE_CYCLE = 2100, WAVE_SPEED = 6.5, WAVE_W = 85;   // ~35 sn'de bir, ~10 sn sürer; dalga genişliği (birim)
 
+/* Maçın formaları değişince: seyirci formaları, LED'ler, direk halkaları */
+function applyKits(){
+  const key = S.kits ? S.kits.join() : '';
+  if (key === G3.kitKey) return;
+  G3.kitKey = key;
+  const kits = [kitOf(S, 0), kitOf(S, 1)], c = new T.Color();
+  const others = ['#f05a5a', '#ffffff', '#7c6cf0', '#5bd18b', '#ff9f43', '#e86fb5'];
+  G3.fans.forEach((f, i) => {
+    const k = kits[f.team];
+    // karışık (uzak) tribünde %25 başka renk; formanın iki rengi desen oranında
+    const hex = f.mix && f.r > .75 ? others[(f.r*97|0) % others.length] : (k.pat !== 'duz' && (f.r*13 % 1) < .45 ? k.c2 : k.c1);
+    c.set(hex); G3.fanMesh.setColorAt(i, c);
+  });
+  if (G3.fanMesh.instanceColor) G3.fanMesh.instanceColor.needsUpdate = true;
+  G3.leds.forEach((m, i) => { m.color.set(kits[i].ui); m.emissive.set(kits[i].ui); });
+  (G3.postRings || [[], []]).forEach((list, i) => list.forEach(r => r.material.color.set(kits[i].ui)));
+}
+
 function updateScene(){
   syncPlayers();
+  applyKits();
   const cam = G3.camera, paused = V.paused, move = !paused && V.mode !== 'end';
   const tp = tmp(), camDir = tp.a, camUp = tp.up.set(0, 1, 0).applyQuaternion(cam.quaternion);
   G3.frame = (G3.frame || 0) + 1;
@@ -505,24 +540,28 @@ function updateScene(){
   // meksika dalgası: WAVE_CYCLE tickte bir, tribünlerin çevresinde WAVE_SPEED hızla dolaşır
   const wt = S.t % WAVE_CYCLE, wave = !reduceMotion && S.mode !== 'end' ? wt*WAVE_SPEED - 120 : -1e9;
   const waving = wave > -120 && wave < G3.waveL + 120;
-  if (G3.frame % 2 === 0) G3.fans.forEach((f, i) => {
+  if (G3.frame % 2 === 0 && G3.fanMesh.visible) G3.fans.forEach((f, i) => {
     let y = f.y, up = 0;
     if (!reduceMotion){
       y += Math.abs(Math.sin(S.t*.05*f.sp + f.ph))*1.5;
       if (f.team === cheer) y += Math.abs(Math.sin(S.t*.22*f.sp + f.ph))*14;
       if (waving){ const d = Math.abs(f.u - wave)/WAVE_W; if (d < 1){ up = (1 - d*d); y += up*16; } }
     }
-    dm.position.set(f.x, y, f.z); dm.scale.set(1, 1 + up*.8, 1); dm.updateMatrix(); G3.fanMesh.setMatrixAt(i, dm.matrix);
+    dm.position.set(f.x, y + 2, f.z); dm.scale.set(1, 1 + up*.5, 1); dm.updateMatrix(); G3.fanMesh.setMatrixAt(i, dm.matrix);
+    dm.position.y = y + 14 + up*5; dm.scale.set(1, 1, 1); dm.updateMatrix(); G3.fanHeads.setMatrixAt(i, dm.matrix);
   });
   dm.scale.set(1, 1, 1);
-  if (G3.frame % 2 === 0) G3.fanMesh.instanceMatrix.needsUpdate = true;
+  if (G3.frame % 2 === 0){ G3.fanMesh.instanceMatrix.needsUpdate = true; G3.fanHeads.instanceMatrix.needsUpdate = true; }
   G3.leds.forEach((m, i) => { m.emissiveIntensity = cheer === i ? .7 + .6*Math.abs(Math.sin(S.t*.3)) : .7; });
 }
 
 /* Otomatik kalite: ~2 sn'lik ortalama kare süresine bakılır. Çözünürlük düşürülmez (görüntü bulanıklaşıyordu).
    2 -> 1: gölgeler kapanır;  1 -> 0: seyirciler gizlenir, kar azalır.
    En düşük kademede de ortalama 33 ms'yi (30 kare/sn) aşarsa tooSlow işaretlenir; render.js 2B'ye geçer. */
+// ?3dsabit: otomatik kalite kapalı (yalnızca deneme ve test için; yavaş test tarayıcısında seyirciler gizlenmesin)
+const FIXED_QUALITY = new URLSearchParams(location.search).has('3dsabit');
 function adaptQuality(now){
+  if (FIXED_QUALITY) return;
   if (G3.lastT){ const dt = now - G3.lastT; if (dt < 1000) G3.ft.push(dt); }
   G3.lastT = now;
   const span = G3.ft.reduce((a, b) => a + b, 0);
@@ -536,7 +575,7 @@ function adaptQuality(now){
     G3.renderer.shadowMap.enabled = false;
     G3.scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
   } else {
-    G3.fanMesh.visible = false;
+    G3.fanMesh.visible = false; G3.fanHeads.visible = false;
     G3.snowList.length = Math.min(G3.snowList.length, 300);
   }
   console.info('3B kalite düşürüldü:', G3.quality, '(ortalama kare ' + avg.toFixed(1) + ' ms)');

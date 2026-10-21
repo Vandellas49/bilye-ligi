@@ -1,7 +1,7 @@
 /* ---------- çizim ----------
    Maç durumunu okur, değiştirmez. Parçacık, iz, yazı ve oyuncu animasyonları
    istemci tarafındaki efekt durumunda (fx) tutulur. */
-import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, shotInfo } from '../shared/constants.js';
+import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, KITS, kitById, shotInfo } from '../shared/constants.js';
 import { fx, visOf, reduceMotion, jumpOf, celeOf, flipOf } from './effects.js';
 import { shotKeyLabel } from './input.js';
 import { isTouch, keyLayout } from './ui.js';
@@ -80,9 +80,22 @@ function worldTransform(c){
 function rr(c, x, y, w, h, r){ c.beginPath(); c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h); }
 
 // saha arka planı bir kez offscreen canvas'a çizilir
+/* O anki maçın formaları: TEAM_COL/TEAM_DARK (hale, konfeti, yazı, direk halkası) ve CSS --team-a/--team-b güncellenir. */
+let kitKey = '';
+export const kitOf = (S, t) => kitById(S && S.kits ? S.kits[t] : null) || KITS[t];
+function applyKitColors(S){
+  const key = S && S.kits ? S.kits.join() : 'limon,buz';
+  if (key === kitKey) return;
+  kitKey = key;
+  for (const t of [0, 1]){ const k = kitOf(S, t); TEAM_COL[t] = k.ui; TEAM_DARK[t] = k.dark; }
+  const st = document.documentElement.style;
+  st.setProperty('--team-a', TEAM_COL[0]); st.setProperty('--team-b', TEAM_COL[1]);
+}
+
 export function renderBg(state){
   if (state) S = state;
   if (!S) return;
+  applyKitColors(S);
   bg.width = cv.width; bg.height = cv.height; bgVersion++;
   const c = bgx, A = ARENAS[S.arena];
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,bg.width,bg.height);
@@ -306,19 +319,25 @@ function drawPlayerArt(c, p, r){
   const st = p.slideT > 0 ? .3 : Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
   c.save();
   c.translate(p.x, y0); c.rotate(va); c.scale(1 + st, 1 - st); c.rotate(-va);
-  const g = c.createRadialGradient(-r*.38, -r*.45, r*.1, 0, 0, r*1.05);
-  g.addColorStop(0, shade(col, 70)); g.addColorStop(.45, col); g.addColorStop(1, shade(col, -38));
-  c.fillStyle = g; c.beginPath(); c.arc(0, 0, r, 0, Math.PI*2); c.fill();
+  const kit = kitOf(S, p.team);
+  c.fillStyle = kit.c1; c.beginPath(); c.arc(0, 0, r, 0, Math.PI*2); c.fill();
   c.save(); c.clip();
+  // forma deseni (çubuk, yarım, yatay şerit), üstüne ışık-gölge
+  c.fillStyle = kit.c2;
+  if (kit.pat === 'serit') for (let sx = -r + 2; sx < r; sx += 9) c.fillRect(sx, -r - 2, 4.5, 2*r + 4);
+  else if (kit.pat === 'yarim') c.fillRect(0, -r - 2, r + 2, 2*r + 4);
+  else if (kit.pat === 'yatay'){ c.fillRect(-r - 2, -4, 2*r + 4, 5); c.fillRect(-r - 2, -14, 2*r + 4, 4); }
+  const g = c.createRadialGradient(-r*.38, -r*.45, r*.1, 0, 0, r*1.05);
+  g.addColorStop(0, 'rgba(255,255,255,.45)'); g.addColorStop(.45, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.32)');
+  c.fillStyle = g; c.fillRect(-r - 2, -r - 2, 2*r + 4, 2*r + 4);
   // forma: alt kısım koyu takım rengi, beyaz şerit ve numara
-  const kitY = 7.5;
-  const kg = c.createLinearGradient(0, kitY, 0, r);
-  kg.addColorStop(0, shade(dark, 25)); kg.addColorStop(1, shade(dark, -15));
-  c.fillStyle = kg; c.fillRect(-r - 2, kitY, 2*r + 4, r);
-  c.fillStyle = 'rgba(255,255,255,.9)'; c.fillRect(-r - 2, kitY - 1.6, 2*r + 4, 1.8);
-  c.fillStyle = '#ffffff';
-  c.font = '800 8.5px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillText(String(p.num), 0, kitY + 6.2);
+  // yüzün altı forma (desen üstte çizildi), yaka beyaz, en altta koyu şort; numara konturlu ki desende okunsun
+  const kitY = 5.5;
+  c.fillStyle = shade(kit.dark, -10); c.fillRect(-r - 2, r - 4.5, 2*r + 4, 6);
+  c.fillStyle = 'rgba(255,255,255,.95)'; c.fillRect(-r - 2, kitY - 1.6, 2*r + 4, 1.8);
+  c.font = '800 9px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.lineWidth = 2.4; c.strokeStyle = kit.dark; c.lineJoin = 'round'; c.strokeText(String(p.num), 0, kitY + 6.6);
+  c.fillStyle = kit.num; c.fillText(String(p.num), 0, kitY + 6.6);
   // kenar ışığı ve parlama
   c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 2;
   c.beginPath(); c.arc(0, 0, r - 1.5, Math.PI*.15, Math.PI*.6); c.stroke();
@@ -326,8 +345,8 @@ function drawPlayerArt(c, p, r){
   c.fillStyle = 'rgba(255,255,255,.9)'; c.beginPath(); c.arc(-10.5, -9, 1.3, 0, Math.PI*2); c.fill();
   c.restore();
   const kicking = p.input.kick;
-  c.lineWidth = kicking ? 3.5 : 2.2;
-  c.strokeStyle = kicking ? '#ffffff' : shade(dark, -25);
+  c.lineWidth = kicking ? 3.5 : 2.6;
+  c.strokeStyle = kicking ? '#ffffff' : kit.pat === 'duz' ? shade(dark, -25) : kit.dark;
   c.beginPath(); c.arc(0, 0, r, 0, Math.PI*2); c.stroke();
   c.restore();
   if (p.ctrl !== 'ai'){
@@ -394,9 +413,7 @@ function drawHairBack(c, p, yBody, r){
   c.fillStyle = col;
   if (p.hair === 'uzun'){
     const sw = Math.sin(S.t*.12 + p.slot)*1.5;
-    c.beginPath(); c.ellipse(x + sw*.5, yBody + 3, r + 4, r + 3, 0, 0, Math.PI*2); c.fill();
-    c.beginPath(); c.moveTo(x - r - 4, yBody + 3); c.quadraticCurveTo(x - r - 2 + sw, yBody + r + 6, x - r*.4, yBody + r + 3);
-    c.lineTo(x + r*.4, yBody + r + 3); c.quadraticCurveTo(x + r + 2 + sw, yBody + r + 6, x + r + 4, yBody + 3); c.fill();
+    for (const s of [-1, 1]){ c.beginPath(); c.ellipse(x + s*(r - 1) + sw*.5, yBody + 2, 5, r*.75, s*.12, 0, Math.PI*2); c.fill(); }
   } else if (p.hair === 'orgu'){
     for (const s of [-1, 1]){
       const sw = Math.sin(S.t*.15 + p.slot + s)*2;
@@ -430,7 +447,7 @@ function drawHairFront(c, p, yBody, r){
       c.fillStyle = 'rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(x, yBody - r + 2, r + 2, 8, 0, 0, Math.PI*2); c.fill();
       c.fillStyle = col; c.fillRect(x - 3.5, yBody - r - 2, 7, 11);
     } else {
-      const ry = p.hair === 'uzun' || p.hair === 'orgu' ? 9 : 8;
+      const ry = 8;
       c.beginPath(); c.ellipse(x, yBody - r + 2, r + 2, ry, 0, 0, Math.PI*2); c.fill();
       if (p.hair === 'kisa'){
         // perçem
@@ -441,7 +458,7 @@ function drawHairFront(c, p, yBody, r){
         for (let i = -3; i <= 3; i++){ c.beginPath(); c.arc(x + i*5.2, yBody - r + 9 + (i % 2 ? 1 : 0), 3.6, 0, Math.PI*2); c.fill(); }
       } else if (p.hair === 'uzun' || p.hair === 'orgu'){
         // ortadan ayrık, yüzü yanlardan çerçeveler
-        for (const s of [-1, 1]){ c.beginPath(); c.ellipse(x + s*(r - 2), yBody - 2, 4.5, 11, s*.15, 0, Math.PI*2); c.fill(); }
+        for (const s of [-1, 1]){ c.beginPath(); c.ellipse(x + s*(r - 1), yBody - 5, 3, 8, s*.15, 0, Math.PI*2); c.fill(); }
         c.strokeStyle = shade(col, -30); c.lineWidth = 1.2; c.beginPath(); c.moveTo(x, yBody - r); c.lineTo(x + 1, yBody - r + 9); c.stroke();
       }
     }
@@ -471,10 +488,10 @@ function drawSkin(c, p, cx, cy, yBody, r){
   if (!p.skin) return;
   c.save();
   c.beginPath(); c.arc(p.x, yBody, r - .4, 0, Math.PI*2); c.clip();
-  c.beginPath(); c.rect(p.x - r - 2, yBody - r - 2, 2*r + 4, r + 7.5); c.clip();
+  c.beginPath(); c.rect(p.x - r - 2, yBody - r - 2, 2*r + 4, r + 5.5); c.clip();
   const g = c.createRadialGradient(cx - 4, cy - 6, 1, cx, cy, 16);
   g.addColorStop(0, shade(p.skin, 22)); g.addColorStop(1, shade(p.skin, -12));
-  c.fillStyle = g; c.beginPath(); c.ellipse(cx, cy - 1, 14.5, 12.5, 0, 0, Math.PI*2); c.fill();
+  c.fillStyle = g; c.beginPath(); c.ellipse(cx, cy - 1, 13, 11, 0, 0, Math.PI*2); c.fill();
   c.restore();
   if (!p.tattoo) return;
   // dövme sol şakakta/yanakta; koyu tende açık mürekkep
@@ -912,6 +929,7 @@ function render3DFrame(){
 export function render(state, view){
   S = state; V = view;
   if (!S) return;
+  applyKitColors(S);
   if (use3D && R3) return render3DFrame();
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0, 0, cv.width, cv.height);
