@@ -450,7 +450,7 @@ function updateCamera(){
       else if (!p) G3.pyaw = attack > 0 ? 0 : Math.PI;
       yaw = G3.pyaw;
       const dx = Math.cos(yaw), dz = Math.sin(yaw), oX = ox - W/2, oZ = oy - H/2;
-      px = oX - dx*270; py = 165; pz = oZ - dz*270; lx = oX + dx*300; ly = 0; lz = oZ + dz*300;
+      px = oX - dx*380; py = 235; pz = oZ - dz*380; lx = oX + dx*320; ly = 0; lz = oZ + dz*320;   // arkadan ve yukarıdan (uzaklık 380, yükseklik 235)
     }
     const k = reduceMotion ? 1 : mode === 'oyuncu' ? .12 : .07;
     G3.camPos.x += (px - G3.camPos.x)*k; G3.camPos.y += (py - G3.camPos.y)*k; G3.camPos.z += (pz - G3.camPos.z)*k;
