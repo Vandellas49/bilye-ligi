@@ -4,7 +4,7 @@
 import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, KITS, kitById, shotInfo } from '../shared/constants.js';
 import { fx, visOf, reduceMotion, jumpOf, celeOf, flipOf } from './effects.js';
 import { shotKeyLabel } from './input.js';
-import { isTouch, keyLayout } from './ui.js';
+import { isTouch, keyLayout, drawCrest } from './ui.js';
 
 const ART_R = 19; // karakter çizimi bu ölçüde yapılıp fizik yarıçapına büyütülür
 
@@ -24,7 +24,7 @@ export function initRender(canvas, stageEl, canvas3d){ cv = canvas; ctx = cv.get
 export const share = {
   ART_R, get bg(){ return bg; }, get bgVersion(){ return bgVersion; },
   drawFace: (...a) => drawFace(...a), drawAccessory: (...a) => drawAccessory(...a),
-  drawHairBack: (...a) => drawHairBack(...a), drawGesture: (...a) => drawGesture(...a),
+  drawHairBack: (...a) => drawHairBack(...a), drawGesture: (...a) => drawGesture(...a), drawCrest: (...a) => drawCrest(...a),
 };
 
 /* Görünüm: 3B istenirse Three.js (client/three.min.js) ve client/render3d.js yüklenir.
@@ -338,6 +338,7 @@ function drawPlayerArt(c, p, r){
   c.font = '800 9px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.lineWidth = 2.4; c.strokeStyle = kit.dark; c.lineJoin = 'round'; c.strokeText(String(p.num), 0, kitY + 6.6);
   c.fillStyle = kit.num; c.fillText(String(p.num), 0, kitY + 6.6);
+  if (kit.crest) drawCrest(c, kit.crest, -10.5, kitY + 5.4, 3.6);   // göğüste arma
   // kenar ışığı ve parlama
   c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 2;
   c.beginPath(); c.arc(0, 0, r - 1.5, Math.PI*.15, Math.PI*.6); c.stroke();

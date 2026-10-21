@@ -92,6 +92,8 @@ legend{font-weight:800;font-size:14px;margin-bottom:6px;padding:0}
 #lookRows .seg label.swonly{padding:6px 8px}
 #lookRows .sw{width:18px;height:18px}
 .kitsw{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.3);flex:none;display:inline-block}
+.kitsw.crest,.dot.crest{background-size:cover;background-position:center;border:0}
+.dot.crest{width:20px;height:20px}
 .seg.kits label{padding:6px 11px 6px 7px;font-size:13px}
 #teamName{font:inherit;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px;width:min(260px,100%);margin-bottom:8px}
 #teamName:focus-visible{border-color:var(--accent);outline:none}
@@ -198,11 +200,11 @@ details[open] summary{margin-bottom:12px}
 <header>
   <div class="brand">Bilye Ligi</div>
   <div class="score" id="score">
-    <div class="team"><span class="dot" style="background:var(--team-a)"></span><span class="nm" id="nmA">Limon</span></div>
+    <div class="team"><span class="dot" id="dotA" style="background-color:var(--team-a)"></span><span class="nm" id="nmA">Limon</span></div>
     <div class="num" id="sA">0</div>
     <div class="clock" id="clock">2:00</div>
     <div class="num" id="sB">0</div>
-    <div class="team"><span class="nm" id="nmB">Buz</span><span class="dot" style="background:var(--team-b)"></span></div>
+    <div class="team"><span class="nm" id="nmB">Buz</span><span class="dot" id="dotB" style="background-color:var(--team-b)"></span></div>
   </div>
   <div class="tools">
     <button class="icon-btn" id="muteBtn" aria-label="Sesi kapat" title="Ses">🔊</button>

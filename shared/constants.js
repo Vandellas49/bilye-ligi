@@ -43,14 +43,17 @@ export const TEAM_DARK = ['#9a6f00', '#0f7f93'];
 export const TEAM_NAME = ['Limon', 'Buz'];
 /* Formalar. c1 ana renk, c2 desen rengi, dark şort/kontur, ui arayüz rengi (hale, skor, konfeti), num numara rengi.
    pat: 'duz' | 'serit' (dikey çubuk) | 'yarim' (iki renk yarım) | 'yatay' (yatay şerit).
-   Adlar renklerden; kulüp adı ya da arması yok (takım adını oyuncu kendisi yazabilir).
+   Üç kulüp forması adı ve armasıyla (crest: 'fb' | 'gs' | 'bjk', çizim client/ui.js drawCrest); oyun kendi aramızda oynanıyor, yayınlanmıyor.
    İstemcide TEAM_COL/TEAM_DARK o anki maçın formalarına göre güncellenir (render.js applyKitColors). */
 export const KITS = [
   { id: 'limon',        name: 'Limon',         c1: '#ffcf3a', c2: '#ffcf3a', dark: '#9a6f00', ui: '#ffcf3a', num: '#ffffff', pat: 'duz' },
   { id: 'buz',          name: 'Buz',           c1: '#3fd0e8', c2: '#3fd0e8', dark: '#0f7f93', ui: '#3fd0e8', num: '#ffffff', pat: 'duz' },
-  { id: 'sarilacivert', name: 'Sarı-Lacivert', c1: '#ffd200', c2: '#1b2a6b', dark: '#1b2a6b', ui: '#ffd200', num: '#ffffff', pat: 'serit' },
-  { id: 'sarikirmizi',  name: 'Sarı-Kırmızı',  c1: '#c8102e', c2: '#fdb912', dark: '#7a0a1c', ui: '#f0542a', num: '#ffffff', pat: 'yarim' },
-  { id: 'siyahbeyaz',   name: 'Siyah-Beyaz',   c1: '#f4f4f4', c2: '#151515', dark: '#151515', ui: '#f4f4f4', num: '#ffffff', pat: 'serit' },
+  { id: 'sarilacivert', name: 'Fenerbahçe',    c1: '#ffd200', c2: '#1b2a6b', dark: '#1b2a6b', ui: '#ffd200', num: '#ffffff', pat: 'serit',
+    crest: 'fb' },
+  { id: 'sarikirmizi',  name: 'Galatasaray',   c1: '#c8102e', c2: '#fdb912', dark: '#7a0a1c', ui: '#f0542a', num: '#ffffff', pat: 'yarim',
+    crest: 'gs' },
+  { id: 'siyahbeyaz',   name: 'Beşiktaş',      c1: '#f4f4f4', c2: '#151515', dark: '#151515', ui: '#f4f4f4', num: '#ffffff', pat: 'serit',
+    crest: 'bjk' },
   { id: 'bordomavi',    name: 'Bordo-Mavi',    c1: '#7a1e3a', c2: '#5fb6e6', dark: '#4a1024', ui: '#b0365a', num: '#ffffff', pat: 'yarim' },
   { id: 'kirmizi',      name: 'Kırmızı',       c1: '#e8455c', c2: '#e8455c', dark: '#8f1d2e', ui: '#e8455c', num: '#ffffff', pat: 'duz' },
   { id: 'yesilbeyaz',   name: 'Yeşil-Beyaz',   c1: '#2fb67c', c2: '#ffffff', dark: '#16603f', ui: '#2fb67c', num: '#ffffff', pat: 'yatay' },

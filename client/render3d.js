@@ -314,6 +314,8 @@ function drawFaceSprite(p, o){
   c.fillStyle = 'rgba(255,255,255,.95)';
   c.font = '800 8px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(String(p.num), p.x, p.y + 13.8);
+  const kit = kitOf(S, p.team);
+  if (kit.crest) SH.drawCrest(c, kit.crest, p.x - 10, p.y + 12.6, 3.4);   // göğüste arma
   SH.drawHairBack(c, p, p.y, r);
   SH.drawFace(c, p, p.y - 2, v);
   SH.drawAccessory(c, p, p.y, r);

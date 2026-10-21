@@ -32,7 +32,7 @@ export function initMenu(){
   const kitRadios = (seg, name, withRandom) => {
     if (withRandom) seg.insertAdjacentHTML('beforeend', `<input type="radio" name="${name}" id="${name}-r" value="r" checked><label for="${name}-r">Rastgele</label>`);
     KITS.forEach((k, i) => seg.insertAdjacentHTML('beforeend',
-      `<input type="radio" name="${name}" id="${name}-${i}" value="${k.id}"${!withRandom && i === 0 ? ' checked' : ''}><label for="${name}-${i}"><span class="kitsw" style="background:${kitCss(k)}"></span>${esc(k.name)}</label>`));
+      `<input type="radio" name="${name}" id="${name}-${i}" value="${k.id}"${!withRandom && i === 0 ? ' checked' : ''}><label for="${name}-${i}">${kitSw(k)}${esc(k.name)}</label>`));
   };
   kitRadios($('kitSeg'), 'kit', false);
   kitRadios($('okitSeg'), 'okit', true);
@@ -157,6 +157,12 @@ export function updateHud(S){
   $('sA').textContent = S.score[0]; $('sB').textContent = S.score[1];
   const names = S.teamNames || TEAM_NAME;
   $('nmA').textContent = names[0]; $('nmB').textContent = names[1];
+  // skor tabelası: kulüp formasında arma, diğerlerinde takım rengi nokta
+  for (const [t, id] of [[0, 'dotA'], [1, 'dotB']]){
+    const k = kitById(S.kits ? S.kits[t] : null), url = k && crestUrl(k), el = $(id);
+    el.classList.toggle('crest', !!url);
+    el.style.backgroundImage = url ? `url(${url})` : '';
+  }
   const c = $('clock');
   if (S.overtime){ c.textContent = 'Altın gol'; c.classList.add('ot'); }
   else {
@@ -250,6 +256,94 @@ export function renderRooms(list, onJoin){
 }
 
 /* ---------- çevrimiçi: lobi ---------- */
+/* Kulüp armaları (canvas ile çizilir, dosya yok). (x, y) merkez, r yarıçap. Oyunda göğüste küçük,
+   skor tabelası ve lobide büyük (crestUrl). Küçükte yazılar atlanır. */
+const NAVY = '#14205c', FBY = '#ffd200', GSR = '#a90432', GSY = '#fdb912';
+function ringText(c, txt, x, y, rad, size, color){
+  // yazıyı halkanın üst yayına diz (soldan sağa)
+  c.save(); c.font = `800 ${size}px Figtree, system-ui, sans-serif`; c.fillStyle = color; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const chars = [...txt], step = size*.62/rad, start = -Math.PI/2 - step*(chars.length - 1)/2;
+  chars.forEach((ch, i) => { const ang = start + i*step; c.save(); c.translate(x + Math.cos(ang)*rad, y + Math.sin(ang)*rad); c.rotate(ang + Math.PI/2); c.fillText(ch, 0, 0); c.restore(); });
+  c.restore();
+}
+function star(c, x, y, r, color){
+  c.fillStyle = color; c.beginPath();
+  for (let i = 0; i < 10; i++){ const rr = i % 2 ? r*.42 : r, a = -Math.PI/2 + i*Math.PI/5; c.lineTo(x + Math.cos(a)*rr, y + Math.sin(a)*rr); }
+  c.closePath(); c.fill();
+}
+export function drawCrest(c, crest, x, y, r){
+  const big = r >= 12;
+  c.save();
+  if (crest === 'fb'){
+    // yuvarlak: lacivert halka (yazılı), içte üstte beyaz bant + kırmızı, altta sarı | lacivert, ortada yeşil meşe dalı
+    c.fillStyle = FBY; c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.fill();
+    c.fillStyle = NAVY; c.beginPath(); c.arc(x, y, r*.93, 0, Math.PI*2); c.fill();
+    const ri = r*.62;
+    c.fillStyle = FBY; c.beginPath(); c.arc(x, y, ri + r*.05, 0, Math.PI*2); c.fill();
+    c.save(); c.beginPath(); c.arc(x, y, ri, 0, Math.PI*2); c.clip();
+    c.fillStyle = FBY; c.fillRect(x - ri, y - ri, ri, 2*ri);
+    c.fillStyle = NAVY; c.fillRect(x, y - ri, ri, 2*ri);
+    c.fillStyle = '#ffffff'; c.fillRect(x - ri, y - ri, 2*ri, ri*.62);
+    c.fillStyle = '#d4202a'; c.fillRect(x - ri, y - ri, 2*ri, ri*.3);
+    c.restore();
+    // meşe dalı
+    c.fillStyle = '#1e8a3c';
+    for (const [dx, dy, ang] of [[-.18, .35, -.6], [.18, .35, .6], [-.1, .05, -.3], [.1, .05, .3], [0, .55, 0]]){
+      c.beginPath(); c.ellipse(x + dx*ri, y + dy*ri, ri*.13, ri*.3, ang, 0, Math.PI*2); c.fill();
+    }
+    if (big){
+      ringText(c, 'FENERBAHÇE SPOR KULÜBÜ', x, y, r*.78, r*.16, '#ffffff');
+      c.font = `800 ${r*.15}px Figtree, system-ui, sans-serif`; c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('1907', x, y + r*.79);
+      star(c, x - r*.42, y + r*.68, r*.06, '#ffffff'); star(c, x + r*.42, y + r*.68, r*.06, '#ffffff');
+    }
+  } else if (crest === 'gs'){
+    // yuvarlak, sarı-kırmızı; iç içe G ve S
+    c.fillStyle = GSR; c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.fill();
+    c.fillStyle = GSY; c.beginPath(); c.arc(x, y, r*.88, 0, Math.PI*2); c.fill();
+    c.save(); c.beginPath(); c.arc(x, y, r*.88, 0, Math.PI*2); c.clip();
+    c.fillStyle = GSR; c.fillRect(x, y - r, r, 2*r); c.restore();
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `900 ${r*1.15}px Georgia, 'Times New Roman', serif`;
+    c.lineWidth = r*.08; c.strokeStyle = '#ffffff'; c.lineJoin = 'round';
+    c.strokeText('G', x - r*.2, y + r*.04); c.fillStyle = GSR; c.fillText('G', x - r*.2, y + r*.04);
+    c.font = `900 ${r*.95}px Georgia, 'Times New Roman', serif`;
+    c.strokeText('S', x + r*.27, y + r*.1); c.fillStyle = GSY; c.fillText('S', x + r*.27, y + r*.1);
+  } else if (crest === 'bjk'){
+    // kalkan: siyah çerçeve, üstte kırmızı bayrak (ay yıldız), altta siyah-beyaz çubuklar, ortada BJK
+    const w = r*1.7, h = r*1.95, l = x - w/2, t = y - h/2;
+    const shield = () => { c.beginPath(); c.moveTo(l, t); c.lineTo(l + w, t); c.lineTo(l + w, t + h*.62); c.quadraticCurveTo(l + w, t + h, x, t + h); c.quadraticCurveTo(l, t + h, l, t + h*.62); c.closePath(); };
+    shield(); c.fillStyle = '#111111'; c.fill();
+    c.save(); c.translate(x, y); c.scale(.88, .9); c.translate(-x, -y); shield(); c.clip();
+    for (let i = 0; i < 6; i++){ c.fillStyle = i % 2 ? '#111111' : '#ffffff'; c.fillRect(l + i*w/6, t, w/6 + .5, h); }
+    c.fillStyle = '#e30a17'; c.fillRect(l, t, w, h*.3);
+    // ay yıldız
+    const fx = x - w*.08, fy = t + h*.15, mr = h*.085;
+    c.fillStyle = '#ffffff'; c.beginPath(); c.arc(fx, fy, mr, 0, Math.PI*2); c.fill();
+    c.fillStyle = '#e30a17'; c.beginPath(); c.arc(fx + mr*.28, fy, mr*.8, 0, Math.PI*2); c.fill();
+    star(c, fx + mr*1.15, fy, mr*.45, '#ffffff');
+    c.restore();
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `900 ${r*.62}px Figtree, system-ui, sans-serif`;
+    c.lineWidth = r*.16; c.strokeStyle = '#111111'; c.lineJoin = 'round';
+    c.strokeText('BJK', x, y + r*.2); c.fillStyle = '#ffffff'; c.fillText('BJK', x, y + r*.2);
+    if (big){ c.font = `800 ${r*.2}px Figtree, system-ui, sans-serif`; c.strokeText('1903', x, y + r*.68); c.fillText('1903', x, y + r*.68); }
+  }
+  c.restore();
+}
+const crestUrls = new Map();
+export function crestUrl(kit){
+  if (!kit.crest) return null;
+  if (!crestUrls.has(kit.id)){
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    drawCrest(cv.getContext('2d'), kit.crest, 64, 64, 60);
+    crestUrls.set(kit.id, cv.toDataURL());
+  }
+  return crestUrls.get(kit.id);
+}
+// forma örneği: armalı kulüpte arma, diğerlerinde desen
+const kitSw = k => k.crest ? `<span class="kitsw crest" style="background-image:url(${crestUrl(k)})"></span>` : `<span class="kitsw" style="background:${kitCss(k)}"></span>`;
+
 // formanın CSS önizlemesi (yuvarlak örnek)
 export function kitCss(k){
   if (k.pat === 'serit') return `repeating-linear-gradient(90deg, ${k.c1} 0 4px, ${k.c2} 4px 8px)`;
@@ -291,10 +385,10 @@ export function renderLobby(room, myId, { onTeam, onStart, onDiff, onTeamCfg }){
     if (kit && canMove && room.captains && room.captains[team] === myId){
       const other = tcfg[1 - team].kit;
       edit = `<div class="tcfg"><input data-tname="${team}" id="tname-${team}" maxlength="16" value="${esc(tcfg[team].name)}" aria-label="Takım adı">
-        <div class="kitrow">${KITS.map(k => `<button type="button" data-kit="${k.id}" class="${k.id === kit.id ? 'on' : ''}" title="${esc(k.name)}" aria-label="${esc(k.name)}"${k.id === other ? ' disabled' : ''}><span class="kitsw" style="background:${kitCss(k)}"></span></button>`).join('')}</div>
+        <div class="kitrow">${KITS.map(k => `<button type="button" data-kit="${k.id}" class="${k.id === kit.id ? 'on' : ''}" title="${esc(k.name)}" aria-label="${esc(k.name)}"${k.id === other ? ' disabled' : ''}>${kitSw(k)}</button>`).join('')}</div>
         <span class="hint">Takıma ilk giren olarak adı ve formayı sen seçiyorsun.</span></div>`;
     }
-    const sw = kit ? `<span class="kitsw" style="background:${kitCss(kit)}" title="${esc(kit.name)}"></span>` : team !== null && !tour ? `<span class="sw" style="background:var(--team-${team ? 'b' : 'a'})"></span>` : '';
+    const sw = kit ? kitSw(kit) : team !== null && !tour ? `<span class="sw" style="background:var(--team-${team ? 'b' : 'a'})"></span>` : '';
     return `<div class="tcol ${isMine ? 'mine' : ''}"><h4>${sw}${esc(title)}${cap !== null ? `<span class="cnt">${members.length}/${cap}</span>` : ''}</h4><ul>${items.join('')}</ul>${edit}${btn}</div>`;
   };
   const cols = names.map((n, t) => col(n, t, room.members.filter(m => m.team === t), s.size));
