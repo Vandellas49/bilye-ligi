@@ -56,7 +56,7 @@ client/
   three.min.js       Three.js r128 (MIT), yalnızca 3B seçilince yüklenir
   tutorial.js        öğrenme modu: dersler (setup/check), ders kutusu (#tutBox), hedef halkası S.tutTarget
   crowd.js           seyirciler: coşku, ooo, olé, uğultu (updateCrowd), 2B tribün çizimi (drawCrowd2D); 3B seyirciler de crowd durumunu okur
-  audio.js           WebAudio sesleri (sfx.*, tribün uğultusu crowdLevel), dosya kullanılmıyor
+  audio.js           WebAudio sesleri (sfx.*, tribün uğultusu crowdLevel), iki kanal: efekt ve tribün (setVolumes; menüde ve molada kaydırıcı, bilye-cfg sfxVol/crowdVol), dosya kullanılmıyor
   ui.js              menü, ayar kaydı, HUD, overlay'ler, oda listesi, lobi, turnuva tablosu (bracketHtml)
 server/
   index.js           statik dosyalar + Socket.IO; oturumlar, odalar, 60 Hz maç döngüsü, çevrimiçi turnuva

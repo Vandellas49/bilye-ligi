@@ -12,13 +12,28 @@ export function setSoundActive(on){ active = on; }
 export function toggleMute(){ muted = !muted; return muted; }
 
 function soundOn(){ return actx && !muted && active; }
+// ses düzeyi: efektler (vuruş, düdük, gol) ve tribün (uğultu, ooo, olé) ayrı kanallarda, 0..1
+const vol = { sfx: 1, crowd: 1 };
+let sfxBus = null, crowdBus = null;
+function bus(kind){
+  if (!sfxBus){
+    sfxBus = actx.createGain(); sfxBus.gain.value = vol.sfx; sfxBus.connect(actx.destination);
+    crowdBus = actx.createGain(); crowdBus.gain.value = vol.crowd; crowdBus.connect(actx.destination);
+  }
+  return kind === 'crowd' ? crowdBus : sfxBus;
+}
+export function setVolumes(v){
+  if (v.sfx !== undefined) vol.sfx = Math.max(0, Math.min(1, v.sfx));
+  if (v.crowd !== undefined) vol.crowd = Math.max(0, Math.min(1, v.crowd));
+  if (sfxBus){ sfxBus.gain.value = vol.sfx; crowdBus.gain.value = vol.crowd; }
+}
 function tone(f, dur, type, vol, f2){
   if (!soundOn()) return;
   const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t);
   if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + .02);
+  o.connect(g).connect(bus('sfx')); o.start(t); o.stop(t + dur + .02);
 }
 function noise(dur, vol, freq, attack){
   if (!soundOn()) return;
@@ -31,7 +46,7 @@ function noise(dur, vol, freq, attack){
   g.gain.setValueAtTime(attack ? 0.0001 : vol, t);
   if (attack) g.gain.exponentialRampToValueAtTime(vol, t + attack);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(fl).connect(g).connect(actx.destination); src.start(t);
+  src.connect(fl).connect(g).connect(bus('sfx')); src.start(t);
 }
 
 // tribün uğultusu: sürekli, filtrelenmiş gürültü; seviye coşkuya göre (crowd.js her 10 tickte ayarlar), maç dışında sessiz
@@ -45,7 +60,7 @@ export function crowdLevel(v){
     const src = actx.createBufferSource(); src.buffer = buf; src.loop = true;
     const fl = actx.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = 520; fl.Q.value = .5;
     crowdG = actx.createGain(); crowdG.gain.value = 0;
-    src.connect(fl).connect(crowdG).connect(actx.destination); src.start();
+    src.connect(fl).connect(crowdG).connect(bus('crowd')); src.start();
   }
   crowdG.gain.setTargetAtTime(soundOn() ? v : 0, actx.currentTime, .4);
 }
@@ -59,7 +74,7 @@ function swell(dur, vol, f0, f1){
   const fl = actx.createBiquadFilter(); fl.type = 'bandpass'; fl.Q.value = 1.2;
   fl.frequency.setValueAtTime(f0, t); fl.frequency.linearRampToValueAtTime(f1, t + dur*.4); fl.frequency.linearRampToValueAtTime(f0*.8, t + dur);
   const g = actx.createGain(); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur*.3); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-  src.connect(fl).connect(g).connect(actx.destination); src.start(t);
+  src.connect(fl).connect(g).connect(bus('crowd')); src.start(t);
 }
 
 export const sfx = {

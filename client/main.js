@@ -7,7 +7,7 @@ import { TICK, W, H, KITS, kitById, QUICK_CHAT } from '../shared/constants.js';
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, NEUTRAL_INPUT } from '../shared/sim.js';
 import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, roundName, alive, tourKit } from '../shared/tournament.js';
-import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
+import { ensureAudio, setSoundActive, toggleMute, sfx, setVolumes } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
 import { updateCrowd } from './crowd.js';
@@ -336,6 +336,15 @@ $('startBtn').onclick = () => {
   if (cfg.mode === 'tour') startTournament(cfg); else if (cfg.mode === 'learn') startTutorial(cfg); else startMatch(cfg);
 };
 $('onlineBtn').onclick = openOnline;
+// ses düzeyleri: menüde ve molada aynı kaydırıcılar, kaydedilir
+{
+  const c0 = loadCfg() || {}, v = { sfx: c0.sfxVol ?? 100, crowd: c0.crowdVol ?? 100 };
+  const sync = () => { for (const el of document.querySelectorAll('input[data-vol]')) el.value = v[el.dataset.vol]; setVolumes({ sfx: v.sfx/100, crowd: v.crowd/100 }); };
+  for (const el of document.querySelectorAll('input[data-vol]')) el.addEventListener('input', () => {
+    v[el.dataset.vol] = +el.value; sync(); saveCfg({ ...(loadCfg() || {}), sfxVol: v.sfx, crowdVol: v.crowd });
+  });
+  sync();
+}
 // lig tablosu: sunucudan istenir; geri dönünce açıldığı ekrana
 let leagueFrom = 'menu';
 function openLeague(){
