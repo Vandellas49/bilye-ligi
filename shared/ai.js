@@ -1,6 +1,6 @@
 /* ---------- yapay zekâ ----------
    Bot girdileri insan girdisiyle aynı biçimde üretilir: {x, y, kick, special, hold, sprint}. */
-import { W, H, GH, TOP, BOT, PR, BR, P_ACC, KICK_RANGE, WALL_REST, DIFF, formation } from './constants.js';
+import { W, H, GH, TOP, BOT, PR, BR, P_ACC, KICK_RANGE, WALL_REST, DIFF, AIR_MIN, AIR_MAX, AIR_REACH, formation } from './constants.js';
 import { random, shuffle } from './rng.js';
 import { laneOpen, segDist } from './pass.js';
 
@@ -164,6 +164,10 @@ export function aiInput(S, p){
     tx = Math.max(60, Math.min(W - 60, tx));
     if (!(S.owner && S.owner.team === p.team) && gap < KICK_RANGE + 1 && (b.x - p.x)*dir > 0) kick = true;
   }
+
+  // havadaki top erişimdeyse: rakip kale önünde kafa/vole/rövaşata, kendi kale önünde uzaklaştırma
+  if (S.phase === 'play' && b.z > AIR_MIN && b.z < AIR_MAX && gap < AIR_REACH + 2 && (Math.abs(oppX - b.x) < 480 || Math.abs(ownX - b.x) < 300)
+      && random(S.rng) < .06 + D.react*.1) kick = true;   // tick başına; erişimde birkaç tick kalır
 
   // hedefe yaklaşınca fren yap (kaymayı önler)
   const vmax = 3.4*D.speed;

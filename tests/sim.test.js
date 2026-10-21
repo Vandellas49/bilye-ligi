@@ -579,3 +579,37 @@ test('formalar: seçilen formalar maça geçer, aynı forma çakışmaz, geçers
   const V = createView(roster(S), matchInfo(S), null);
   assert.deepEqual(V.kits, ['sarikirmizi', 'mor']); assert.deepEqual(V.teamNames, ['Aslanlar', 'Kartallar']);
 });
+
+test('havadaki top: yüksekte kafa, alçakta vole, kaleye sırtı dönükken rövaşata; top kaleye gider', () => {
+  const air = (z, dirA) => {
+    const S = createMatch({ size: 1, seed: 3, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+    const me = S.players.find(p => p.ctrl === 'h1'), op = S.players.find(p => p !== me);
+    S.phase = 'play'; Object.assign(op, { x: 200, y: 100, ctrl: 'h9' });
+    Object.assign(me, { x: 1000, y: 350, vx: 0, vy: 0, dirA });
+    Object.assign(S.ball, { x: 1000 + me.r + S.ball.r + 4, y: 350, vx: 0, vy: 0, z, vz: 0 }); S.owner = null;
+    const ev = step(S, { [me.id]: { kick: true } });
+    const a = ev.find(e => e.type === 'aerial');
+    return { kind: a && a.kind, vx: S.ball.vx };
+  };
+  const head = air(30, 0), volley = air(16, 0), bike = air(16, Math.PI);
+  assert.equal(head.kind, 'kafa'); assert.equal(volley.kind, 'vole'); assert.equal(bike.kind, 'rovasata');
+  for (const r of [head, volley, bike]) assert.ok(r.vx > 4, `kaleye doğru: ${r.vx}`);
+  assert.equal(air(60, 0).kind, undefined);   // çok yüksek: yetişilmez
+});
+
+test('orta (A) rakip kale önündeki arkadaşa kafa yüksekliğinde gelir; tuşa basan arkadaş kafayı vurur', () => {
+  let heads = 0;
+  for (let seed = 1; seed <= 6; seed++){
+    const S = createMatch({ size: 2, seed, humans: [{ team: 0, ctrl: 'h1', name: 'A' }, { team: 0, ctrl: 'h2', name: 'B' }] });
+    const [me, mate] = S.players.filter(p => p.team === 0);
+    for (const o of S.players.filter(p => p.team === 1)) Object.assign(o, { x: 300, y: o.slot ? 600 : 100, ctrl: 'h9' });
+    S.phase = 'play';
+    Object.assign(me, { x: 1000, y: 70, vx: 0, vy: 0, dirA: Math.PI/2 }); Object.assign(mate, { x: 1090, y: 340, vx: 0, vy: 0 });
+    Object.assign(S.ball, { x: 1000, y: 106, vx: 0, vy: 0, z: 0 }); S.owner = me;
+    for (let i = 0; i < 150; i++){
+      const ev = step(S, { [me.id]: i < 12 ? { x: .4, y: 1, kick: true, kind: 'lob' } : { kind: 'lob' }, [mate.id]: { kick: true } });
+      if (ev.some(e => e.type === 'aerial' && e.id === mate.id)){ heads++; break; }
+    }
+  }
+  assert.ok(heads >= 5, `kafa: ${heads}/6`);
+});

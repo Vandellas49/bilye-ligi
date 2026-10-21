@@ -35,7 +35,10 @@ export const PASS_POWER_MIX = .25;     // güç barının yardımlı pas gücün
 export const SHOT_OVERRIDE = .6;       // kaleye nişan alıp bar bu kadar doluysa pas değil şut sayılır
 export const THROUGH_LEAD = 110;       // ara pas: arkadaşın önüne en az bu kadar (güç barı +THROUGH_BAR'a kadar uzatır)
 export const THROUGH_BAR = 110;
-export const LOB_CONE = 1.2, THROUGH_CONE = 1.0;   // orta ve ara paste arkadaş arama açısı (daha geniş)
+export const LOB_CONE = 1.2, THROUGH_CONE = 1.0;
+// havadaki top: bu yükseklik aralığında vurulabilir (kafa üstte, vole/rövaşata altta), yatay erişim
+export const AIR_MIN = 12, AIR_MAX = 48, AIR_HEAD = 24, AIR_REACH = 12;
+export const CROSS_ZONE = 420;   // orta: hedef rakip kaleye bu kadar yakınsa top arkadaşa kafa yüksekliğinde gelir   // orta ve ara paste arkadaş arama açısı (daha geniş)
 // şut güç barı (insan oyuncu): şut tuşu basılı tutuldukça dolar, bırakınca vurur
 export const CHARGE_TICKS = 28;                 // boştan tam güce ~0,47 sn (baskı altında da vurulabilsin)
 export const KICK_MIN = .75, KICK_MAX = 1.35;   // KICK çarpanı: kısa dokunuş .. tam bar

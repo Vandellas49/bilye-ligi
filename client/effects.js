@@ -5,15 +5,17 @@ import { W, H, SCREEN, TEAM_COL, TEAM_DARK, shotInfo } from '../shared/constants
 import { sfx } from './audio.js';
 
 export const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const AIR_T = 22;   // kafa/vole/rövaşata animasyon süresi (tick)
 
 export const fx = {
   particles: [], pops: [], trail: [], shake: 0, confetti: [],
   ambient: [], weather: 'sade',
   vis: [],   // oyuncu başına görsel durum (göz kırpma, yürüme, bakış), oyuncu id'siyle
+  air: {},   // havadaki topa vuruş animasyonu: id -> { kind: 'kafa' | 'vole' | 'rovasata', t }
 };
 
 export function resetFx(){
-  fx.particles = []; fx.pops = []; fx.trail = []; fx.shake = 0; fx.vis = []; fx.confetti = [];
+  fx.particles = []; fx.pops = []; fx.trail = []; fx.shake = 0; fx.vis = []; fx.confetti = []; fx.air = {};
 }
 
 export function visOf(p){
@@ -30,6 +32,8 @@ export function burst(x, y, color, n, spd, life){
 
 /* Gol sevinci: golü atan takımın oyuncuları zıplar (yükseklik, dünya birimi). 2B ve 3B çizim kullanır. */
 export function jumpOf(S, p){
+  const air = fx.air[p.id];
+  if (air && !reduceMotion) return Math.sin((1 - air.t/AIR_T)*Math.PI)*(air.kind === 'kafa' ? 16 : 10);
   if (reduceMotion || S.phase !== 'goal' || !S.goalInfo || p.team !== S.goalInfo.team) return 0;
   const t = S.t - S.goalInfo.t, c = celeOf(S, p);
   if (c){
@@ -54,6 +58,8 @@ function taklaPhase(t){ return t >= 20 && t < 100 ? ((t - 20) % 40)/40 : -1; }
 // takla dönüş açısı (radyan); 2B'de çizim döner, 3B'de gövde ve yüz kartı
 export function flipOf(S, p){
   if (reduceMotion) return 0;
+  const air = fx.air[p.id];
+  if (air && air.kind === 'rovasata') return (1 - air.t/AIR_T)*Math.PI*2*(p.team === 0 ? -1 : 1);   // geriye takla
   const c = celeOf(S, p);
   if (!c || c.type !== 'takla') return 0;
   const k = taklaPhase(c.t);
@@ -108,6 +114,13 @@ export function applyEvents(events){
       case 'hardShot':   // şut tuşuyla sert şut: füze gibi alev, kısa sarsıntı
         if (!reduceMotion) fx.shake = Math.max(fx.shake, 4);
         burst(e.x, e.y, '#ff7a1f', 16, 4, 26); sfx.fuze(); break;
+      case 'aerial': {
+        fx.air[e.id] = { kind: e.kind, t: AIR_T };
+        const name = { kafa: 'Kafa!', vole: 'Vole!', rovasata: 'Rövaşata!' }[e.kind];
+        pop(e.x, e.y - 40, name, e.kind === 'rovasata' ? '#ffe14d' : '#ffffff', 50);
+        if (e.kind !== 'kafa' && !reduceMotion) fx.shake = Math.max(fx.shake, 4);
+        sfx.ooh(); break;
+      }
       case 'call': sfx.call(); break;
       case 'swap': burst(e.x, e.y, '#ffffff', 10, 2.2, 18); sfx.call(); break;
       case 'goal':
@@ -138,6 +151,8 @@ export function afterStep(S){
     if (b.fire > 0) fx.particles.push({ x: b.x + (Math.random()-.5)*8, y: b.y - b.z + (Math.random()-.5)*8, vx: -b.vx*.12 + (Math.random()-.5), vy: -b.vy*.12 + (Math.random()-.5),
       life: 18, max: 18, color: Math.random() < .5 ? '#ffb238' : '#ff5a1f', size: 2 + Math.random()*3 });
   }
+
+  for (const id in fx.air) if (--fx.air[id].t <= 0) delete fx.air[id];
 
   // iz
   const sp = Math.hypot(b.vx, b.vy);

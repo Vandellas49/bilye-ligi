@@ -12,7 +12,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SHOT_KEY_MIN, SHOT_KEY_MAX, SHOT_KEY_FIRE, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE } from './constants.js';
+  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
@@ -303,6 +303,17 @@ export function step(S, inputs = {}){
   if (b.fire > 0){
     b.fire--;
     if (Math.hypot(b.vx, b.vy) < 3) b.fire = 0;
+  }
+
+  // havadaki topa vuruş (insan: herhangi bir vuruş tuşu basılıyken, bot: aiInput kararı)
+  if (S.phase !== 'goal' && b.z > AIR_MIN && b.z < AIR_MAX){
+    for (const p of S.players){
+      if (p.slideT > 0 || p.stun > 0 || p.kickCd > 0) continue;
+      if (!(p.ctrl === 'ai' ? p.input.kick : (p.input.kick || p.shot))) continue;
+      if (Math.hypot(b.x - p.x, b.y - p.y) - p.r - b.r > AIR_REACH) continue;
+      aerialKick(S, p);
+      break;
+    }
   }
 
   // şutlar
@@ -608,6 +619,27 @@ const angDiff = (a, c) => Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c)))
    Topun arkadaşa varış süresini (B_DAMP yavaşlamasıyla) hesaplayıp arkadaşın o anki yerine nişan alır,
    top oraya PASS_ARRIVE hızıyla varacak şekilde gücü ayarlar. Arada rakip olmayan arkadaş tercih edilir.
    Dönüş: { a, nx, ny, speed, mate } ya da null. */
+/* Kafa (top yüksekte), vole (alçakta), rövaşata (alçakta ve kaleye sırtı dönük). Rakip kaleye yakınsa kaleye
+   (şut yardımı açıksa kale ağzına), uzaksa basılan yöne ya da hücum yönüne (uzaklaştırma). Biraz isabetsizlik var. */
+function aerialKick(S, p){
+  const b = S.ball, attack = p.team === 0 ? 1 : -1, gx = p.team === 0 ? W : 0, goalDist = Math.abs(gx - b.x);
+  const type = b.z >= AIR_HEAD ? 'kafa' : Math.cos(p.dirA)*attack < -.2 ? 'rovasata' : 'vole';
+  const il = Math.hypot(p.input.x, p.input.y), human = p.ctrl !== 'ai';
+  let base = human && il > .3 ? Math.atan2(p.input.y, p.input.x)
+    : goalDist < 520 ? Math.atan2(H/2 + (human ? 0 : p.aimOff*.5) - b.y, gx - b.x) : (attack > 0 ? 0 : Math.PI);
+  if (goalDist < 600 && (!human || p.input.assist)){ const sa = shotTarget(S, p, base, SHOT_CONE_WIDE); if (sa !== null) base = sa; }
+  base += (random(S.rng)*2 - 1)*(type === 'kafa' ? .1 : type === 'vole' ? .13 : .17);
+  const sp = KICK*(type === 'kafa' ? 1.15 : type === 'vole' ? 1.5 : 1.6);
+  b.vx = Math.cos(base)*sp; b.vy = Math.sin(base)*sp; b.vz = type === 'kafa' ? -1.2 : .6;
+  b.curve = 0; b.grace = 8; S.owner = null; S.lastTouch = p;
+  p.kickCd = 20; p.charge = 0; p.shot = null; if (human) p.kickLock = true;
+  p.dirA = base; p.mood = 'kick'; p.moodT = 14; p.plan = null;
+  emit(S, 'kick', { id: p.id, x: b.x, y: b.y });
+  emit(S, 'aerial', { id: p.id, kind: type, x: p.x, y: p.y });
+  registerKick(S, p);
+  if (S.phase === 'kickoff') S.phase = 'play';
+}
+
 function passTarget(S, p, base, mode = 'ground', power = .5){
   const b = S.ball, cone = mode === 'lob' ? LOB_CONE : mode === 'through' ? THROUGH_CONE : PASS_CONE, attack = p.team === 0 ? 1 : -1;
   let best = null;
@@ -643,11 +675,12 @@ function passTarget(S, p, base, mode = 'ground', power = .5){
       speed = Math.max(KICK*KICK_MIN*.8, Math.min(KICK*KICK_MAX*1.1, d*(1 - B_DAMP)/(1 - Math.pow(B_DAMP, n))));
       mix = 0;
     } else if (mode === 'lob'){
-      // havadan pas: savunmanın üstünden, arkadaşın biraz önüne düşer
-      const d = Math.hypot(tx - b.x, ty - b.y);
-      vz = Math.max(3.6, Math.min(6.8, 3.6 + d*.006));
+      // havadan pas: savunmanın üstünden, arkadaşın biraz önüne düşer. Rakip kale önüne orta ise top arkadaşın
+      // üstünden kafa yüksekliğinde geçecek şekilde biraz ileriye atılır (kafa / vole / rövaşata)
+      const d = Math.hypot(tx - b.x, ty - b.y), cross = Math.abs((p.team === 0 ? W : 0) - tx) < CROSS_ZONE && d > 140;
+      vz = cross ? 6.2 : Math.max(3.6, Math.min(6.8, 3.6 + d*.006));
       const air = 2*vz/.32;
-      speed = Math.min(KICK*KICK_MAX, d*.88*(1 - B_DAMP)/(1 - Math.pow(B_DAMP, air)));
+      speed = Math.min(KICK*KICK_MAX*(cross ? 1.15 : 1), (cross ? d + 80 : d*.88)*(1 - B_DAMP)/(1 - Math.pow(B_DAMP, air)));
       mix = 0;
     }
     const a = Math.atan2(ty - b.y, tx - b.x), err = angDiff(a, base);
