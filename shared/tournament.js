@@ -68,8 +68,8 @@ export function shootout(rng){
 
 /* iki bot takımının maçını ekran olmadan oynat.
    Altın gol çok uzarsa (süre kadar daha) penaltılara gidilir. */
-export function simulateMatch({ size = 3, diff = 1, minutes = 2, seed = 1, specials = true } = {}){
-  const S = createMatch({ size, diff, minutes, seed, specials, arena: 0, weather: 'sade' });
+export function simulateMatch({ size = 3, diff = 1, minutes = 2, seed = 1, specials = true, keepers = true } = {}){
+  const S = createMatch({ size, diff, minutes, seed, specials, keepers, arena: 0, weather: 'sade' });
   const cap = minutes*3600*3 + 3600;
   for (let i = 0; i < cap && S.phase !== 'over'; i++) step(S, {});
   const [sa, sb] = S.score;

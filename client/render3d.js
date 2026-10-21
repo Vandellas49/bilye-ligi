@@ -3,7 +3,7 @@
    3B kaleler ve file, tribünlerde seyirciler, LED panolar, projektörler, gerçek derinlikte kar/parıltı.
    İsimler, çubuklar, balonlar ve HUD 2B katmanda (render.js) üstte çizilir; project() ile yansıtılır.
    THREE global'i client/three.min.js ile gelir (render.js yükler). */
-import { W, H, GH, GD, TOP, BOT, PR, BR, VIEW, TEAM_COL, TEAM_DARK, ARENAS, shotInfo, SKINS, KITS, kitById } from '../shared/constants.js';
+import { W, H, GH, GD, TOP, BOT, PR, BR, VIEW, TEAM_COL, TEAM_DARK, ARENAS, shotInfo, SKINS, KITS, kitById, keeperKit } from '../shared/constants.js';
 import { visOf, reduceMotion, jumpOf, flipOf } from './effects.js';
 import { isTouch, drawCrest } from './ui.js';
 import { crowd } from './crowd.js';
@@ -309,7 +309,7 @@ function makePlayer(p){
   const g = new T.Group();
   // gövde: tepe takım rengi, altta beyaz şerit ve koyu forma (köşe renkleriyle)
   const geo = new T.SphereGeometry(PR, 36, 26);
-  const mat = new T.MeshStandardMaterial({ map: kitTexture(kitOf(S, p.team)), roughness: .4, metalness: .05, emissive: 0x000000 });
+  const mat = new T.MeshStandardMaterial({ map: kitTexture(p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team)), roughness: .4, metalness: .05, emissive: 0x000000 });
   const pivot = new T.Group(); g.add(pivot);
   const body = new T.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true;
   pivot.add(body);
@@ -346,7 +346,7 @@ function drawFaceSprite(p, o){
   c.fillStyle = 'rgba(255,255,255,.95)';
   c.font = '800 8px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(String(p.num), p.x, p.y + 13.8);
-  const kit = kitOf(S, p.team);
+  const kit = p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team);
   if (kit.crest) SH.drawCrest(c, kit.crest, p.x - 10, p.y + 12.6, 3.4);   // göğüste arma
   SH.drawHairBack(c, p, p.y, r);
   SH.drawFace(c, p, p.y - 2, v);

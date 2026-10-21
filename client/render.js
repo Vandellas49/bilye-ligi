@@ -1,7 +1,7 @@
 /* ---------- çizim ----------
    Maç durumunu okur, değiştirmez. Parçacık, iz, yazı ve oyuncu animasyonları
    istemci tarafındaki efekt durumunda (fx) tutulur. */
-import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, SCREEN, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, KITS, kitById, shotInfo } from '../shared/constants.js';
+import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, SCREEN, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, KITS, kitById, keeperKit, shotInfo } from '../shared/constants.js';
 import { fx, visOf, reduceMotion, jumpOf, celeOf, flipOf } from './effects.js';
 import { shotKeyLabel } from './input.js';
 import { drawCrowd2D } from './crowd.js';
@@ -328,7 +328,7 @@ function drawPlayerArt(c, p, r){
   const st = p.slideT > 0 ? .3 : Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
   c.save();
   c.translate(p.x, y0); c.rotate(va); c.scale(1 + st, 1 - st); c.rotate(-va);
-  const kit = kitOf(S, p.team);
+  const kit = p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team);   // kaleci farklı renkte
   c.fillStyle = kit.c1; c.beginPath(); c.arc(0, 0, r, 0, Math.PI*2); c.fill();
   c.save(); c.clip();
   // forma deseni (çubuk, yarım, yatay şerit), üstüne ışık-gölge

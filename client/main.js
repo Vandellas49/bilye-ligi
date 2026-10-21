@@ -64,6 +64,7 @@ function startMatch(cfg, extra = {}){
     minutes: +cfg.time, specials: true, seed: randomSeed(), ...localTeams(cfg, extra),
     allowSwitch: true,   // yerel maçta Q/Tab ile bot takım arkadaşına geçilebilir
     replay: cfg.mode !== 'learn',   // gol tekrarı (öğrenmede yok)
+    keepers: cfg.mode !== 'learn' && cfg.keeper !== '0',
   });
   G.online = false; G.netM = null; prevPos.clear();
   resetFx(); buildAmbient(weather);
@@ -220,12 +221,18 @@ function renderWho(){
   const where = u => u.room ? `${u.room} · ${u.state}` : u.state;
   const ago = s => s < 60 ? 'az önce' : s < 3600 ? Math.round(s/60) + ' dk önce' : Math.round(s/3600) + ' sa önce';
   $('whoList').innerHTML = whoUsers.map(u => `<li class="${u.state === 'maçta' ? 'mac' : ''}${net.me && u.id === net.me.id ? ' me' : ''}"><span class="st"></span><span class="nm">${esc(u.name)}${net.me && u.id === net.me.id ? ' (sen)' : ''}</span><span class="in">${esc(u.ip)} · ${esc(where(u))}</span></li>`).join('')
-    + (whoRecent.length ? '<li class="sep">Daha önce gelenler</li>' + whoRecent.map(u => `<li class="old"><span class="st"></span><span class="nm">${esc(u.name)}</span><span class="in">${esc(u.ip)} · ${ago(u.ago)}</span></li>`).join('') : '');
+    + (whoRecent.length ? '<li class="sep">Daha önce gelenler</li>' + whoRecent.slice(0, 8).map(u => `<li class="old"><span class="st"></span><span class="nm">${esc(u.name)}</span><span class="in">${esc(u.ip)} · ${ago(u.ago)}</span></li>`).join('') : '');
 }
 {
-  let closed = false; try { closed = localStorage.getItem('bilye-who') === '0'; } catch(e){}
-  const apply = () => { $('who').classList.toggle('closed', closed); $('whoHead').setAttribute('aria-expanded', String(!closed)); };
-  $('whoHead').onclick = () => { closed = !closed; try { localStorage.setItem('bilye-who', closed ? '0' : '1'); } catch(e){} apply(); };
+  // menüde açık/kapalı tercihi hatırlanır; maçta sahayı kapatmasın diye kapalı başlar (tıklayınca o maç için açılır)
+  let closed = false, inMatch = false, openInMatch = false; try { closed = localStorage.getItem('bilye-who') === '0'; } catch(e){}
+  const apply = () => { const c = inMatch ? !openInMatch : closed; $('who').classList.toggle('closed', c); $('whoHead').setAttribute('aria-expanded', String(!c)); };
+  $('whoHead').onclick = () => {
+    if (inMatch) openInMatch = !openInMatch;
+    else { closed = !closed; try { localStorage.setItem('bilye-who', closed ? '0' : '1'); } catch(e){} }
+    apply();
+  };
+  setInterval(() => { const m = G.mode === 'match'; if (m !== inMatch){ inMatch = m; openInMatch = false; apply(); } }, 300);
   apply();
 }
 net.handlers.rooms = m => renderRooms(m.rooms, (roomId, password) => send('joinRoom', { roomId, password }));

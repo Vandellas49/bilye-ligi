@@ -13,7 +13,7 @@ const r2 = v => Math.round(v*100)/100;
 export function roster(S){
   return S.players.map(p => ({
     id: p.id, team: p.team, slot: p.slot, uid: p.uid, name: p.name, num: p.num,
-    face: p.face, acc: p.acc, accCol: p.accCol, r: p.r, skin: p.skin, hair: p.hair, hairCol: p.hairCol, tattoo: p.tattoo,
+    face: p.face, acc: p.acc, accCol: p.accCol, r: p.r, keeper: !!p.keeper, skin: p.skin, hair: p.hair, hairCol: p.hairCol, tattoo: p.tattoo,
   }));
 }
 

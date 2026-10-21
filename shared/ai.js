@@ -1,6 +1,6 @@
 /* ---------- yapay zekâ ----------
    Bot girdileri insan girdisiyle aynı biçimde üretilir: {x, y, kick, special, hold, sprint}. */
-import { W, H, GH, TOP, BOT, PR, BR, P_ACC, KICK_RANGE, WALL_REST, DIFF, AIR_MIN, AIR_MAX, AIR_REACH, formation } from './constants.js';
+import { W, H, GH, TOP, BOT, PR, BR, P_ACC, KICK_RANGE, WALL_REST, DIFF, AIR_MIN, AIR_MAX, AIR_REACH, KEEPER_OUT, KEEPER_BOX, formation } from './constants.js';
 import { random, shuffle } from './rng.js';
 import { laneOpen, segDist } from './pass.js';
 
@@ -57,7 +57,8 @@ export function assignRoles(S){
   const b = S.ball;
   for (let team = 0; team < 2; team++){
     const mates = S.players.filter(p => p.team === team);
-    const ai = mates.filter(p => p.ctrl === 'ai');
+    for (const p of mates) if (p.keeper && p.ctrl === 'ai') p.role = 'keeper';
+    const ai = mates.filter(p => p.ctrl === 'ai' && !p.keeper);
     if (!ai.length) continue;
     const dist = p => Math.hypot(p.x - b.x, p.y - b.y);
     const human = mates.find(p => p.ctrl !== 'ai');
@@ -102,6 +103,7 @@ export function aiInput(S, p){
   const waiting = S.phase === 'kickoff' && p.team !== S.kickoffTeam;
 
   p.aiHold = false; p.aiSprint = false;
+  if (p.keeper && p.ctrl === 'ai') return keeperInput(S, p, D, dir, ownX, waiting);
   if (S.owner === p && !waiting) return aiOwnerInput(S, p, D, oppX);
   const canSprint = !p.tired && p.sta > (1 - D.sprint*.55);
 
@@ -199,6 +201,51 @@ function openSpot(S, p, dir, back){
   }
   p.spot = best || { x: b.x - dir*150, y: H/2, back }; p.spotT = S.t + 20;
   return p.spot;
+}
+
+/* Kaleci: kalesinin önünde, topla kale ortası arasındaki çizgide durur (ağız genişliği içinde). Kaleye gelen hızlı
+   topun çizgiyi keseceği yere depar atar. Kale alanına düşen yavaş topa çıkar. Topu tutunca öndeki açık arkadaşa atar. */
+function keeperInput(S, p, D, dir, ownX, waiting){
+  const b = S.ball, gx = ownX + dir*KEEPER_OUT;
+  let tx = gx, ty = Math.max(TOP + 14, Math.min(BOT - 14, H/2 + (b.y - H/2)*.5)), kick = false;
+  p.aiSprint = false;
+  if (S.owner === p){
+    // dağıt: öndeki, yolu açık arkadaş; yoksa ileri uzun
+    p.keepT = (p.keepT || 0) + 1;
+    const mates = S.players.filter(m => m.team === p.team && m !== p);
+    let best = null;
+    for (const m of mates){
+      const open = laneOpen(S, b.x, b.y, m.x, m.y, p.team), fwd = (m.x - p.x)*dir;
+      const sc = (open ? 300 : 0) + fwd*.4 - Math.abs(m.y - p.y)*.1;
+      if (!best || sc > best.sc) best = { m, sc };
+    }
+    const aim = best ? Math.atan2(best.m.y - p.y, best.m.x - p.x) : (dir > 0 ? 0 : Math.PI);
+    const da = Math.abs(Math.atan2(Math.sin(aim - p.dirA), Math.cos(aim - p.dirA)));
+    if (p.keepT > 20 && da < .25) kick = true;
+    return { x: Math.cos(aim)*.3, y: Math.sin(aim)*.3, kick, special: null, hold: true, sprint: false };
+  }
+  p.keepT = 0;
+  if (!waiting){
+    const sp = Math.hypot(b.vx, b.vy), toGoal = b.vx*dir < -1.5;
+    if (toGoal && sp > 3 && b.z < 40){
+      // şut: topun kale çizgisi önündeki kesişimi (sürtünmeyle) bulunur, oraya atılır
+      const t = (gx - b.x)/b.vx;
+      if (t > 0 && t < 90){
+        const yc = b.y + b.vy*(1 - Math.pow(.99, t))/(1 - .99);
+        if (yc > TOP - 30 && yc < BOT + 30){ ty = Math.max(TOP + 6, Math.min(BOT - 6, yc)); tx = gx; p.aiSprint = true; }
+      }
+    } else if (!S.owner && Math.abs(b.x - ownX) < KEEPER_BOX && sp < 4 && Math.abs(b.y - H/2) < GH){
+      tx = b.x - dir*6; ty = b.y; p.aiSprint = true;   // kale alanındaki boş topa çık (kale tarafından)
+      // yalnızca top saha tarafındayken vur (kendi kalesine vurmasın); değilse tutmaya çalış
+      if (Math.hypot(b.x - p.x, b.y - p.y) - PR - BR < KICK_RANGE + 1 && (b.x - p.x)*dir > 6) kick = true;
+    }
+  }
+  const vmax = 3.4*D.speed*(p.aiSprint ? 1.35 : 1);
+  let dvx = (tx - p.x)*.12, dvy = (ty - p.y)*.12; const dv = Math.hypot(dvx, dvy);
+  if (dv > vmax){ dvx = dvx/dv*vmax; dvy = dvy/dv*vmax; }
+  let mx = (dvx - p.vx)/P_ACC, my = (dvy - p.vy)/P_ACC; const ml = Math.hypot(mx, my);
+  if (ml > 1){ mx /= ml; my /= ml; }
+  return { x: mx, y: my, kick, special: null, hold: !kick, sprint: p.aiSprint };
 }
 
 function pickAiShot(S, p, goalDist, oppX){

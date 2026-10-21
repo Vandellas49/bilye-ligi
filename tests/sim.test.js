@@ -674,3 +674,28 @@ test('çevrimiçi tahmin: predictMove, tek başına koşan oyuncuda step ile ayn
   }
   assert.equal(P.tired, me.tired); assert.ok(Math.abs(P.sta - me.sta) < 1e-9);
 });
+
+test('kaleci: 3\'e 3\'te her takımda bir bot kaleci, kalesinin önünde kalır; 2\'ye 2\'de ve kapalıyken yok', () => {
+  assert.equal(createMatch({ size: 2, seed: 1, keepers: true }).players.filter(p => p.keeper).length, 0);
+  assert.equal(createMatch({ size: 3, seed: 1 }).players.filter(p => p.keeper).length, 0);
+  const S = createMatch({ size: 3, seed: 1, keepers: true, diff: 1, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+  const ks = S.players.filter(p => p.keeper);
+  assert.equal(ks.length, 2); assert.ok(ks.every(p => p.ctrl === 'ai'));
+  let far = 0, n = 0;
+  for (let i = 0; i < 3600; i++){
+    step(S, {});
+    if (S.phase !== 'play') continue;
+    for (const k of ks){ n++; if (Math.abs(k.x - (k.team === 0 ? 0 : W_TEST)) > 220) far++; }
+  }
+  assert.ok(far/n < .05, `kaleci kaleden uzakta: ${far}/${n}`);
+});
+
+test('kalecinin değip kurtaramadığı şut, şutu atana yazılır (kendi kalesine gol sayılmaz)', () => {
+  const S = createMatch({ size: 3, seed: 2, keepers: true, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+  const me = S.players.find(p => p.ctrl === 'h1'), gk = S.players.find(p => p.keeper && p.team === 1);
+  S.phase = 'play'; S.lastKick = { p: me, t: S.t }; S.lastTouch = gk;
+  Object.assign(S.ball, { x: W_TEST - 20, y: H_TEST/2, vx: 6, vy: 0, z: 0 }); S.owner = null;
+  Object.assign(gk, { x: 900, y: 100 });
+  for (let i = 0; i < 20 && S.phase !== 'goal'; i++) step(S, {});
+  assert.equal(S.phase, 'goal'); assert.equal(S.goalInfo.scorer, me); assert.equal(S.goalInfo.own, false);
+});

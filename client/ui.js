@@ -46,7 +46,7 @@ export function initMenu(){
   if (saved) {
     const setR = (name, v) => { const el = document.querySelector(`input[name="${name}"][value="${v}"]`); if (el && !el.disabled) el.checked = true; };
     setR('mode', saved.mode); setR('tsize', saved.tsize);
-    setR('kit', saved.kit); setR('okit', saved.okit); if (typeof saved.teamName === 'string') $('teamName').value = saved.teamName;
+    setR('kit', saved.kit); setR('okit', saved.okit); setR('keeper', saved.keeper); if (typeof saved.teamName === 'string') $('teamName').value = saved.teamName;
     setR('size', saved.size); setR('keys', saved.keys); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist); setR('view', saved.view); setR('cam', saved.cam);
   }
 
@@ -138,7 +138,7 @@ export const want3D = () => radio('view') === '3';
 export const cameraPick = () => radio('cam') || 'genis';
 
 export function readCfg(){
-  return { kit: radio('kit'), okit: radio('okit'), teamName: $('teamName').value.trim().slice(0, 16), view: radio('view'), keys: radio('keys'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), diff: radio('diff'),
+  return { keeper: radio('keeper'), kit: radio('kit'), okit: radio('okit'), teamName: $('teamName').value.trim().slice(0, 16), view: radio('view'), keys: radio('keys'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), diff: radio('diff'),
     arena: radio('arena'), time: radio('time'), weather: radio('weather') };
 }
 

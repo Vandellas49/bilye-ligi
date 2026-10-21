@@ -76,6 +76,11 @@ export const KITS = [
 ];
 export const kitById = id => KITS.find(k => k.id === id) || null;
 // iki takımın formaları: geçersizse varsayılan, aynıysa ikinci takıma farklı bir forma
+// kaleci forması: iki takımın formasından farklı, iki kaleci de birbirinden farklı
+export function keeperKit(kits, team){
+  const free = ['turuncu', 'mor', 'kirmizi', 'yesilbeyaz', 'limon', 'buz'].filter(id => !(kits || []).includes(id));
+  return kitById(free[team] || free[0]) || KITS[0];
+}
 export function matchKits(a, b){
   const A = kitById(a) || KITS[0];
   let B = kitById(b) || (A.id === 'buz' ? KITS[0] : KITS[1]);
@@ -151,10 +156,12 @@ export const ARENAS = [
 ];
 
 /* ---------- yapay zekâ zorlukları ---------- */
+// kaleci: kale çizgisinden uzaklık, tutabildiği en hızlı top, kale alanı (kalecinin topa çıktığı mesafe)
+export const KEEPER_OUT = 40, KEEPER_GRAB_SPEED = 9.5, KEEPER_BOX = 170;
 export const DIFF = [
-  { speed:.80, align:.88, aim:.42, predict:.3, react:.35, range:420, special:.03, pass:.25, tackle:.008, turnTol:.13, tackleTry:.03, sprint:.5, slide:0 },
-  { speed:.92, align:.92, aim:.32, predict:.7, react:.7, range:540, special:.07, pass:.45, tackle:.014, turnTol:.09, tackleTry:.06, sprint:.8, slide:.007 },
-  { speed:1.0, align:.95, aim:.24, predict:1, react:1, range:600, special:.14, pass:.6, tackle:.022, turnTol:.06, tackleTry:.1, sprint:1, slide:.014 },
+  { speed:.80, align:.88, aim:.42, predict:.3, react:.35, range:420, special:.03, pass:.25, tackle:.008, turnTol:.13, tackleTry:.03, sprint:.5, slide:0, keeper:.2 },
+  { speed:.92, align:.92, aim:.32, predict:.7, react:.7, range:540, special:.07, pass:.45, tackle:.014, turnTol:.09, tackleTry:.06, sprint:.8, slide:.007, keeper:.3 },
+  { speed:1.0, align:.95, aim:.24, predict:1, react:1, range:600, special:.14, pass:.6, tackle:.022, turnTol:.06, tackleTry:.1, sprint:1, slide:.014, keeper:.4 },
 ];
 
 // kadro büyüklüğüne göre başlangıç dizilişi

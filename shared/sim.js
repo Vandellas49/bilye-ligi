@@ -12,7 +12,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SHOT_KEY_MIN, SHOT_KEY_MAX, SHOT_KEY_FIRE, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE, HUMAN_REACH, HUMAN_GRAB, HUMAN_GRAB_SPEED, SHOT_WAIT, GOAL_PAUSE_REPLAY, REPLAY_SKIP_AFTER } from './constants.js';
+  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE, HUMAN_REACH, HUMAN_GRAB, HUMAN_GRAB_SPEED, SHOT_WAIT, GOAL_PAUSE_REPLAY, REPLAY_SKIP_AFTER, KEEPER_OUT, KEEPER_GRAB_SPEED, KEEPER_BOX } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen, segDist } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
@@ -56,6 +56,7 @@ function buildPlayers(S, n, humans){
       const h = teamHumans[i];
       d.id = S.players.length;
       d.team = team; d.ctrl = h ? h.ctrl : 'ai';
+      d.keeper = !h && !!S.settings.keepers && n >= 3 && i === n - 1;   // kaleci (yalnızca bot, 3'e 3; 2'ye 2'de sahada tek oyuncu kalıyordu)
       d.uid = h && h.uid != null ? h.uid : null;   // çevrimiçi: oyuncuyu kontrol eden bağlantının kimliği
       d.name = h ? h.name : names.pop();
       d.slot = i; d.input = {x:0,y:0,kick:false}; d.kickCd = 0;
@@ -89,7 +90,7 @@ function buildPlayers(S, n, humans){
 function resetPositions(S){
   const n = S.players.length/2;
   for (const p of S.players){
-    const f = formation(n, p.slot, p.team);
+    const f = p.keeper ? { x: p.team === 0 ? KEEPER_OUT + 10 : W - KEEPER_OUT - 10, y: H/2 } : formation(n, p.slot, p.team);
     p.x = f.x; p.y = f.y; p.vx = p.vy = 0; p.kickCd = 0; p.armed = null; p.plan = null;
     p.stun = 0; p.lunge = 0; p.tackleCd = 0; p.sta = Math.min(1, p.sta + .3);
     p.charge = 0; p.shot = null; p.kickLock = false;
@@ -114,11 +115,12 @@ function resetPositions(S){
    specials  özel şutlar açık mı
    seed      RNG tohumu
    teamNames    isteğe bağlı takım adları [sol, sağ]; verilmezse TEAM_NAME
+   keepers      kaleci: 3'e 3'te her takımın en arka botu (son yer) kaleci olur
    replay       gol tekrarı: gol arası uzar, golü atan takımın insanı vuruş tuşuyla geçer ('replaySkip')
    kits         isteğe bağlı forma kimlikleri [sol, sağ] (KITS); aynıysa ikinciye başka forma
    kickoffTeam  isteğe bağlı; verilmezse rastgele */
 export function createMatch(settings = {}){
-  const cfg = { size: 3, humans: [], diff: 1, arena: 'r', weather: 'kar', minutes: 0, specials: true, seed: 1, allowSwitch: false, replay: false, ...settings };
+  const cfg = { size: 3, humans: [], diff: 1, arena: 'r', weather: 'kar', minutes: 0, specials: true, seed: 1, allowSwitch: false, replay: false, keepers: false, ...settings };
   const rng = createRng(cfg.seed);
   const S = {
     settings: cfg, rng, events: [], t: 0,
@@ -405,7 +407,7 @@ export function step(S, inputs = {}){
       if (human && p.input.kind === 'lobshot' && !pass){ b.vz = 3.2 + 1.4*power; b.z = .5; b.curve = 0; }
       if (hard && !pass && power >= SHOT_KEY_FIRE){ b.fire = 35; emit(S, 'hardShot', { id: p.id, x: b.x, y: b.y }); }   // sert şut füze gibi alevlenir
       b.grace = 8;
-      p.kickCd = 14; p.mood = 'kick'; p.moodT = 14; S.lastTouch = p;
+      p.kickCd = 14; p.mood = 'kick'; p.moodT = 14; S.lastTouch = p; S.lastKick = { p, t: S.t };
       emit(S, 'kick', { id: p.id, x: b.x - nx*b.r, y: b.y - ny*b.r });
       p.plan = null;
       registerKick(S, p);
@@ -613,6 +615,11 @@ function updateOwner(S){
       const human = p.ctrl !== 'ai', g = human ? ballGap(b, p) : gapOf(p);
       const hold = p.input && p.input.hold;
       const maxG = human ? (hold ? 18 : HUMAN_GRAB) : (hold ? 12 : 5), maxV = human ? (hold ? 11 : HUMAN_GRAB_SPEED) : (hold ? 9 : 5);
+      if (p.keeper && Math.abs(b.x - (p.team === 0 ? 0 : W)) < KEEPER_BOX && g < AIR_REACH && Math.hypot(b.vx, b.vy) < KEEPER_GRAB_SPEED){
+        if (random(S.rng) < DIFF[S.diff].keeper){ if (g < bd){ bd = g; best = p; } }
+        else p.noGrab = 6;   // kaçırdı: top çarpıp seker
+        continue;
+      }
       if (g > maxG || Math.hypot(b.vx - p.vx, b.vy - p.vy) > maxV) continue;
       if (g < bd){ bd = g; best = p; }
     }
@@ -666,7 +673,7 @@ function aerialKick(S, p){
   base += (random(S.rng)*2 - 1)*(type === 'kafa' ? .1 : type === 'vole' ? .13 : .17);
   const sp = KICK*(type === 'kafa' ? 1.15 : type === 'vole' ? 1.5 : 1.6);
   b.vx = Math.cos(base)*sp; b.vy = Math.sin(base)*sp; b.vz = type === 'kafa' ? -1.2 : .6;
-  b.curve = 0; b.grace = 8; S.owner = null; S.lastTouch = p;
+  b.curve = 0; b.grace = 8; S.owner = null; S.lastTouch = p; S.lastKick = { p, t: S.t };
   p.kickCd = 20; p.charge = 0; p.shot = null; if (human) p.kickLock = true;
   p.dirA = base; p.mood = 'kick'; p.moodT = 14; p.plan = null;
   emit(S, 'kick', { id: p.id, x: b.x, y: b.y });
@@ -840,7 +847,7 @@ function specialKick(S, p, type){
   // kombo kullandığı tüm şutların bekleme süresini doldurur
   for (const t of type.split('+')) p.cd[t] = SHOTS[t].cd;
   p.armed = null; p.kickCd = 14;
-  p.mood = 'kick'; p.moodT = 20; S.lastTouch = p;
+  p.mood = 'kick'; p.moodT = 20; S.lastTouch = p; S.lastKick = { p, t: S.t };
   b.curve = 0; b.fire = 0; b.grace = 8;
   const ph = SHOT_PHYS[type], sp = KICK*ph.sp;
   if (ph.curve){
@@ -884,7 +891,9 @@ function goal(S, team){
   S.score[team]++;
   S.phase = 'goal'; S.goalT = S.settings.replay ? GOAL_PAUSE_REPLAY : GOAL_PAUSE; S.pass = null; S.req = [null, null];
   S.kickoffTeam = 1 - team;
-  const scorer = S.lastTouch;
+  // son dokunan kurtaramayan kaleciyse (ya da savunmacı değdiyse) gol, son vuruşu yapan atan takımın oyuncusuna yazılır
+  let scorer = S.lastTouch;
+  if (scorer && scorer.team !== team && S.lastKick && S.lastKick.p.team === team && S.t - S.lastKick.t < 150) scorer = S.lastKick.p;
   // sevinç türü (golü atan yapar); kendi kalesine golde sevinç yok
   S.goalInfo = { team, t: S.t, scorer, own: scorer && scorer.team !== team, cele: CELEBRATIONS[randInt(S.rng, CELEBRATIONS.length)] };
   for (const p of S.players){ p.mood = p.team === team ? 'happy' : 'sad'; p.moodT = 150; }
