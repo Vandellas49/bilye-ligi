@@ -71,7 +71,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 ## Temel kavramlar
 
-**Koordinatlar.** Saha `W=1250 × H=700` dünya biriminde (paslaşmaya yer olsun diye 1000×560'tan büyütüldü; kale `GH=220`, orta yuvarlak `CENTER_R`, ceza sahaları sahayla orantılı), `(0,0)` sol üst köşe. Kaleler `x=0` ve `x=W` çizgisinde, ağız yüksekliği `GH`, derinliği `GD`. Görünür alan `VIEW` saha + kenar boşluğu; canvas buna göre ölçeklenir (`resize`, `worldTransform`).
+**Koordinatlar.** Saha `W=1500 × H=840` dünya biriminde (1000×560 → 1250×700 → 1500×840; kale `GH=264`, orta yuvarlak `CENTER_R`, ceza sahaları sahayla orantılı), `(0,0)` sol üst köşe. Kaleler `x=0` ve `x=W` çizgisinde, ağız yüksekliği `GH`, derinliği `GD`. Görünür alan `VIEW` saha + kenar boşluğu; canvas buna göre ölçeklenir (`resize`, `worldTransform`).
 
 **Zaman.** Fizik sabit 60 Hz'te çalışır (`TICK`), çizim `requestAnimationFrame` ile. Tüm hız ve süre değerleri tick başına.
 

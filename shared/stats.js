@@ -1,7 +1,7 @@
 /* ---------- maç istatistikleri ----------
    Simülasyonun içinde tutulur (S.stats), deterministiktir; çevrimiçinde sunucu maç sonunda özetini gönderir.
    Topa sahip olma: topu tutan takımın tick sayısı.
-   Şut: rakip kaleye 520 birimden yakın, ağız çevresine yönelen sert (5,5 üstü) vuruş; gol olan her vuruş da şuttur.
+   Şut: rakip kaleye 625 birimden yakın, ağız çevresine yönelen sert (5,5 üstü) vuruş; gol olan her vuruş da şuttur.
    İsabetli şut: sonuca göre, gol olduysa ya da rakip kaleci tuttuysa/değdiyse (kurtarış). Savunmacıya çarpan
    ya da dışarı giden isabetsiz.
    Pas: şut olmayan vuruş. İsabetli: topa sonra dokunan (tutan ya da tek dokunuşla vuran) aynı takımdan başka
@@ -20,7 +20,7 @@ export function statKick(S, p){
   if (S.phase === 'penalty') return;
   const st = S.stats, b = S.ball, dir = p.team === 0 ? 1 : -1, gx = p.team === 0 ? W : 0;
   let shot = false;
-  if (b.vx*dir > .5 && Math.abs(gx - b.x) < 520 && Math.hypot(b.vx, b.vy) > 5.5){
+  if (b.vx*dir > .5 && Math.abs(gx - b.x) < 625 && Math.hypot(b.vx, b.vy) > 5.5){
     const t = (gx - b.x)/b.vx, yc = b.y + b.vy*t;
     if (yc > TOP - 40 && yc < BOT + 40) shot = true;
   }

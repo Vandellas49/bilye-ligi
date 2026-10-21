@@ -84,7 +84,7 @@ function startTutorial(cfg){
   startMatch({ ...cfg, size: 2, diff: 0, time: 0 });
   G.tut = createTutorial(keyLayout());
   G.tut.ok = title => toast('✓ ' + title + ' tamam!');
-  G.tut.retry = () => toast('Gol yedin, tekrar dene');
+  G.tut.retry = why => toast(typeof why === 'string' ? why : 'Tekrar dene');
   G.tut.begin(G.state);
 }
 function endTutorial(){ G.tut = null; $('tutBox').hidden = true; if (G.state) G.state.tutTarget = null; }

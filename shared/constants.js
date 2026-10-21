@@ -1,9 +1,9 @@
 /* ---------- sabitler ----------
    Hem tarayıcıda hem sunucuda kullanılır; DOM'a dokunmaz. */
 
-export const W = 1250, H = 700;           // saha (paslaşmaya yer olsun diye 1000x560'tan büyütüldü)
-export const GH = 220, GD = 48;           // kale ağzı ve derinliği
-export const CENTER_R = 100;              // orta yuvarlak (başlama vuruşunda rakip dışında bekler)
+export const W = 1500, H = 840;           // saha (1000x560 -> 1250x700 -> 1500x840; kalabalık kadrolar ve paslaşma için)
+export const GH = 264, GD = 52;           // kale ağzı ve derinliği
+export const CENTER_R = 120;              // orta yuvarlak (başlama vuruşunda rakip dışında bekler)
 export const TOP = H/2 - GH/2, BOT = H/2 + GH/2;
 export const PR = 22, BR = 12, POST_R = 7;
 export const MARGIN = 38;
@@ -35,7 +35,7 @@ export const REPLAY_SKIP_AFTER = 40;   // golden bu kadar tick sonra geçilebili
 export const PASS_CONE = .8;           // basılan yönden en fazla bu kadar sapan arkadaşa kilitlenir (rad, ~46°; 8 yönlü ok tuşlarında her yöne yeter)
 export const SHOT_CONE = .9;           // şut yardımı: basılan yön kaleye bu kadar yakınsa (rad, ~52°) top kale ağzına gider
 export const SHOT_CONE_WIDE = 1.35;    // şut tuşunda (FIFA D) daha geniş: kaleye bakan hemen her yön (~77°)
-export const SHOT_RANGE = 800;         // şut yardımının çalıştığı en uzak mesafe (kale çizgisine)
+export const SHOT_RANGE = 960;         // şut yardımının çalıştığı en uzak mesafe (kale çizgisine)
 export const PASS_ARRIVE = 2.4;        // top arkadaşa bu hızla varacak şekilde atılır
 export const PASS_POWER_MIX = .25;     // güç barının yardımlı pas gücüne etkisi (0: hiç, 1: tamamen bar)
 export const SHOT_OVERRIDE = .6;       // kaleye nişan alıp bar bu kadar doluysa pas değil şut sayılır
@@ -44,7 +44,7 @@ export const THROUGH_BAR = 110;
 export const LOB_CONE = 1.2, THROUGH_CONE = 1.0;
 // havadaki top: bu yükseklik aralığında vurulabilir (kafa üstte, vole/rövaşata altta), yatay erişim
 export const AIR_MIN = 12, AIR_MAX = 48, AIR_HEAD = 24, AIR_REACH = 12;
-export const CROSS_ZONE = 420;   // orta: hedef rakip kaleye bu kadar yakınsa top arkadaşa kafa yüksekliğinde gelir   // orta ve ara paste arkadaş arama açısı (daha geniş)
+export const CROSS_ZONE = 505;   // orta: hedef rakip kaleye bu kadar yakınsa top arkadaşa kafa yüksekliğinde gelir   // orta ve ara paste arkadaş arama açısı (daha geniş)
 // şut güç barı (insan oyuncu): şut tuşu basılı tutuldukça dolar, bırakınca vurur
 // insan oyuncu için daha geniş erişim: vurma ve top alma mesafesi (yüzeyler arası), hız sınırı, bırakınca vuruşun bekleme süresi
 export const HUMAN_REACH = 12, HUMAN_GRAB = 11, HUMAN_GRAB_SPEED = 7.5, SHOT_WAIT = 16;
@@ -161,11 +161,11 @@ export const ARENAS = [
 
 /* ---------- yapay zekâ zorlukları ---------- */
 // kaleci: kale çizgisinden uzaklık, tutabildiği en hızlı top, kale alanı (kalecinin topa çıktığı mesafe)
-export const KEEPER_OUT = 40, KEEPER_GRAB_SPEED = 9.5, KEEPER_BOX = 170;
+export const KEEPER_OUT = 46, KEEPER_GRAB_SPEED = 9.5, KEEPER_BOX = 205;
 export const DIFF = [
-  { speed:.80, align:.88, aim:.42, predict:.3, react:.35, range:420, special:.03, pass:.25, tackle:.008, turnTol:.13, tackleTry:.03, sprint:.5, slide:0, keeper:.2 },
-  { speed:.92, align:.92, aim:.32, predict:.7, react:.7, range:540, special:.07, pass:.45, tackle:.014, turnTol:.09, tackleTry:.06, sprint:.8, slide:.007, keeper:.3 },
-  { speed:1.0, align:.95, aim:.24, predict:1, react:1, range:600, special:.14, pass:.6, tackle:.022, turnTol:.06, tackleTry:.1, sprint:1, slide:.014, keeper:.4 },
+  { speed:.80, align:.88, aim:.42, predict:.3, react:.35, range:505, special:.03, pass:.25, tackle:.008, turnTol:.13, tackleTry:.03, sprint:.5, slide:0, keeper:.2 },
+  { speed:.92, align:.92, aim:.32, predict:.7, react:.7, range:650, special:.07, pass:.45, tackle:.014, turnTol:.09, tackleTry:.06, sprint:.8, slide:.007, keeper:.3 },
+  { speed:1.0, align:.95, aim:.24, predict:1, react:1, range:720, special:.14, pass:.6, tackle:.022, turnTol:.06, tackleTry:.1, sprint:1, slide:.014, keeper:.4 },
 ];
 
 // kadro büyüklüğüne göre başlangıç dizilişi

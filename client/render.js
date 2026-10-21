@@ -152,11 +152,11 @@ export function renderBg(state){
   c.fillStyle = A.line; c.beginPath(); c.arc(W/2, H/2, 4, 0, Math.PI*2); c.fill();
   for (const s of [0, 1]){
     // ceza sahası, kale alanı ve ceza yayı
-    const BX = 188, BH = 375, SX = 69, SH = 262;
+    const BX = 226, BH = 450, SX = 83, SH = 315;
     const x = s ? W - BX : 0;
     c.strokeRect(x, H/2 - BH/2, BX, BH);
     c.strokeRect(s ? W - SX : 0, H/2 - SH/2, SX, SH);
-    c.beginPath(); c.arc(s ? W - BX : BX, H/2, 62, s ? Math.PI/2 : -Math.PI/2, s ? Math.PI*1.5 : Math.PI/2); c.stroke();
+    c.beginPath(); c.arc(s ? W - BX : BX, H/2, 74, s ? Math.PI/2 : -Math.PI/2, s ? Math.PI*1.5 : Math.PI/2); c.stroke();
   }
   c.shadowBlur = 0;
 

@@ -249,7 +249,7 @@ function bodyFoul(S, p, chance){
 // bot atıcının yönü: rakip kaleye 450'den yakınsa kalenin uzak köşesine, değilse öndeki açık arkadaşa (yoksa ileri)
 function freekickAim(S, p, fx, fy){
   const dir = p.team === 0 ? 1 : -1, gx = p.team === 0 ? W : 0;
-  if (Math.abs(gx - fx) < 450) return Math.atan2((fy < H/2 ? BOT - 24 : TOP + 24) - fy, gx - fx);
+  if (Math.abs(gx - fx) < 540) return Math.atan2((fy < H/2 ? BOT - 24 : TOP + 24) - fy, gx - fx);
   let best = null;
   for (const m of S.players){
     if (m.team !== p.team || m === p || m.out > 0) continue;
@@ -781,7 +781,7 @@ function passTarget(S, p, base, mode = 'ground', power = .5){
   for (const m of S.players){
     if (m.team !== p.team || m === p || m.out > 0) continue;
     const d0 = Math.hypot(m.x - b.x, m.y - b.y);
-    if (d0 < 50 || d0 > 875 || angDiff(Math.atan2(m.y - b.y, m.x - b.x), base) > cone) continue;
+    if (d0 < 50 || d0 > 1050 || angDiff(Math.atan2(m.y - b.y, m.x - b.x), base) > cone) continue;
     let tx = m.x, ty = m.y, speed = 0;
     for (let k = 0; k < 3; k++){
       const d = Math.hypot(tx - b.x, ty - b.y), ux = (tx - b.x)/(d || 1), uy = (ty - b.y)/(d || 1);
@@ -845,7 +845,7 @@ function predictPos(m, n){
 // base yönü rakip kalenin ağzına mı bakıyor (o zaman güçlü vuruş şuttur, pasa çevrilmez)
 function aimsAtGoal(S, p, base){
   const b = S.ball, gx = p.team === 0 ? W : 0;
-  if (Math.abs(gx - b.x) > 760) return false;
+  if (Math.abs(gx - b.x) > 910) return false;
   const a1 = Math.atan2(TOP + 8 - b.y, gx - b.x), a2 = Math.atan2(BOT - 8 - b.y, gx - b.x);
   const span = angDiff(a1, a2);
   return angDiff(base, a1) <= span + .05 && angDiff(base, a2) <= span + .05;

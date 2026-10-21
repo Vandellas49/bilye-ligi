@@ -140,7 +140,8 @@ test('botların vuruş gücü değişmedi', () => {
     for (let i = 0; i < 1500; i++){
       const before = Math.hypot(S.ball.vx, S.ball.vy);
       const ev = step(S, {});
-      if (ev.some(e => e.type === 'kick')){ kicks++; max = Math.max(max, Math.hypot(S.ball.vx, S.ball.vy) - before); }
+      // yalnızca normal vuruşlar (kafa/vole/rövaşata ve özel şutlar tasarım gereği sert)
+      if (ev.some(e => e.type === 'kick') && !ev.some(e => e.type === 'aerial' || e.type === 'special')){ kicks++; max = Math.max(max, Math.hypot(S.ball.vx, S.ball.vy) - before); }
     }
   }
   assert.ok(kicks > 10, `bot vuruş sayısı: ${kicks}`);

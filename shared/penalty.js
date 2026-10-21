@@ -7,7 +7,7 @@
 import { W, H, TOP, BOT, PR, BR, GH, DIFF, KEEPER_GRAB_SPEED } from './constants.js';
 import { random } from './rng.js';
 
-export const PEN_SPOT = 150;           // kale çizgisinden penaltı noktası
+export const PEN_SPOT = 180;           // kale çizgisinden penaltı noktası
 const PREP = 480, FLIGHT = 210, SHOW = 100;   // atış için en fazla süre, topun yolculuğu, sonucu gösterme (tick)
 
 const humanOf = (S, team) => S.players.filter(p => p.team === team && p.ctrl !== 'ai' && !(p.out > 0));

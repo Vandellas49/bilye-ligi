@@ -1,13 +1,13 @@
 /* ---------- yapay zekâ ----------
    Bot girdileri insan girdisiyle aynı biçimde üretilir: {x, y, kick, special, hold, sprint}. */
-import { W, H, GH, TOP, BOT, PR, BR, P_ACC, KICK_RANGE, WALL_REST, DIFF, AIR_MIN, AIR_MAX, AIR_REACH, KEEPER_OUT, KEEPER_BOX, FK_SET, FK_TICKS, formation } from './constants.js';
+import { W, H, GH, TOP, BOT, PR, BR, CENTER_R, P_ACC, KICK_RANGE, WALL_REST, DIFF, AIR_MIN, AIR_MAX, AIR_REACH, KEEPER_OUT, KEEPER_BOX, FK_SET, FK_TICKS, formation } from './constants.js';
 import { random, shuffle } from './rng.js';
 import { laneOpen, segDist } from './pass.js';
 
 function passPlan(S, p, m, lead){
   const b = S.ball;
   const tx = Math.max(PR, Math.min(W - PR, m.x + m.vx*lead)), ty = Math.max(PR, Math.min(H - PR, m.y + m.vy*lead));
-  if (Math.hypot(tx - b.x, ty - b.y) < 775 && laneOpen(S, b.x, b.y, tx, ty, p.team)) return { kind: 'pass', x: tx, y: ty, m };
+  if (Math.hypot(tx - b.x, ty - b.y) < 930 && laneOpen(S, b.x, b.y, tx, ty, p.team)) return { kind: 'pass', x: tx, y: ty, m };
   const opts = [];
   // duvardan sektirme: yansıyan hedefe nişan al (duvar sekmesi dikey hızı azaltır)
   for (const wy of [BR, H - BR]){
@@ -17,7 +17,7 @@ function passPlan(S, p, m, lead){
     const bx2 = b.x + (tx - b.x)*t;
     if (bx2 < 30 || bx2 > W - 30) continue;
     const len = Math.hypot(bx2 - b.x, wy - b.y) + Math.hypot(tx - bx2, ty - wy);
-    if (len < 675 && laneOpen(S, b.x, b.y, bx2, wy, p.team) && laneOpen(S, bx2, wy, tx, ty, p.team)) opts.push({ kind: 'bank', x: tx, y: my, m, len });
+    if (len < 810 && laneOpen(S, b.x, b.y, bx2, wy, p.team) && laneOpen(S, bx2, wy, tx, ty, p.team)) opts.push({ kind: 'bank', x: tx, y: my, m, len });
   }
   opts.sort((a, c) => a.len - c.len);
   return opts[0] || null;
@@ -41,7 +41,7 @@ function makePlan(S, p, D, oppX){
   if (random(S.rng) < D.pass + (pressured ? .25 : 0)){
     const cands = S.players.filter(m => m.team === p.team && m !== p && !(m.out > 0))   // kenardaki (kırmızı kart) değil
       .map(m => ({ m, adv: (m.x - b.x)*dir, d: Math.hypot(m.x - b.x, m.y - b.y) }))
-      .filter(c => c.d > 90 && c.d < 775 && c.adv > -70)
+      .filter(c => c.d > 100 && c.d < 930 && c.adv > -80)
       .sort((a, c) => c.adv - a.adv);
     for (const c of cands){ const pl = passPlan(S, p, c.m, 10); if (pl) return pl; }
   }
@@ -124,7 +124,7 @@ export function aiInput(S, p){
       // biraz uzaktan kayarak müdahale (Kolay botlar kaymaz)
       // hedef topun ~0,1 sn sonraki yeri; yakından kayınca isabet artar
       else if (gap > 22 && gap < 55 && p.slideCd <= 0 && p.stun <= 0 && slideOpen(S, p) && random(S.rng) < D.slide){ slide = true; tx = b.x + b.vx*7; ty = b.y + b.vy*7; }
-      if (canSprint && Math.abs(o.x - ownX) < 420) p.aiSprint = true;
+      if (canSprint && Math.abs(o.x - ownX) < 505) p.aiSprint = true;
     }
     if (canSprint && gap > 120 && !S.owner) p.aiSprint = true;
     // hızlı gelen boş topa tek vuruş
@@ -143,7 +143,7 @@ export function aiInput(S, p){
       if ((tbx*lx + tby*ly)/(tdl*ll) > .9) kick = true;
     }
     if (S.diff > 0 && !kick) p.aiHold = true;
-    const nearOwn = Math.abs(b.x - ownX) < 220;
+    const nearOwn = Math.abs(b.x - ownX) < 265;
     if (!S.owner && fast && nearOwn && gap < KICK_RANGE + 1 && (b.x - p.x)*dir > 0) kick = true;
   } else if (p.role === 'receiver' && S.pass && !waiting){
     tx = S.pass.x; ty = S.pass.y;
@@ -155,27 +155,27 @@ export function aiInput(S, p){
     const t = waiting ? .5 : .3;
     tx = gx + (b.x - gx)*t; ty = H/2 + (b.y - H/2)*.55;
     tx = p.team === 0 ? Math.min(tx, W*.42) : Math.max(tx, W*.58);
-    if (waiting){ tx = p.team === 0 ? Math.min(tx, W/2 - 110) : Math.max(tx, W/2 + 110); if (p.slot > 0) ty = formation(S.players.length/2, p.slot, p.team).y; }
+    if (waiting){ tx = p.team === 0 ? Math.min(tx, W/2 - CENTER_R - 12) : Math.max(tx, W/2 + CENTER_R + 12); if (p.slot > 0) ty = formation(S.players.length/2, p.slot, p.team).y; }
     const mateHas = S.owner && S.owner.team === p.team;
-    if (!waiting && mateHas && S.owner !== p && (b.x - ownX)*dir > 300){ const sp = openSpot(S, p, dir, true); tx = sp.x; ty = sp.y; }
+    if (!waiting && mateHas && S.owner !== p && (b.x - ownX)*dir > 360){ const sp = openSpot(S, p, dir, true); tx = sp.x; ty = sp.y; }
     if (!waiting && !mateHas && gap < KICK_RANGE + 1 && (b.x - p.x)*dir > -4) kick = true;
-    if (!waiting && !mateHas && gap < 70 && (b.x - ownX)*dir < 260){ tx = b.x - dir*(PR + BR); ty = b.y; }
+    if (!waiting && !mateHas && gap < 70 && (b.x - ownX)*dir < 310){ tx = b.x - dir*(PR + BR); ty = b.y; }
     if (!waiting && S.owner && S.owner.team !== p.team){
       if (gap < 26 && p.tackleCd <= 0 && p.stun <= 0 && random(S.rng) < D.tackleTry*.8) kick = true;
-      else if (gap > 22 && gap < 55 && p.slideCd <= 0 && p.stun <= 0 && slideOpen(S, p) && Math.abs(b.x - ownX) < 300 && random(S.rng) < D.slide){ slide = true; tx = b.x + b.vx*7; ty = b.y + b.vy*7; }
-      if (canSprint && Math.abs(b.x - ownX) < 300) p.aiSprint = true;
+      else if (gap > 22 && gap < 55 && p.slideCd <= 0 && p.stun <= 0 && slideOpen(S, p) && Math.abs(b.x - ownX) < 360 && random(S.rng) < D.slide){ slide = true; tx = b.x + b.vx*7; ty = b.y + b.vy*7; }
+      if (canSprint && Math.abs(b.x - ownX) < 360) p.aiSprint = true;
     }
   } else {
     // hücumda boşa çık (pas yolu açık, rakipten uzak, ileride), savunmada geride kal
     const poss = S.lastTouch && S.lastTouch.team === p.team;
     if (poss && S.owner && S.owner.team === p.team){ const sp = openSpot(S, p, dir, false); tx = sp.x; ty = sp.y; }
-    else { tx = poss ? b.x + dir*210 : b.x - dir*150; ty = b.y < H/2 ? H*.74 : H*.26; }
+    else { tx = poss ? b.x + dir*250 : b.x - dir*180; ty = b.y < H/2 ? H*.74 : H*.26; }
     tx = Math.max(60, Math.min(W - 60, tx));
     if (!(S.owner && S.owner.team === p.team) && gap < KICK_RANGE + 1 && (b.x - p.x)*dir > 0) kick = true;
   }
 
   // havadaki top erişimdeyse: rakip kale önünde kafa/vole/rövaşata, kendi kale önünde uzaklaştırma
-  if (S.phase === 'play' && b.z > AIR_MIN && b.z < AIR_MAX && gap < AIR_REACH + 2 && (Math.abs(oppX - b.x) < 480 || Math.abs(ownX - b.x) < 300)
+  if (S.phase === 'play' && b.z > AIR_MIN && b.z < AIR_MAX && gap < AIR_REACH + 2 && (Math.abs(oppX - b.x) < 575 || Math.abs(ownX - b.x) < 360)
       && random(S.rng) < .06 + D.react*.1) kick = true;   // tick başına; erişimde birkaç tick kalır
 
   // hedefe yaklaşınca fren yap (kaymayı önler)
@@ -196,7 +196,7 @@ function openSpot(S, p, dir, back){
   const b = S.ball, base = back ? (dir > 0 ? Math.PI : 0) : (dir > 0 ? 0 : Math.PI);
   let best = null;
   for (const da of [-1.15, -.75, -.38, 0, .38, .75, 1.15]){
-    for (const r of back ? [150, 210] : [190, 260, 330, 420]){
+    for (const r of back ? [180, 250] : [230, 310, 400, 500]){
       const a = base + da, x = b.x + Math.cos(a)*r, y = b.y + Math.sin(a)*r;
       if (x < 50 || x > W - 50 || y < 45 || y > H - 45) continue;
       if (!back && (x - b.x)*dir < 60) continue;   // hücumda topun önünde dur
@@ -274,9 +274,9 @@ function pickAiShot(S, p, goalDist, oppX){
     const px = b.x + lx*t - o.x, py = b.y + ly*t - o.y;
     return Math.hypot(px, py) < PR + 16;
   });
-  if (blocked && p.cd.asirtma <= 0 && goalDist > 160 && goalDist < 600) return 'asirtma';
-  if (p.cd.fuze <= 0 && goalDist > 180 && goalDist < 550) return 'fuze';
-  if (p.cd.falso <= 0 && goalDist < 480) return 'falso';
+  if (blocked && p.cd.asirtma <= 0 && goalDist > 190 && goalDist < 720) return 'asirtma';
+  if (p.cd.fuze <= 0 && goalDist > 215 && goalDist < 660) return 'fuze';
+  if (p.cd.falso <= 0 && goalDist < 575) return 'falso';
   return null;
 }
 
@@ -315,7 +315,7 @@ function aiOwnerInput(S, p, D, oppX){
     const pressured = S.players.some(o => o.team !== p.team && Math.hypot(o.x - b.x, o.y - b.y) < 48);
     if (pressured && p.planT > 12) p.planT = 12;
     const clearAhead = !S.players.some(o => o.team !== p.team && Math.hypot(o.x - p.x, o.y - p.y) < 140 && ((o.x - p.x)*fx + (o.y - p.y)*fy) > 0);
-    if (clearAhead && !p.tired && p.sta > .5 && goalDist > 220) p.aiSprint = true;
+    if (clearAhead && !p.tired && p.sta > .5 && goalDist > 265) p.aiSprint = true;
     if (goalDist < D.range*.8 && Math.abs(err) < .25 && pressured) kick = true;
   } else {
     spd = Math.abs(err) > .5 ? .3 : .55;
