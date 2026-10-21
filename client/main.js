@@ -13,6 +13,9 @@ import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js'
 import { updateCrowd } from './crowd.js';
 import { createTutorial } from './tutorial.js';
 import { replay, recordFrame, replayEvents, updateReplay, withReplay } from './replay.js';
+import { createPredictor, updatePrediction, applyPrediction } from './predict.js';
+const pred = createPredictor();
+const NO_PREDICT = new URLSearchParams(location.search).has('tahminyok');   // karşılaştırma ve test için tahmini kapatır
 import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview, setCamera, cameraYaw } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
 import { $, esc, initMenu, initLookEditor, loadLook, cameraPick, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
@@ -430,12 +433,18 @@ function tick(){
   if (G.tut) G.tut.update(S, events);
 }
 
-function netFrame(now){
+function netFrame(now, dt){
   const due = updateNetMatch(G.netM, now);
   if (due.length) handleEvents(due);
   if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); updateCrowd(G.state); recordFrame(G.state); }
   const me = G.state.players.find(p => p.mine);
-  if (me) sendInput(G.menuOpen ? NEUTRAL_INPUT : camInput({ ...readInput(keyLayout(), { defending: !!G.state.owner && G.state.owner.team !== me.team }), assist: passAssist() }), now);
+  if (me){
+    const inp = G.menuOpen ? NEUTRAL_INPUT : camInput({ ...readInput(keyLayout(), { defending: !!G.state.owner && G.state.owner.team !== me.team }), assist: passAssist() });
+    sendInput(inp, now);
+    // kendi oyuncum: tuşlara anında tepki (sunucu konumuna yumuşak düzeltmeyle)
+    if (!NO_PREDICT) updatePrediction(pred, G.netM, G.state, me, inp, dt, now, net.ping);
+    applyPrediction(pred, G.state, me);
+  }
   G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${net.slow ? 'yedek bağlantı' : 'WebSocket'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;
 }
 
@@ -456,7 +465,7 @@ function frame(now){
   const rawDt = dt, t0 = perf.on ? performance.now() : 0;
   if (dt > 250) dt = 250;
   if (G.online){
-    if (G.mode === 'match' && G.netM) netFrame(now);
+    if (G.mode === 'match' && G.netM) netFrame(now, dt); else pred.on = false;
   } else if (!G.paused && G.mode !== 'end'){
     acc += dt;
     while (acc >= TICK){ tick(); acc -= TICK; if (G.mode === 'end') { acc = 0; break; } }
@@ -477,7 +486,7 @@ function frame(now){
 
 // test için: index.html?debug ile açılırsa durum pencereden okunabilir (window.__S, window.__G)
 if (new URLSearchParams(location.search).has('debug')){
-  window.__G = G; window.__fx = fx; window.__net = net;
+  window.__G = G; window.__fx = fx; window.__net = net; window.__pred = pred;
   Object.defineProperty(window, '__S', { get: () => G.state, configurable: true });
 }
 

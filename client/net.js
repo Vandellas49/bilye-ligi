@@ -6,6 +6,8 @@ import { TICK } from '../shared/constants.js';
 import { createView, applySnapshot, lerpView } from '../shared/net.js';
 
 const STORE = 'bilye-online';
+// test için yapay gidiş-dönüş gecikmesi: ?gecikme=200 (ms; yarısı giden, yarısı gelen mesajlara)
+const LAG = Math.max(0, Math.min(1000, +new URLSearchParams(location.search).get('gecikme') || 0));
 const INTERP_TICKS = 6;   // ~100 ms geriden çiz: iki anlık görüntü arasında yumuşak hareket
 
 function loadStore(){ try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch(e){ return {}; } }
@@ -44,7 +46,8 @@ export function connect(name){
     engine.once('upgrade', () => { clearTimeout(check); net.slow = false; if (net.me) setStatus('on'); });
     s.emit('m', { type: 'hello', name: net.name || 'Misafir', sessionKey: loadStore().key, look: net.look });
   });
-  s.on('m', m => {
+  s.on('m', m => LAG ? setTimeout(() => onMsg(m), LAG/2) : onMsg(m));
+  function onMsg(m){
     if (!m || typeof m.type !== 'string') return;
     if (m.type === 'pong'){
       const rtt = performance.now() - m.t;
@@ -58,7 +61,7 @@ export function connect(name){
     }
     const h = net.handlers[m.type];
     if (h) h(m);
-  });
+  }
   s.on('disconnect', reason => {
     if (!net.wanted) return setStatus('off');
     // sunucu bağlantıyı kendisi kestiyse (aynı oturum başka sekmede açıldı) tekrar deneme
@@ -82,7 +85,9 @@ export function disconnect(){
 }
 
 export function send(type, data = {}){
-  if (net.socket && net.socket.connected) net.socket.emit('m', { type, ...data });
+  if (!(net.socket && net.socket.connected)) return;
+  const msg = { type, ...data };
+  if (LAG) setTimeout(() => net.socket.emit('m', msg), LAG/2); else net.socket.emit('m', msg);
 }
 
 export function setName(name){
@@ -120,7 +125,7 @@ export function createNetMatch(msg, myUid){
 }
 
 export function pushSnap(M, s, ev, now){
-  M.snaps.push(s);
+  M.snaps.push(s); M.newestAt = now;   // en yeni görüntünün geliş anı (tahmin için)
   if (M.snaps.length > 80) M.snaps.shift();
   if (ev && ev.length) M.pend.push({ t: s.t, ev });
   // sunucu saatini tahmin et: en erken gelişlere hızlı, geç gelişlere yavaş uyum

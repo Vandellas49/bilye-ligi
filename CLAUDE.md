@@ -140,7 +140,7 @@ Bağımlılık yönü tek taraflı: `client/` ve `server/` → `shared/`. `share
 
 **Sunucu.** Tüm odalar tek bir sabit adımlı döngüde 60 Hz ilerler, her 2 tick'te anlık görüntü yayınlanır. İstemciden yalnızca girdi kabul edilir (`sanitizeInput`); mesaj boyutu ≤ 4 KB, saniyede 120 mesajın üstü yok sayılır, 600'ün üstünde bağlantı kapatılır. Kopan oyuncunun yerini bot alır; aynı oturum anahtarıyla 60 sn içinde dönerse geri verilir, dönmezse odadan çıkarılır. Oda sahibi ayrılırsa sahiplik devredilir, oda boşalınca silinir.
 
-**İstemci.** Sunucu maçında yerel simülasyon çalışmaz: `client/net.js` anlık görüntüleri tamponlar, en az ~100 ms (6 tick) geriden iki görüntü arasında konumları enterpole eder (`lerpView`), olayları da aynı gecikmeyle uygular. Gecikme uyarlanabilir (`M.delay`): son 4 sn'de görüntüler ne kadar geç geldiyse o kadar artar (en fazla ~600 ms), ağ düzelince yavaşça iner. Böylece polling'de topluca gelen paketlerde saha donup sıçramaz. Maç sırasında sahanın üstünde ping, bağlantı türü ve gecikme yazar (`G.netInfo`); `M.starved` donan kare sayısıdır (test için). Kendi oyuncu `mine` olarak işaretlenir ve `ctrl = 'h1'` görünür (HUD ve çizim için). Girdi değişince hemen, değişmese de 250 ms'de bir gönderilir.
+**İstemci.** Sunucu maçında yerel simülasyon çalışmaz: `client/net.js` anlık görüntüleri tamponlar, en az ~100 ms (6 tick) geriden iki görüntü arasında konumları enterpole eder (`lerpView`), olayları da aynı gecikmeyle uygular. Gecikme uyarlanabilir (`M.delay`): son 4 sn'de görüntüler ne kadar geç geldiyse o kadar artar (en fazla ~600 ms), ağ düzelince yavaşça iner. Böylece polling'de topluca gelen paketlerde saha donup sıçramaz. Maç sırasında sahanın üstünde ping, bağlantı türü ve gecikme yazar (`G.netInfo`); `M.starved` donan kare sayısıdır (test için). Kendi oyuncunun hareketi tahmin edilir (`client/predict.js`): sunucuyla aynı kurallarla (`predictMove`, shared/sim.js; step ile birebir aynı olduğu test edilir) 60 Hz'te yerelde ilerletilir; her yeni görüntüde sunucu konumu bir gidiş-dönüş önceki tahmini konumla karşılaştırılır, fark birkaç adımda uygulanır (90 birimden büyükse atlanır); gol arasında ve kayarken kapalı; top bendeyse top da tahmini konumla çizilir. 200 ms pingde tuş → hareket ~440 ms'den ~75 ms'ye indi. Test için `?gecikme=200` yapay gidiş-dönüş gecikmesi, `?tahminyok` tahmini kapatır. Kendi oyuncu `mine` olarak işaretlenir ve `ctrl = 'h1'` görünür (HUD ve çizim için). Girdi değişince hemen, değişmese de 250 ms'de bir gönderilir.
 
 ## Kontroller
 
@@ -198,7 +198,7 @@ Faydalı senaryolar: pas isteme başarı oranı, botların pas sayısı ve tamam
 
 ## Bilinen kısıtlar
 
-- Çevrimiçide istemci tahmini (client-side prediction) yok: kendi oyuncun da ~100 ms + ağ gecikmesiyle tepki verir. Yerel ağda rahat, uzak sunucuda hissedilir.
+- Çevrimiçinde yalnızca kendi oyuncunun hareketi tahmin edilir; vuruş, top kapma ve top hâlâ sunucudan, gecikmeyle gelir.
 - Çevrimiçi turnuvada oyuncusuz maçlar sunucuda senkron simüle edilir (maç başına ~200 ms); bu sırada diğer odaların döngüsü kısa süre bekler. Çok odalı yoğun kullanımda worker'a taşınmalı.
 - Sunucu durumu bellekte; yeniden başlatınca odalar ve oturumlar kaybolur.
 - Aynı tohum aynı JS motorunda aynı maçı verir; farklı motorlar arasında bit düzeyinde aynılık garanti değil (sunucu otoriteli yapıda sorun değil).

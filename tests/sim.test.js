@@ -658,3 +658,19 @@ test('gol tekrarı: gol arası uzar; yalnızca golü atan takımın insanı, gol
   for (let i = 0; i < 30; i++) step(S, {});
   assert.equal(S.phase, 'kickoff');
 });
+
+test('çevrimiçi tahmin: predictMove, tek başına koşan oyuncuda step ile aynı hareketi verir (depar, yorulma dahil)', async () => {
+  const { predictMove } = await import('../shared/sim.js');
+  const S = createMatch({ size: 1, seed: 6, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+  const me = S.players.find(p => p.ctrl === 'h1'), op = S.players.find(p => p !== me);
+  S.phase = 'play'; Object.assign(op, { x: 1150, y: 650, ctrl: 'h9' }); Object.assign(S.ball, { x: 60, y: 650 }); S.owner = null;
+  Object.assign(me, { x: 200, y: 200, vx: 0, vy: 0, sta: 1, tired: false });
+  const P = { x: me.x, y: me.y, vx: 0, vy: 0, sta: 1, tired: false, sprinting: false, team: me.team, r: me.r };
+  for (let i = 0; i < 400; i++){
+    const inp = { x: i < 200 ? 1 : -.3, y: i < 120 ? .5 : -.4, sprint: i < 300 };   // direklere ve duvara değmeden
+    step(S, { [me.id]: inp });
+    predictMove(P, sanitizeInput(inp), { owned: false, phase: S.phase, kickoffTeam: S.kickoffTeam, sliding: false });
+    assert.ok(Math.hypot(P.x - me.x, P.y - me.y) < 1e-6, `tick ${i}: ${P.x},${P.y} / ${me.x},${me.y}`);
+  }
+  assert.equal(P.tired, me.tired); assert.ok(Math.abs(P.sta - me.sta) < 1e-9);
+});

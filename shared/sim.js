@@ -191,6 +191,22 @@ function playerWalls(p){
   if (p.x < x0){ p.x = x0; p.vx = 0; } if (p.x > x1){ p.x = x1; p.vx = 0; }
   if (p.y < y0){ p.y = y0; p.vy = 0; } if (p.y > y1){ p.y = y1; p.vy = 0; }
 }
+/* Çevrimiçi tahmin için tek oyuncunun hareketi (step ile aynı kurallar: depar, dayanıklılık, ivme, sürtünme,
+   duvarlar, başlama vuruşu sınırı; çarpışmalar ve vuruşlar yok). p: { x, y, vx, vy, sta, tired, sprinting, team, r },
+   o: { owned, phase, kickoffTeam, sliding }. client/predict.js kullanır. */
+export function predictMove(p, inp, o){
+  const x = inp.x, y = inp.y, moving = Math.hypot(x, y) > .15;
+  const spr = inp.sprint && moving && !p.tired && p.sta > 0 && o.phase !== 'goal';
+  p.sprinting = spr;
+  if (spr){ p.sta = Math.max(0, p.sta - (o.owned ? SPRINT_DRAIN_BALL : SPRINT_DRAIN)); if (p.sta === 0) p.tired = true; }
+  else p.sta = Math.min(1, p.sta + (p.tired ? .0028 : moving ? .0034 : .0055));
+  if (p.tired && p.sta >= .38) p.tired = false;
+  const mul = spr ? (o.owned ? 1.25 : 1.38) : (p.tired ? .72 : 1);
+  const acc = (inp.kick ? P_ACC_KICK : P_ACC) * (o.owned ? (inp.hold ? .8 : .9) : 1) * mul;
+  if (!o.sliding){ p.vx += x*acc; p.vy += y*acc; }
+  p.x += p.vx; p.y += p.vy; p.vx *= P_DAMP; p.vy *= P_DAMP;
+  kickoffConstraint(o, p); playerWalls(p);
+}
 function kickoffConstraint(S, p){
   if (S.phase !== 'kickoff') return;
   if (p.team === 0 && p.x > W/2 - p.r){ p.x = W/2 - p.r; if (p.vx > 0) p.vx = 0; }
