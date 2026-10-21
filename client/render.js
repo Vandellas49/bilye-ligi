@@ -43,7 +43,7 @@ export async function setView3D(on){
       sc.src = 'client/three.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('three.min.js yüklenemedi'));
       document.head.appendChild(sc);
     });
-    if (!R3){ const m = await import('./render3d.js'); m.init3D(cv3, share); R3 = m; }
+    if (!R3){ const m = await import('./render3d.js'); m.init3D(cv3, share); R3 = m; R3.setCameraMode(camMode); }
     const sw = R3.softwareGL();
     // ?3dzorla: yazılımla çizilse de 3B'yi aç (yalnızca deneme ve test için)
     if (sw && !new URLSearchParams(location.search).has('3dzorla')){ console.warn('3B yazılımla çiziliyor (' + sw + '), 2B kullanılıyor.'); block3D = 'software'; return off('software'); }
@@ -60,6 +60,10 @@ export async function setView3D(on){
 let onFallback = () => {};
 export function setFallbackHandler(fn){ onFallback = fn; }
 export const is3D = () => use3D;
+// 3B kamera: mod seçimi (3B yüklenmeden de saklanır) ve ekranın "yukarı"sının sahadaki açısı (girdi döndürme için)
+let camMode = 'genis';
+export function setCamera(m){ camMode = m; if (R3) R3.setCameraMode(m); }
+export const cameraYaw = () => use3D && R3 ? R3.cameraYaw() : -Math.PI/2;
 // performans göstergesi için: görünüm ve 3B kalite kademesi (2 en yüksek)
 export const viewInfo = () => use3D && R3 ? '3B, kalite ' + R3.quality3D() : '2B';
 

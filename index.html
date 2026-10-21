@@ -55,6 +55,8 @@ main{flex:1;position:relative;display:flex;align-items:center;justify-content:ce
 canvas{display:block;border-radius:18px;touch-action:none}
 /* 3B görünüm: sahne #cv3'te, 2B katman (isimler, yazılar, HUD) saydam olarak üstte */
 #view{position:relative}
+#toast{position:fixed;left:50%;top:76px;transform:translateX(-50%);z-index:40;pointer-events:none;background:rgba(20,12,32,.82);color:#fff;font-weight:800;font-size:15px;padding:8px 16px;border-radius:999px;opacity:0;transition:opacity .2s}
+#toast.on{opacity:1}
 #perf{position:fixed;left:8px;bottom:8px;z-index:50;pointer-events:none;font:600 12px/1.3 ui-monospace,Consolas,monospace;
   background:rgba(0,0,0,.7);color:#fff;padding:5px 8px;border-radius:8px}
 #cv3{display:none}
@@ -212,6 +214,7 @@ details[open] summary{margin-bottom:12px}
   </div>
 </header>
 <div id="perf" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <div class="rotate-hint">Telefonu yan çevirirsen saha büyür.</div>
 <main id="stage">
   <div id="view">
@@ -307,6 +310,18 @@ details[open] summary{margin-bottom:12px}
         </div>
       </fieldset>
       <div class="note" id="viewNote" hidden>3B görünüm bu cihazda açılamadı, 2B kullanılıyor.</div>
+
+      <fieldset id="camField">
+        <legend>Kamera (3B)</legend>
+        <div class="seg">
+          <input type="radio" name="cam" id="cmG" value="genis" checked><label for="cmG">Geniş</label>
+          <input type="radio" name="cam" id="cmT" value="tv"><label for="cmT">TV</label>
+          <input type="radio" name="cam" id="cmD" value="dinamik"><label for="cmD">Dinamik</label>
+          <input type="radio" name="cam" id="cmO" value="oyuncu"><label for="cmO">Oyuncu</label>
+          <input type="radio" name="cam" id="cmU" value="ust"><label for="cmU">Kuşbakışı</label>
+        </div>
+      </fieldset>
+      <div class="note">Maçta <kbd>K</kbd> ile değiştirilir. Dinamik ve Oyuncu kamerada yön tuşları kameraya göre çalışır (yukarı = ileri).</div>
 
       <fieldset>
         <legend>Pas yardımı</legend>

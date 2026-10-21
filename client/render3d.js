@@ -83,6 +83,7 @@ export function init3D(canvas, share){
   const sc = G3.scene = new T.Scene();
   G3.camera = new T.PerspectiveCamera(36, 16/9, 10, 8000);
   G3.target = new T.Vector3(0, 0, 14); G3.baseDist = 1100; G3.zoom = 1; G3.cw = 800; G3.ch = 450;
+  G3.camPos = new T.Vector3(0, 900, 600); G3.look = new T.Vector3(0, 0, 14); G3.yaw = -Math.PI/2; G3.pyaw = 0; G3.camMode = G3.camMode || 'genis';
   G3.hemi = new T.HemisphereLight(0xffffff, 0x444444, .65); sc.add(G3.hemi);
   const sun = G3.sun = new T.DirectionalLight(0xffffff, 1);
   sun.position.set(-320, 950, 420); sun.castShadow = true;
@@ -392,8 +393,8 @@ export function resize3D(cw, ch, dpr){
   const d = Math.min(dpr, light() ? 1.25 : 1.5);   // yüksek DPI ekranda piksel sayısı sınırlı
   G3.renderer.setPixelRatio(d); G3.renderer.setSize(cw, ch, false);
   G3.cw = cw; G3.ch = ch;
-  const cam = G3.camera;
-  cam.aspect = cw/ch; cam.updateProjectionMatrix();
+  const cam = G3.camera, fov = cam.fov;
+  cam.fov = 36; cam.aspect = cw/ch; cam.updateProjectionMatrix();
   // sahayı ve kaleleri ekrana sığdır (kenar boşluğu ve tribünler taşabilir)
   const corners = [[-GD - 6, -6], [W + GD + 6, -6], [-GD - 6, H + 14], [W + GD + 6, H + 14]];
   const fits = dist => {
@@ -404,12 +405,67 @@ export function resize3D(cw, ch, dpr){
   let lo = 300, hi = 6000;
   for (let i = 0; i < 30; i++){ const m = (lo + hi)/2; if (fits(m)) hi = m; else lo = m; }
   G3.baseDist = hi;
+  cam.fov = fov; cam.updateProjectionMatrix();
   const uScale = ch*d/(2*Math.tan(cam.fov*Math.PI/360));
   for (const P of [G3.fx, G3.glow, G3.snow]) P.pts.material.uniforms.uScale.value = uScale;
 }
 
+/* Kamera modları. G3.yaw: ekranın "yukarı"sının sahadaki yönü (açı, sim koordinatı); main.js girdiyi buna göre döndürür.
+   genis: stadyum (sabit açı, topu hafif izler) · tv: yandan yayın kamerası · dinamik: hücum yönünün arkasından
+   oyuncu: kontrol edilen oyuncunun arkasından (hareket yönünü yavaşça izler) · ust: kuşbakışı */
+export const CAMERAS = ['genis', 'tv', 'dinamik', 'oyuncu', 'ust'];
+export function setCameraMode(m){
+  if (!CAMERAS.includes(m)) m = 'genis';
+  G3.camMode = m;
+  if (!G3.camera) return;
+  G3.camera.fov = m === 'oyuncu' ? 55 : m === 'dinamik' ? 48 : 36; G3.camera.updateProjectionMatrix();
+  if (G3.fx) for (const P of [G3.fx, G3.glow, G3.snow]) P.pts.material.uniforms.uScale.value = G3.ch*Math.min(G3.dpr || 1, light() ? 1.25 : 1.5)/(2*Math.tan(G3.camera.fov*Math.PI/360));
+}
+export const cameraYaw = () => G3.yaw ?? -Math.PI/2;
+const lerpAng = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a))*k;
+
 function updateCamera(){
-  const cam = G3.camera, b = S.ball;
+  const cam = G3.camera, b = S.ball, mode = G3.camMode || 'genis';
+  const goal = S.phase === 'goal' && S.goalInfo;
+  if (mode !== 'genis' && !goal && S.players.length){
+    const me = S.players.find(p => p.ctrl === 'h1') || null, attack = me && me.team === 1 ? -1 : 1;
+    const bX = b.x - W/2, bZ = b.y - H/2;
+    let px, py, pz, lx, ly, lz, yaw = -Math.PI/2;
+    if (mode === 'tv'){
+      lx = bX*.85; ly = 0; lz = bZ*.35; px = lx; py = 330; pz = lz + 780;
+    } else if (mode === 'ust'){
+      lx = bX*.55; ly = 0; lz = bZ*.3; px = lx; py = 1650; pz = lz + 40;
+    } else if (mode === 'dinamik'){
+      yaw = attack > 0 ? 0 : Math.PI;
+      const dx = Math.cos(yaw), dz = Math.sin(yaw);
+      lx = bX + dx*170; ly = 0; lz = bZ*.85; px = bX - dx*470; py = 330; pz = bZ*.85;
+    } else {
+      // oyuncu: kontrol edilen oyuncunun (yoksa topun) arkasından, hareket yönüne doğru
+      const p = me || S.owner;
+      const ox = p ? p.x : b.x, oy = p ? p.y : b.y, sp = p ? Math.hypot(p.vx, p.vy) : 0;
+      if (p && sp > .6) G3.pyaw = lerpAng(G3.pyaw, Math.atan2(p.vy, p.vx), reduceMotion ? 1 : .035);
+      else if (!p) G3.pyaw = attack > 0 ? 0 : Math.PI;
+      yaw = G3.pyaw;
+      const dx = Math.cos(yaw), dz = Math.sin(yaw), oX = ox - W/2, oZ = oy - H/2;
+      px = oX - dx*270; py = 165; pz = oZ - dz*270; lx = oX + dx*300; ly = 0; lz = oZ + dz*300;
+    }
+    const k = reduceMotion ? 1 : mode === 'oyuncu' ? .12 : .07;
+    G3.camPos.x += (px - G3.camPos.x)*k; G3.camPos.y += (py - G3.camPos.y)*k; G3.camPos.z += (pz - G3.camPos.z)*k;
+    G3.look.x += (lx - G3.look.x)*k; G3.look.y += (ly - G3.look.y)*k; G3.look.z += (lz - G3.look.z)*k;
+    G3.yaw = yaw;
+    cam.position.copy(G3.camPos);
+    if (FX.shake > 0){
+      cam.position.x += (Math.random()*2 - 1)*FX.shake*.6; cam.position.y += (Math.random()*2 - 1)*FX.shake*.4;
+      FX.shake *= .88; if (FX.shake < .3) FX.shake = 0;
+    }
+    cam.up.set(0, 1, 0);
+    if (mode === 'ust') cam.up.set(0, 0, -1);
+    cam.lookAt(G3.look);
+    // geniş kameraya dönünce yumuşak geçsin
+    G3.target.copy(G3.look); G3.zoom = Math.max(.6, Math.min(1.4, G3.camPos.distanceTo(G3.look)/(G3.baseDist*1.03)));
+    return;
+  }
+  G3.yaw = -Math.PI/2; cam.up.set(0, 1, 0);
   let tx = 0, tz = 14, zoom = 1;
   if (S.players.length){
     tx = (b.x - W/2)*.16; tz = 14 + (b.y - H/2)*.06;
@@ -430,6 +486,7 @@ function updateCamera(){
     FX.shake *= .88; if (FX.shake < .3) FX.shake = 0;
   }
   cam.lookAt(G3.target);
+  G3.camPos.copy(cam.position); G3.look.copy(G3.target);
 }
 
 /* ---------- her kare ---------- */
@@ -716,5 +773,6 @@ const _pv = { v: null };
 export function project(x, y, h){
   const v = _pv.v || (_pv.v = new T.Vector3());
   v.set(x - W/2, h, y - H/2).project(G3.camera);
+  if (v.z > 1) return { x: -1e4, y: -1e4 };   // kameranın arkasında
   return { x: (v.x*.5 + .5)*G3.cw, y: (-v.y*.5 + .5)*G3.ch };
 }

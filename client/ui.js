@@ -47,7 +47,7 @@ export function initMenu(){
     const setR = (name, v) => { const el = document.querySelector(`input[name="${name}"][value="${v}"]`); if (el && !el.disabled) el.checked = true; };
     setR('mode', saved.mode); setR('tsize', saved.tsize);
     setR('kit', saved.kit); setR('okit', saved.okit); if (typeof saved.teamName === 'string') $('teamName').value = saved.teamName;
-    setR('size', saved.size); setR('keys', saved.keys); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist); setR('view', saved.view);
+    setR('size', saved.size); setR('keys', saved.keys); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist); setR('view', saved.view); setR('cam', saved.cam);
   }
 
   // turnuva seçilince rakip ve bot seviyesi gizlenir (rakipler her turda zorlaşır)
@@ -120,7 +120,7 @@ const kbd = k => `<kbd>${k}</kbd>`;
 function keysHelpHtml(layout){
   if (layout === 'klasik') return [
     `Hareket: ${kbd('W')}${kbd('A')}${kbd('S')}${kbd('D')} ya da ok tuşları. Şut / pas: ${kbd('Boşluk')}; basılı tuttukça güç barı dolar, bırakınca vurursun. Pas yardımı açıksa bastığın yöndeki arkadaşına gider.`,
-    `Depar: ${kbd('Shift')}. Topu koru: ${kbd('C')}. Pas iste: ${kbd('F')}. Oyuncu değiştir: ${kbd('Tab')} (topa en yakın arkadaşına geçersin).`,
+    `Depar: ${kbd('Shift')}. Topu koru: ${kbd('C')}. Pas iste: ${kbd('F')}. Oyuncu değiştir: ${kbd('Tab')} (topa en yakın arkadaşına geçersin). Kamera (3B): ${kbd('K')}.`,
     `Rakip toptayken ${kbd('Boşluk')} müdahale, ${kbd('V')} kayarak müdahale.`,
     `Özel şutlar: ${kbd('Q')} falso, ${kbd('E')} füze, ${kbd('R')} aşırtma; birlikte basınca kombo (${kbd('Q')}+${kbd('E')}, ${kbd('E')}+${kbd('R')}, ${kbd('Q')}+${kbd('R')}, üçü birden).`,
     `Duraklat: ${kbd('Esc')}.`].join('<br>');
@@ -128,13 +128,14 @@ function keysHelpHtml(layout){
     `<b>FIFA düzeni.</b> Hareket: ok tuşları. Depar: ${kbd('E')}. Topu koru: ${kbd('Shift')}.`,
     `Topu sürerken: ${kbd('S')} pas (arkadaşına), ${kbd('D')} sert şut (bar dolunca alevli), ${kbd('A')}+${kbd('D')} havadan sert şut, ${kbd('W')} ara pas (arkadaşının önüne), ${kbd('A')} havadan pas / orta. Basılı tuttukça güç barı dolar, bırakınca vurursun.`,
     `Rakip toptayken: ${kbd('S')} basılı: baskı (oyuncun topu tutana kendiliğinden kapanır, ${kbd('E')} ile depar), ${kbd('D')} ayak koyma (topu almak için müdahale), ${kbd('A')} kayarak müdahale.`,
-    `Oyuncu değiştir: ${kbd('Q')} (topa en yakın arkadaşına geçersin). Pas iste: ${kbd('F')}.`,
+    `Oyuncu değiştir: ${kbd('Q')} (topa en yakın arkadaşına geçersin). Pas iste: ${kbd('F')}. Kamera (3B): ${kbd('K')}.`,
     `Özel şutlar: ${kbd('Z')} falso, ${kbd('X')} füze, ${kbd('C')} aşırtma; birlikte basınca kombo (${kbd('Z')}+${kbd('X')}, ${kbd('X')}+${kbd('C')}, ${kbd('Z')}+${kbd('C')}, üçü birden).`,
     `Duraklat: ${kbd('Esc')}.`].join('<br>');
 }
 
 // görünüm tercihi: true = 3B
 export const want3D = () => radio('view') === '3';
+export const cameraPick = () => radio('cam') || 'genis';
 
 export function readCfg(){
   return { kit: radio('kit'), okit: radio('okit'), teamName: $('teamName').value.trim().slice(0, 16), view: radio('view'), keys: radio('keys'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), diff: radio('diff'),

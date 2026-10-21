@@ -11,9 +11,9 @@ import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
 import { updateCrowd } from './crowd.js';
-import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview } from './render.js';
+import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview, setCamera, cameraYaw } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
-import { $, initMenu, initLookEditor, loadLook, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
+import { $, initMenu, initLookEditor, loadLook, cameraPick, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
   updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D, keyLayout } from './ui.js';
 
 /* istemci durumu
@@ -340,11 +340,38 @@ function withLerp(S, alpha, fn){
   try { fn(); } finally { for (const [o, x, y, z] of real){ o.x = x; o.y = y; if (o === S.ball) o.z = z; } }
 }
 
+/* Kamera döndüğünde yön tuşları ekrana göre çalışsın: girdi, ekranın "yukarı"sı sahada hangi yöndeyse o kadar döndürülür */
+// ekranın üstünde kısa bildirim
+let toastT = 0;
+function toast(text){ const el = $('toast'); el.textContent = text; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 1300); }
+
+function camInput(inp){
+  const th = cameraYaw() + Math.PI/2;
+  if (Math.abs(th) < 1e-6 || (!inp.x && !inp.y)) return inp;
+  const c = Math.cos(th), s = Math.sin(th);
+  return { ...inp, x: inp.x*c - inp.y*s, y: inp.x*s + inp.y*c };
+}
+// K: kamera değiştir (maçta), menüdeki seçim de güncellenir ve kaydedilir
+const CAM_NAMES = { genis: 'Geniş', tv: 'TV', dinamik: 'Dinamik', oyuncu: 'Oyuncu', ust: 'Kuşbakışı' };
+function applyCamera(m){
+  setCamera(m);
+  const el = document.querySelector(`input[name="cam"][value="${m}"]`); if (el) el.checked = true;
+  saveCfg({ ...(loadCfg() || {}), cam: m });
+}
+document.querySelectorAll('input[name="cam"]').forEach(el => el.addEventListener('change', () => applyCamera(el.value)));
+setCamera(cameraPick());
+addEventListener('keydown', e => {
+  if (e.code !== 'KeyK' || e.repeat || G.mode !== 'match' || document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  const list = Object.keys(CAM_NAMES), next = list[(list.indexOf(cameraPick()) + 1) % list.length];
+  applyCamera(next);
+  toast('Kamera: ' + CAM_NAMES[next] + (document.body.classList.contains('three') ? '' : ' (yalnızca 3B görünümde)'));
+});
+
 function tick(){
   const S = G.state, inputs = {};
   savePrev(S);
   const assist = passAssist(), layout = keyLayout();
-  for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = { ...readInput(layout, { defending: !!S.owner && S.owner.team !== p.team }), assist };
+  for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = camInput({ ...readInput(layout, { defending: !!S.owner && S.owner.team !== p.team }), assist });
   const events = step(S, inputs);
   handleEvents(events);
   afterStep(S); updateCrowd(S);
@@ -355,7 +382,7 @@ function netFrame(now){
   if (due.length) handleEvents(due);
   if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); updateCrowd(G.state); }
   const me = G.state.players.find(p => p.mine);
-  if (me) sendInput(G.menuOpen ? NEUTRAL_INPUT : { ...readInput(keyLayout(), { defending: !!G.state.owner && G.state.owner.team !== me.team }), assist: passAssist() }, now);
+  if (me) sendInput(G.menuOpen ? NEUTRAL_INPUT : camInput({ ...readInput(keyLayout(), { defending: !!G.state.owner && G.state.owner.team !== me.team }), assist: passAssist() }), now);
   G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${net.slow ? 'yedek bağlantı' : 'WebSocket'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;
 }
 
