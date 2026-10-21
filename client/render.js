@@ -41,12 +41,23 @@ export function drawAd(c, ad, x, y, w, h){
   c.fillStyle = ad.fg; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(ad.text, x + w/2, y + h/2 + h*.04);
 }
-// 2B: sahanın üst ve alt kenarında reklam şeridi (arka plan tuvaline, 3B'de çizilmez: orada panolar var)
-function drawAdBoards(c){
-  const h = 18, w = 190, n = Math.ceil((W + 2*GD)/w) + 1;
-  for (const y of [-h - 3, H + 3]){
-    c.save(); c.beginPath(); c.rect(-GD, y, W + 2*GD, h); c.clip();
-    for (let i = 0; i < n; i++) drawAd(c, ADS[(i + (y > 0 ? 2 : 0)) % ADS.length], -GD + i*w, y, w, h);
+// 2B: sahanın üst ve alt kenarında kayan reklam şeridi (her karede; reklamlar bir kez önceden çizilir). 3B'de panolar var.
+const AD_W = 190, AD_H = 18;
+let adSprites = null;
+function drawAdBoards(c, t){
+  if (!adSprites) adSprites = ADS.map(ad => { const cv = document.createElement('canvas'); cv.width = AD_W*3; cv.height = AD_H*3; drawAd(cv.getContext('2d'), ad, 0, 0, cv.width, cv.height); return cv; });
+  const L = AD_W*ADS.length, n = Math.ceil((W + 2*GD)/AD_W) + 1;
+  for (const [y, dir] of [[-AD_H - 3, 1], [H + 3, -1]]){
+    // üstteki sağa, alttaki sola kayar
+    const off = ((t*(reduceMotion ? .15 : .8)*dir) % L + L) % L;
+    c.save(); c.beginPath(); c.rect(-GD, y, W + 2*GD, AD_H); c.clip();
+    // tüm dizi (L) kadar kaydırılır, böylece başa dönüş görünmez
+    for (let i = -ADS.length - 1; i < n; i++){
+      const x = -GD + i*AD_W + off;
+      if (x > W + GD || x + AD_W < -GD) continue;
+      const k = ((i + (dir < 0 ? 2 : 0)) % ADS.length + ADS.length) % ADS.length;
+      c.drawImage(adSprites[k], x, y, AD_W, AD_H);
+    }
     c.restore();
   }
 }
@@ -144,7 +155,6 @@ export function renderBg(state){
   // dış alan
   c.fillStyle = A.outer; c.fillRect(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h);
   decorateOuter(c, A);
-  if (!use3D) drawAdBoards(c);
   // saha zemini
   c.save(); rr(c, -6, -6, W + 12, H + 12, 22); c.clip();
   if (A.stripes){
@@ -1025,6 +1035,7 @@ export function render(state, view){
   ctx.translate(sx/(scale*dpr), sy/(scale*dpr));
   drawRays(ctx, ARENAS[S.arena]);
   drawCrowd2D(ctx, S, V);
+  drawAdBoards(ctx, S.t);
   drawTutTarget(ctx);
   if (!S.players.length) return;
   const sorted = withRef(S.players).sort((a, b) => a.y - b.y);

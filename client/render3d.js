@@ -758,7 +758,7 @@ function updateScene(){
         pnl.m.material.needsUpdate = true;
       }
     }
-    if (move && !reduceMotion) for (const pnl of G3.adPanels){ const t = pnl.m.material.map; t.offset.x = (t.offset.x + (cheer >= 0 ? .006 : .0007)) % 1; }
+    if (move && !reduceMotion) for (const pnl of G3.adPanels){ const t = pnl.m.material.map; t.offset.x = (t.offset.x + (cheer >= 0 ? .006 : .0025)) % 1; }
   }
 }
 
