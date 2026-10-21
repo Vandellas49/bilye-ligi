@@ -309,7 +309,7 @@ function makePlayer(p){
   const g = new T.Group();
   // gövde: tepe takım rengi, altta beyaz şerit ve koyu forma (köşe renkleriyle)
   const geo = new T.SphereGeometry(PR, 36, 26);
-  const mat = new T.MeshStandardMaterial({ map: kitTexture(p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team)), roughness: .4, metalness: .05, emissive: 0x000000 });
+  const mat = new T.MeshStandardMaterial({ map: kitTexture(p.kitOverride || (p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team))), roughness: .4, metalness: .05, emissive: 0x000000 });
   const pivot = new T.Group(); g.add(pivot);
   const body = new T.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true;
   pivot.add(body);
@@ -325,7 +325,7 @@ function makePlayer(p){
   const k = PR/SH.ART_R;
   sprite.scale.set(160/2.5*k, 160/2.5*k, 1);
   G3.scene.add(sprite);
-  const halo = new T.Mesh(new T.RingGeometry(PR + 4, PR + 9, 48), new T.MeshBasicMaterial({ color: TEAM_COL[p.team], transparent: true, opacity: .6, depthWrite: false }));
+  const halo = new T.Mesh(new T.RingGeometry(PR + 4, PR + 9, 48), new T.MeshBasicMaterial({ color: TEAM_COL[Math.max(0, p.team)], transparent: true, opacity: .6, depthWrite: false }));
   halo.rotation.x = -Math.PI/2; halo.position.y = .7; g.add(halo);
   const human = dashedRing(PR + 10, 2.4, 0xffffff, 12); g.add(human);
   const recv = dashedRing(PR + 15, 3, 0xffffff, 16); g.add(recv);
@@ -333,7 +333,7 @@ function makePlayer(p){
   const arrow = new T.Mesh(new T.ShapeGeometry(shp), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .9, depthWrite: false }));
   arrow.rotation.x = -Math.PI/2; arrow.position.y = 1;
   const arrowPivot = new T.Group(); arrowPivot.add(arrow); g.add(arrowPivot);
-  const ghostMat = new T.MeshBasicMaterial({ color: TEAM_COL[p.team], transparent: true, opacity: .16, depthWrite: false });
+  const ghostMat = new T.MeshBasicMaterial({ color: TEAM_COL[Math.max(0, p.team)], transparent: true, opacity: .16, depthWrite: false });
   const ghosts = [1, 2, 3].map(() => { const m = new T.Mesh(new T.SphereGeometry(PR, 20, 14), ghostMat); m.visible = false; G3.scene.add(m); return m; });
   G3.scene.add(g);
   return { g, pivot, body, mat, shoes, sprite, fc, fctx: fc.getContext('2d'), tex, halo, human, recv, arrow, arrowPivot, ghosts };
@@ -346,7 +346,7 @@ function drawFaceSprite(p, o){
   c.fillStyle = 'rgba(255,255,255,.95)';
   c.font = '800 8px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(String(p.num), p.x, p.y + 13.8);
-  const kit = p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team);
+  const kit = p.kitOverride || (p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team));
   if (kit.crest) SH.drawCrest(c, kit.crest, p.x - 10, p.y + 12.6, 3.4);   // göğüste arma
   SH.drawHairBack(c, p, p.y, r);
   SH.drawFace(c, p, p.y - 2, v);
@@ -494,13 +494,14 @@ function updateCamera(){
 
 /* ---------- her kare ---------- */
 function syncPlayers(){
-  const live = new Set(S.players);
+  const all = FX.ref ? [...S.players, FX.ref] : S.players;   // hakem de (yalnızca görsel)
+  const live = new Set(all);
   for (const [p, o] of G3.players){
     if (live.has(p)) continue;
     G3.scene.remove(o.g); G3.scene.remove(o.sprite); o.ghosts.forEach(m => G3.scene.remove(m));
     o.body.geometry.dispose(); o.tex.dispose(); G3.players.delete(p);
   }
-  for (const p of S.players) if (!G3.players.has(p)) G3.players.set(p, makePlayer(p));
+  for (const p of all) if (!G3.players.has(p)) G3.players.set(p, makePlayer(p));
 }
 
 const WAVE_CYCLE = 2100, WAVE_SPEED = 6.5, WAVE_W = 85;   // ~35 sn'de bir, ~10 sn sürer; dalga genişliği (birim)
@@ -564,7 +565,7 @@ function updateScene(){
     const bob = Math.abs(Math.sin(v.walk))*2.4*run, jump = jumpOf(S, p);
     setV(o.g.position, p.x, p.y, jump);
     const va = Math.atan2(p.vy, p.vx), sliding = p.slideT > 0;
-    const lose = goalPhase && p.team !== S.goalInfo.team;
+    const lose = goalPhase && !p.ref && p.team !== S.goalInfo.team;
     let st = Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
     if (sliding) st = .3;
     // eğilme: depar öne, kayma geriye yatık; gol sevincinde dönerek zıplar

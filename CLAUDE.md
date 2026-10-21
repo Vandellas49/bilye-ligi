@@ -55,6 +55,7 @@ client/
   render3d.js        3B çizim (Three.js r128): kamera, karakterler, kaleler, stadyum, seyirciler, kar
   three.min.js       Three.js r128 (MIT), yalnızca 3B seçilince yüklenir
   tutorial.js        öğrenme modu: dersler (setup/check), ders kutusu (#tutBox), hedef halkası S.tutTarget
+  referee.js         hakem: yalnızca görsel (fx.ref), topu çaprazdan izler, faulde koşup kart kaldırır; oyuncu gibi çizilir (kitOverride)
   crowd.js           seyirciler: coşku, ooo, olé, uğultu (updateCrowd), 2B tribün çizimi (drawCrowd2D); 3B seyirciler de crowd durumunu okur
   audio.js           WebAudio sesleri (sfx.*, tribün uğultusu crowdLevel), iki kanal: efekt ve tribün (setVolumes; menüde ve molada kaydırıcı, bilye-cfg sfxVol/crowdVol), dosya kullanılmıyor
   ui.js              menü, ayar kaydı, HUD, overlay'ler, oda listesi, lobi, turnuva tablosu (bracketHtml)

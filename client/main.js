@@ -11,6 +11,7 @@ import { ensureAudio, setSoundActive, toggleMute, sfx, setVolumes } from './audi
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
 import { updateCrowd } from './crowd.js';
+import { updateRef, refEvents } from './referee.js';
 import { createTutorial } from './tutorial.js';
 import { replay, recordFrame, replayEvents, updateReplay, withReplay } from './replay.js';
 import { createPredictor, updatePrediction, applyPrediction } from './predict.js';
@@ -399,6 +400,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && G.m
 function handleEvents(events){
   applyEvents(events);
   replayEvents(G.state, events);
+  refEvents(events);
   for (const e of events){
     if (e.type === 'goal') updateHud(G.state);
     else if (e.type === 'end' && !G.online) endMatch();
@@ -471,14 +473,14 @@ function tick(){
   for (const p of S.players) if (p.ctrl === 'h1') inputs[p.id] = camInput({ ...readInput(layout, { defending: !!S.owner && S.owner.team !== p.team }), assist });
   const events = step(S, inputs);
   handleEvents(events);
-  afterStep(S); updateCrowd(S); recordFrame(S);
+  afterStep(S); updateCrowd(S); updateRef(S); recordFrame(S);
   if (G.tut) G.tut.update(S, events);
 }
 
 function netFrame(now, dt){
   const due = updateNetMatch(G.netM, now);
   if (due.length) handleEvents(due);
-  if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); updateCrowd(G.state); recordFrame(G.state); }
+  if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); updateCrowd(G.state); updateRef(G.state); recordFrame(G.state); }
   const me = G.state.players.find(p => p.mine);
   if (me){
     const inp = G.menuOpen ? NEUTRAL_INPUT : camInput({ ...readInput(keyLayout(), { defending: !!G.state.owner && G.state.owner.team !== me.team }), assist: passAssist() });

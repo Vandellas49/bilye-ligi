@@ -92,6 +92,8 @@ function rr(c, x, y, w, h, r){ c.beginPath(); c.roundRect ? c.roundRect(x, y, w,
 // saha arka planı bir kez offscreen canvas'a çizilir
 /* O anki maçın formaları: TEAM_COL/TEAM_DARK (hale, konfeti, yazı, direk halkası) ve CSS --team-a/--team-b güncellenir. */
 let kitKey = '';
+// hakem (yalnızca görsel, client/referee.js) çizim listesine eklenir
+const withRef = list => fx.ref ? [...list, fx.ref] : list.slice();
 export const kitOf = (S, t) => kitById(S && S.kits ? S.kits[t] : null) || KITS[t];
 function applyKitColors(S){
   const key = S && S.kits ? S.kits.join() : 'limon,buz';
@@ -277,7 +279,7 @@ function drawPlayer(c, p){
 }
 
 function drawPlayerArt(c, p, r){
-  const col = TEAM_COL[p.team], dark = TEAM_DARK[p.team], v = visOf(p);
+  const col = p.kitOverride ? p.kitOverride.ui : TEAM_COL[p.team], dark = p.kitOverride ? p.kitOverride.dark : TEAM_DARK[p.team], v = visOf(p);
   const sp = Math.hypot(p.vx, p.vy), run = Math.min(1, sp/2.2);
   const va = Math.atan2(p.vy, p.vx);
   const bob = -Math.abs(Math.sin(v.walk))*2*run;
@@ -329,7 +331,7 @@ function drawPlayerArt(c, p, r){
   const st = p.slideT > 0 ? .3 : Math.min(.1, sp*.028) + (p.mood === 'kick' ? .07 : 0) + (p.sprinting ? .05 : 0);
   c.save();
   c.translate(p.x, y0); c.rotate(va); c.scale(1 + st, 1 - st); c.rotate(-va);
-  const kit = p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team);   // kaleci farklı renkte
+  const kit = p.kitOverride || (p.keeper ? keeperKit(S.kits, p.team) : kitOf(S, p.team));   // kaleci farklı renkte, hakem siyah
   c.fillStyle = kit.c1; c.beginPath(); c.arc(0, 0, r, 0, Math.PI*2); c.fill();
   c.save(); c.clip();
   // forma deseni (çubuk, yarım, yatay şerit), üstüne ışık-gölge
@@ -531,7 +533,7 @@ function hand(c, p, x, y, rad = 4.2){
 }
 // kol: forma renginde, dövmeli oyuncuda kolda desen
 function arm(c, p, x0, y0, x1, y1){
-  c.strokeStyle = TEAM_DARK[p.team]; c.lineWidth = 5; c.lineCap = 'round';
+  c.strokeStyle = p.kitOverride ? p.kitOverride.dark : TEAM_DARK[p.team]; c.lineWidth = 5; c.lineCap = 'round';
   c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
   c.strokeStyle = p.skin || '#e8b48a'; c.lineWidth = 3.6;
   const mx = x0 + (x1 - x0)*.45, my = y0 + (y1 - y0)*.45;
@@ -546,6 +548,14 @@ function arm(c, p, x0, y0, x1, y1){
 
 // golü atanın el hareketleri (takla dönüşle çizilir, burada değil)
 function drawGesture(c, p, yBody, r){
+  if (p.ref && p.card){
+    const x = p.x;
+    arm(c, p, x + r - 5, yBody - 3, x + r + 3, yBody - r - 9);
+    c.save(); c.translate(x + r + 4, yBody - r - 20); c.rotate(.12);
+    c.fillStyle = p.card.color; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 1.2;
+    rr(c, -5, -8, 10, 14, 1.5); c.fill(); c.stroke(); c.restore();
+    return;
+  }
   const ce = celeOf(S, p);
   if (!ce || ce.t < 8) return;
   const x = p.x, t = ce.t, slow = Math.hypot(p.vx, p.vy) < 1.2;
@@ -954,14 +964,14 @@ function render3DFrame(){
   if (!S.players.length) return;
   const toWorld = (x, y, h) => { const s = R3.project(x, y, h); return { x: s.x/scale + VIEW.x, y: s.y/scale + VIEW.y }; };
   const proj = new Map();
-  for (const p of S.players){
+  for (const p of withRef(S.players)){
     const j = jumpOf(S, p);
     const foot = toWorld(p.x, p.y + p.r*.6, j), head = toWorld(p.x, p.y, 2*p.r + 4 + j);
     proj.set(p, { x: (foot.x + head.x)/2, y: (foot.y + head.y)/2, r: Math.max(6, (foot.y - head.y)/2) });
   }
   posOf = p => proj.get(p) || p;
   try {
-    const sorted = S.players.slice().sort((a, b) => a.y - b.y);
+    const sorted = withRef(S.players).sort((a, b) => a.y - b.y);
     for (const p of sorted) drawLabel(ctx, p);
     drawPassInfo(ctx, false);
     drawPops(ctx, (q, k) => toWorld(q.x, q.y + 36, 2*PR + 16 + (1 - k)*30));
@@ -987,7 +997,7 @@ export function render(state, view){
   drawCrowd2D(ctx, S, V);
   drawTutTarget(ctx);
   if (!S.players.length) return;
-  const sorted = S.players.slice().sort((a, b) => a.y - b.y);
+  const sorted = withRef(S.players).sort((a, b) => a.y - b.y);
   for (const p of sorted) drawPlayer(ctx, p);
   for (const p of sorted) drawLabel(ctx, p);
   drawBall(ctx, S.ball);
