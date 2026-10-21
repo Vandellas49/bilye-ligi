@@ -135,6 +135,24 @@ function buildStadium(){
   // LED reklam şeridi: uzak panonun iç yüzü, takım renklerinde
   const segW = 70, n = Math.floor((x1 - x0)/segW);
   for (let i = 0; i < n; i++) box(segW - 4, HB - 6, 1.2, x0 + segW/2 + i*segW + ((x1 - x0) - n*segW)/2, HB/2, z0 + .7, G3.leds[i % 2], false);
+  // reklam panoları: uzak panonun ve kale arkası panolarının iç yüzünde kayan reklamlar (golde GOL! yazısı)
+  const ADW = 170;   // bir reklamın genişliği (dünya birimi)
+  const adCv = document.createElement('canvas'); adCv.width = 256*SH.ads.length; adCv.height = 32;
+  const ac = adCv.getContext('2d'); SH.ads.forEach((ad, i) => SH.drawAd(ac, ad, i*256, 0, 256, 32));
+  G3.adTex = new T.CanvasTexture(adCv); G3.adTex.wrapS = T.RepeatWrapping;
+  G3.goalCv = document.createElement('canvas'); G3.goalCv.width = 512; G3.goalCv.height = 32;
+  G3.goalTex = new T.CanvasTexture(G3.goalCv); G3.goalTex.wrapS = T.RepeatWrapping; G3.goalTeam = -1;
+  G3.adMat = new T.MeshBasicMaterial({ map: G3.adTex });
+  G3.adPanels = [];
+  const panel = (len, x, z, ry) => {
+    const tex = G3.adTex.clone(); tex.needsUpdate = true; tex.wrapS = T.RepeatWrapping; tex.repeat.x = len/(ADW*SH.ads.length*1.4);
+    const AH = 30;   // reklam panosu panodan yüksek (LED pano gibi)
+    const m = new T.Mesh(new T.PlaneGeometry(len, AH), new T.MeshBasicMaterial({ map: tex }));
+    m.position.set(x, AH/2 + 1, z); m.rotation.y = ry; g.add(m); G3.adPanels.push({ m, tex, len });
+  };
+  panel(x1 - x0, (x0 + x1)/2, z0 + 1.5, 0);                       // uzak pano
+  panel(z1 - z0, x0 + 1.5, (z0 + z1)/2, Math.PI/2);               // sol kale arkası
+  panel(z1 - z0, x1 - 1.5, (z0 + z1)/2, -Math.PI/2);              // sağ kale arkası
   // tribünler ve seyirciler
   G3.standMat = new T.MeshStandardMaterial({ color: 0x2a2236, roughness: .9 });
   G3.seatMat = new T.MeshStandardMaterial({ color: 0x3a3048, roughness: .9 });
@@ -723,6 +741,25 @@ function updateScene(){
     G3.poles.instanceMatrix.needsUpdate = true; G3.flags.instanceMatrix.needsUpdate = true;
   }
   G3.leds.forEach((m, i) => { m.emissiveIntensity = cheer === i ? .7 + .6*Math.abs(Math.sin(S.t*.3)) : .7; });
+  // reklam panoları: kayar; golde atan takımın renginde GOL!
+  if (G3.adPanels){
+    if (cheer !== G3.goalTeam){
+      G3.goalTeam = cheer;
+      if (cheer >= 0){
+        const c = G3.goalCv.getContext('2d'), col = TEAM_COL[cheer];
+        c.fillStyle = '#0d0a14'; c.fillRect(0, 0, 512, 32);
+        c.font = '900 24px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = col;
+        for (let i = 0; i < 4; i++) c.fillText('GOL!', 64 + i*128, 17);
+        G3.goalTex.needsUpdate = true;
+      }
+      for (const pnl of G3.adPanels){
+        if (cheer >= 0){ const t = G3.goalTex.clone(); t.needsUpdate = true; t.wrapS = T.RepeatWrapping; t.repeat.x = pnl.len/400; pnl.m.material.map = t; }
+        else pnl.m.material.map = pnl.tex;
+        pnl.m.material.needsUpdate = true;
+      }
+    }
+    if (move && !reduceMotion) for (const pnl of G3.adPanels){ const t = pnl.m.material.map; t.offset.x = (t.offset.x + (cheer >= 0 ? .006 : .0007)) % 1; }
+  }
 }
 
 /* Otomatik kalite: ~2 sn'lik ortalama kare süresine bakılır. Çözünürlük düşürülmez (görüntü bulanıklaşıyordu).

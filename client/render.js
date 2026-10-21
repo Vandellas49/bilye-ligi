@@ -22,10 +22,39 @@ let posOf = p => p;
 
 export function initRender(canvas, stageEl, canvas3d){ cv = canvas; ctx = cv.getContext('2d'); stage = stageEl; cv3 = canvas3d; }
 
+/* Pano reklamları (yalnızca yazı; oyun kendi aramızda oynanıyor). 2B'de saha kenarında şerit, 3B'de panolarda kayar. */
+export const ADS = [
+  { text: 'PEPSI', bg: '#004b93', fg: '#ffffff', accent: '#e32934' },
+  { text: 'Cola Turka', bg: '#c8102e', fg: '#ffffff', accent: '#ffffff' },
+  { text: 'Tabi', bg: '#ffffff', fg: '#1d3f8f', accent: '#f2a900' },
+  { text: 'KONSOLOSLUK', bg: '#0b2545', fg: '#ffffff', accent: '#e30a17' },
+  { text: 'VERİTABANI', bg: '#16302b', fg: '#7dffb0', accent: '#7dffb0' },
+];
+// bir reklam kutusu: zemin, üst-alt ince şerit, ortalanmış yazı (genişliğe sığdırılır)
+export function drawAd(c, ad, x, y, w, h){
+  c.fillStyle = ad.bg; c.fillRect(x, y, w, h);
+  c.fillStyle = ad.accent; c.fillRect(x, y, w, Math.max(1, h*.1)); c.fillRect(x, y + h - Math.max(1, h*.1), w, Math.max(1, h*.1));
+  c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(x + w - Math.max(1, w*.01), y, Math.max(1, w*.01), h);
+  let fs = h*.62;
+  c.font = `900 ${fs}px Figtree, system-ui, sans-serif`;
+  while (c.measureText(ad.text).width > w*.86 && fs > 4){ fs -= 1; c.font = `900 ${fs}px Figtree, system-ui, sans-serif`; }
+  c.fillStyle = ad.fg; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(ad.text, x + w/2, y + h/2 + h*.04);
+}
+// 2B: sahanın üst ve alt kenarında reklam şeridi (arka plan tuvaline, 3B'de çizilmez: orada panolar var)
+function drawAdBoards(c){
+  const h = 18, w = 190, n = Math.ceil((W + 2*GD)/w) + 1;
+  for (const y of [-h - 3, H + 3]){
+    c.save(); c.beginPath(); c.rect(-GD, y, W + 2*GD, h); c.clip();
+    for (let i = 0; i < n; i++) drawAd(c, ADS[(i + (y > 0 ? 2 : 0)) % ADS.length], -GD + i*w, y, w, h);
+    c.restore();
+  }
+}
+
 // 3B katmanın 2B koddan kullandıkları
 export const share = {
   ART_R, get bg(){ return bg; }, get bgVersion(){ return bgVersion; },
-  drawFace: (...a) => drawFace(...a), drawAccessory: (...a) => drawAccessory(...a),
+  drawFace: (...a) => drawFace(...a), drawAccessory: (...a) => drawAccessory(...a), ads: ADS, drawAd: (...a) => drawAd(...a),
   drawHairBack: (...a) => drawHairBack(...a), drawGesture: (...a) => drawGesture(...a), drawCrest: (...a) => drawCrest(...a),
 };
 
@@ -115,6 +144,7 @@ export function renderBg(state){
   // dış alan
   c.fillStyle = A.outer; c.fillRect(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h);
   decorateOuter(c, A);
+  if (!use3D) drawAdBoards(c);
   // saha zemini
   c.save(); rr(c, -6, -6, W + 12, H + 12, 22); c.clip();
   if (A.stripes){
