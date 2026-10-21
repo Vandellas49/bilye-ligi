@@ -5,7 +5,7 @@
    THREE global'i client/three.min.js ile gelir (render.js yükler). */
 import { W, H, GH, GD, TOP, BOT, PR, BR, VIEW, TEAM_COL, TEAM_DARK, ARENAS, shotInfo, SKINS, KITS, kitById } from '../shared/constants.js';
 import { visOf, reduceMotion, jumpOf, flipOf } from './effects.js';
-import { isTouch } from './ui.js';
+import { isTouch, drawCrest } from './ui.js';
 import { crowd } from './crowd.js';
 
 const kitOf = (S, t) => kitById(S && S.kits ? S.kits[t] : null) || KITS[t];   // maçın formaları
@@ -146,7 +146,7 @@ function buildStadium(){
     box(x1 - x0 + 260, h, RD, (x0 + x1)/2, h/2, z, r % 2 ? G3.seatMat : G3.standMat);
     for (let x = x0 - 110; x <= x1 + 110; x += gap){
       if (Math.random() < .12) continue;
-      fans.push({ x: x + (Math.random() - .5)*5, y: h + 7, z: z + (Math.random() - .5)*4, team: x < 0 ? 0 : 1, mix: true, u: LZ + (x - (x0 - 110)) });
+      fans.push({ x: x + (Math.random() - .5)*5, y: h + 7, z: z + (Math.random() - .5)*4, team: x < 0 ? 0 : 1, mix: true, kind: 'far', u: LZ + (x - (x0 - 110)) });
     }
   }
   for (const side of [0, 1]){                              // kale arkası tribünleri: o takımın taraftarı
@@ -155,7 +155,7 @@ function buildStadium(){
       box(RD, h, z1 - z0 + 40, x, h/2, (z0 + z1)/2 + 20, r % 2 ? G3.seatMat : G3.standMat);
       for (let z = z0 + 10; z <= z1 + 30; z += gap){
         if (Math.random() < .1) continue;
-        fans.push({ x: x + (Math.random() - .5)*4, y: h + 7, z: z + (Math.random() - .5)*5, team: side, mix: false, u: side ? LZ + LX + (z - (z0 + 10)) : (z1 + 30) - z });
+        fans.push({ x: x + (Math.random() - .5)*4, y: h + 7, z: z + (Math.random() - .5)*5, team: side, mix: false, kind: 'end', u: side ? LZ + LX + (z - (z0 + 10)) : (z1 + 30) - z });
       }
     }
   }
@@ -172,6 +172,33 @@ function buildStadium(){
   });
   inst.receiveShadow = true; g.add(inst); g.add(heads);
   G3.fans = fans; G3.fanMesh = inst; G3.fanHeads = heads; G3.fanDummy = new T.Object3D(); G3.kitKey = '';
+  // kollar (forma kolu): coşkuda havaya, kaçan pozisyonda başa; zayıf cihazda yok
+  G3.fanArms = null;
+  if (!light()){
+    const armGeo = new T.CylinderGeometry(1.8, 1.5, 11, 6); armGeo.translate(0, 5.5, 0);   // dönme noktası omuz
+    G3.fanArms = new T.InstancedMesh(armGeo, new T.MeshStandardMaterial({ roughness: .6, emissive: 0x161616 }), fans.length*2);
+    for (let i = 0; i < fans.length*2; i++) G3.fanArms.setColorAt(i, c.set('#ffffff'));
+    g.add(G3.fanArms);
+  }
+  // bayraklar: sopa + dalgalanan bez (forma renkleri)
+  const flagFans = fans.filter(() => Math.random() < (light() ? .03 : .055));
+  flagFans.forEach((f, i) => { f.flagI = i; f.fc = Math.random() < .55; });
+  const poleGeo = new T.CylinderGeometry(.6, .6, 30, 5); poleGeo.translate(0, 15, 0);
+  G3.poles = new T.InstancedMesh(poleGeo, new T.MeshStandardMaterial({ color: 0xd8d0c0, roughness: .6 }), Math.max(1, flagFans.length));
+  const flagGeo = new T.PlaneGeometry(20, 12, 4, 1); flagGeo.translate(10, 0, 0);
+  G3.flags = new T.InstancedMesh(flagGeo, new T.MeshStandardMaterial({ roughness: .8, side: T.DoubleSide, emissive: 0x1c1c1c }), Math.max(1, flagFans.length));
+  for (let i = 0; i < flagFans.length; i++) G3.flags.setColorAt(i, c.set('#ffffff'));
+  g.add(G3.poles, G3.flags);
+  G3.flagFans = flagFans;
+  // kale arkası tribünlerin önünde, sahaya bakan dev pankart: takım adı, arma, forma renkleri (applyKits çizer)
+  G3.banners = [0, 1].map(t => {
+    const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 192;
+    const tex = new T.CanvasTexture(cv);
+    const m = new T.Mesh(new T.PlaneGeometry(320, 60), new T.MeshStandardMaterial({ map: tex, roughness: .8, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: .25 }));
+    m.position.set(t ? x1 + TB + 18 - RD/2 - 1 : x0 - TB - 18 + RD/2 + 1, 46, (z0 + z1)/2); m.rotation.y = t ? -Math.PI/2 : Math.PI/2; g.add(m);
+    return { cv, tex, m };
+  });
+  G3.flareTeam = -1; G3.flareFans = []; G3.smoke = [];
   // projektör direkleri
   G3.lampMat = new T.MeshBasicMaterial({ color: 0xfff6d8 });
   const poleMat = new T.MeshStandardMaterial({ color: 0x55505e, roughness: .6, metalness: .3 });
@@ -418,9 +445,27 @@ function syncPlayers(){
 
 const WAVE_CYCLE = 2100, WAVE_SPEED = 6.5, WAVE_W = 85;   // ~35 sn'de bir, ~10 sn sürer; dalga genişliği (birim)
 
+// pankart: forma deseni, ortada koyu şerit üstünde takım adı, solda arma
+function drawBanner(bn, kit, name){
+  const c = bn.cv.getContext('2d'), w = bn.cv.width, h = bn.cv.height;
+  c.fillStyle = kit.c1; c.fillRect(0, 0, w, h);
+  c.fillStyle = kit.c2;
+  if (kit.pat === 'serit') for (let x = 0; x < w; x += 64) c.fillRect(x, 0, 32, h);
+  else if (kit.pat === 'yarim') c.fillRect(w/2, 0, w/2, h);
+  else if (kit.pat === 'yatay') for (let y = 12; y < h; y += 48) c.fillRect(0, y, w, 18);
+  c.fillStyle = 'rgba(10,8,20,.72)'; c.fillRect(0, h*.2, w, h*.6);
+  c.font = '900 92px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  let fs = 92; while (c.measureText(name.toUpperCase()).width > w - 260 && fs > 40){ fs -= 6; c.font = `900 ${fs}px Figtree, system-ui, sans-serif`; }
+  c.lineWidth = 8; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(name.toUpperCase(), w/2 + 50, h/2 + 4);
+  c.fillStyle = '#ffffff'; c.fillText(name.toUpperCase(), w/2 + 50, h/2 + 4);
+  if (kit.crest) drawCrest(c, kit.crest, 110, h/2, 78);
+  else { c.fillStyle = kit.c1; c.beginPath(); c.arc(110, h/2, 60, 0, Math.PI*2); c.fill(); c.lineWidth = 8; c.strokeStyle = '#ffffff'; c.stroke(); }
+  bn.tex.needsUpdate = true;
+}
+
 /* Maçın formaları değişince: seyirci formaları, LED'ler, direk halkaları */
 function applyKits(){
-  const key = S.kits ? S.kits.join() : '';
+  const key = (S.kits ? S.kits.join() : '') + '|' + (S.teamNames || []).join();
   if (key === G3.kitKey) return;
   G3.kitKey = key;
   const kits = [kitOf(S, 0), kitOf(S, 1)], c = new T.Color();
@@ -432,6 +477,13 @@ function applyKits(){
     c.set(hex); G3.fanMesh.setColorAt(i, c);
   });
   if (G3.fanMesh.instanceColor) G3.fanMesh.instanceColor.needsUpdate = true;
+  if (G3.fanArms){
+    G3.fans.forEach((f, i) => { G3.fanMesh.getColorAt(i, c); G3.fanArms.setColorAt(i*2, c); G3.fanArms.setColorAt(i*2 + 1, c); });
+    G3.fanArms.instanceColor.needsUpdate = true;
+  }
+  G3.flagFans.forEach(f => { const k = kits[f.team]; G3.flags.setColorAt(f.flagI, c.set(f.fc || k.c2 === k.c1 ? k.c1 : k.c2)); });
+  if (G3.flags.instanceColor) G3.flags.instanceColor.needsUpdate = true;
+  G3.banners.forEach((bn, t) => drawBanner(bn, kits[t], (S.teamNames || [])[t] || kits[t].name));
   G3.leds.forEach((m, i) => { m.color.set(kits[i].ui); m.emissive.set(kits[i].ui); });
   (G3.postRings || [[], []]).forEach((list, i) => list.forEach(r => r.material.color.set(kits[i].ui)));
 }
@@ -522,6 +574,29 @@ function updateScene(){
   }
   const night = (ARENAS[S.arena] || {}).id === 'gece';
   for (const l of G3.lamps) putPoint(GL, l.x, l.y, l.z, parseCol('#fff6d8'), night ? .85 : .35, 150);
+  // meşaleler: golde atan takımın tribününde ~12 seyirci yakar (ışık + takım renginde duman)
+  const fTeam = S.phase === 'goal' && S.goalInfo ? S.goalInfo.team : -1;
+  if (fTeam !== G3.flareTeam){
+    G3.flareTeam = fTeam;
+    const pool = fTeam < 0 ? [] : G3.fans.filter(f => f.team === fTeam);
+    G3.flareFans = [];
+    for (let i = 0; i < 12 && pool.length; i++) G3.flareFans.push(pool[Math.random()*pool.length|0]);
+  }
+  if (G3.fanMesh.visible){
+    const smokeCol = parseCol(TEAM_COL[Math.max(0, fTeam)]);
+    for (const f of G3.flareFans){
+      const fl = .7 + Math.random()*.3;
+      putPoint(GL, f.x, f.y + 30, f.z, [1, .3 + Math.random()*.25, .08], fl, 16 + Math.random()*10);
+      if (move && !reduceMotion && G3.smoke.length < 260 && Math.random() < .5)
+        G3.smoke.push({ x: f.x + (Math.random() - .5)*4, y: f.y + 32, z: f.z, vx: (Math.random() - .5)*.4, vy: .6 + Math.random()*.4, life: 100, c: Math.random() < .6 ? smokeCol : [1, .35, .2] });
+    }
+  }
+  for (const s of G3.smoke){
+    if (move){ s.x += s.vx; s.y += s.vy; s.vy *= .99; s.life--; }
+    const k = s.life/100;
+    putPoint(P, s.x, s.y, s.z, s.c, k*.35, 14 + (1 - k)*40);
+  }
+  G3.smoke = G3.smoke.filter(s => s.life > 0);
   flushPoints(P); flushPoints(GL);
   // kar / parıltı
   const SN = G3.snow; SN.n = 0;
@@ -555,9 +630,34 @@ function updateScene(){
     }
     dm.position.set(f.x, y + 2, f.z); dm.scale.set(1, 1 + up*.5, 1); dm.updateMatrix(); G3.fanMesh.setMatrixAt(i, dm.matrix);
     dm.position.y = y + 14 + up*5; dm.scale.set(1, 1, 1); dm.updateMatrix(); G3.fanHeads.setMatrixAt(i, dm.matrix);
+    // kol açısı (dikeyden dışa): aşağı sarkık, havada, başta
+    const ex = crowd.ex[f.team], pump = reduceMotion ? 0 : Math.sin(S.t*.3*f.sp + f.ph)*.25;
+    let ang = Math.PI - .28;
+    if (cheer === f.team) ang = .3 + pump;
+    else if (cheer >= 0) ang = Math.PI - .12;
+    else if (crowd.ooh > 0 && crowd.oohTeam === f.team) ang = 1.0;
+    else if (crowd.oleT[f.team] > 0 || up > .3) ang = .22;
+    else if (ex > .55 && Math.sin(S.t*.06*f.sp + f.ph) > .2) ang = .45 + pump*.8;
+    if (G3.fanArms) for (const s of [-1, 1]){
+      if (f.kind === 'far'){ dm.position.set(f.x + s*6.5, y + 9 + up*3, f.z); dm.rotation.set(0, 0, -s*ang); }
+      else { dm.position.set(f.x, y + 9 + up*3, f.z + s*6.5); dm.rotation.set(s*ang, 0, 0); }
+      dm.updateMatrix(); G3.fanArms.setMatrixAt(i*2 + (s > 0 ? 1 : 0), dm.matrix);
+    }
+    dm.rotation.set(0, 0, 0);
+    if (f.flagI !== undefined){
+      const px = f.x + (f.kind === 'far' ? 7 : 0), pz = f.z + (f.kind === 'far' ? 0 : 7), py = y + 6 + up*3;
+      dm.position.set(px, py, pz); dm.updateMatrix(); G3.poles.setMatrixAt(f.flagI, dm.matrix);
+      const spd = cheer === f.team ? .32 : .07 + ex*.18, amp = reduceMotion ? 0 : cheer === f.team ? .9 : .35 + ex*.4;
+      dm.position.set(px, py + 25, pz); dm.rotation.set(0, (f.kind === 'far' ? 0 : Math.PI/2) + Math.sin(S.t*spd + f.ph)*amp, 0);
+      dm.updateMatrix(); G3.flags.setMatrixAt(f.flagI, dm.matrix); dm.rotation.set(0, 0, 0);
+    }
   });
   dm.scale.set(1, 1, 1);
-  if (G3.frame % 2 === 0){ G3.fanMesh.instanceMatrix.needsUpdate = true; G3.fanHeads.instanceMatrix.needsUpdate = true; }
+  if (G3.frame % 2 === 0){
+    G3.fanMesh.instanceMatrix.needsUpdate = true; G3.fanHeads.instanceMatrix.needsUpdate = true;
+    if (G3.fanArms) G3.fanArms.instanceMatrix.needsUpdate = true;
+    G3.poles.instanceMatrix.needsUpdate = true; G3.flags.instanceMatrix.needsUpdate = true;
+  }
   G3.leds.forEach((m, i) => { m.emissiveIntensity = cheer === i ? .7 + .6*Math.abs(Math.sin(S.t*.3)) : .7; });
 }
 
@@ -582,6 +682,7 @@ function adaptQuality(now){
     G3.scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
   } else {
     G3.fanMesh.visible = false; G3.fanHeads.visible = false;
+    for (const m of [G3.fanArms, G3.poles, G3.flags]) if (m) m.visible = false;
     G3.snowList.length = Math.min(G3.snowList.length, 300);
   }
   console.info('3B kalite düşürüldü:', G3.quality, '(ortalama kare ' + avg.toFixed(1) + ' ms)');

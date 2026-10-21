@@ -66,17 +66,21 @@ export const viewInfo = () => use3D && R3 ? '3B, kalite ' + R3.quality3D() : '2B
 export function resize(){
   const r = stage.getBoundingClientRect();
   const aw = Math.max(200, r.width - 20), ah = Math.max(150, r.height - 10);
-  scale = Math.min(aw/SCREEN.w, ah/SCREEN.h);
+  const A = area();
+  scale = Math.min(aw/A.w, ah/A.h);
   dpr = Math.min(2, window.devicePixelRatio || 1);
-  const cw = Math.floor(SCREEN.w*scale), ch = Math.floor(SCREEN.h*scale);
+  const cw = Math.floor(A.w*scale), ch = Math.floor(A.h*scale);
   cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
   cv.width = Math.floor(cw*dpr); cv.height = Math.floor(ch*dpr);
   if (use3D && R3){ cv3.style.width = cw + 'px'; cv3.style.height = ch + 'px'; R3.resize3D(cw, ch, dpr); }
   renderBg();
 }
+// çizim alanı: 2B'de tribünlü SCREEN, 3B'de VIEW (tribünler 3B sahnede)
+const area = () => use3D && R3 ? VIEW : SCREEN;
 function worldTransform(c){
   const k = scale*dpr;
-  c.setTransform(k, 0, 0, k, -SCREEN.x*k, -SCREEN.y*k);
+  const A = area();
+  c.setTransform(k, 0, 0, k, -A.x*k, -A.y*k);
 }
 function rr(c, x, y, w, h, r){ c.beginPath(); c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h); }
 
@@ -909,7 +913,7 @@ function render3DFrame(){
   ctx.clearRect(0, 0, cv.width, cv.height);
   worldTransform(ctx);
   if (!S.players.length) return;
-  const toWorld = (x, y, h) => { const s = R3.project(x, y, h); return { x: s.x/scale + SCREEN.x, y: s.y/scale + SCREEN.y }; };
+  const toWorld = (x, y, h) => { const s = R3.project(x, y, h); return { x: s.x/scale + VIEW.x, y: s.y/scale + VIEW.y }; };
   const proj = new Map();
   for (const p of S.players){
     const j = jumpOf(S, p);
