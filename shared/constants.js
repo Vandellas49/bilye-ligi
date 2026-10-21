@@ -24,7 +24,11 @@ export const SLIDE_POKE = 3.6;         // değince topun itilme hızı
 export const SLIDE_CD = 150;           // yeniden kaymak için bekleme (~2,5 sn)
 export const SLIDE_GETUP = 16;         // topa değdiyse yerden kalkma (tick)
 export const SLIDE_MISS_GETUP = 32;    // ıskaladıysa yerden kalkma (tick)
-export const GOAL_PAUSE = 180;        // golden sonra sevinç ve yeniden başlama arası (tick, 3 sn)
+export const GOAL_PAUSE = 180;
+// gol tekrarı (settings.replay): golden önce/sonra kaç tick oynatılır, canlı sevinçten sonra başlar, hız
+export const REPLAY_BEFORE = 180, REPLAY_AFTER = 15, REPLAY_DELAY = 100, REPLAY_SPEED = .6;
+export const GOAL_PAUSE_REPLAY = REPLAY_DELAY + Math.ceil((REPLAY_BEFORE + REPLAY_AFTER)/REPLAY_SPEED) + 30;
+export const REPLAY_SKIP_AFTER = 40;   // golden bu kadar tick sonra geçilebilir (golü atan tuşu basılı tutuyorsa hemen geçmesin)        // golden sonra sevinç ve yeniden başlama arası (tick, 3 sn)
 // pas yardımı (insan oyuncu): basılan yöne yakın arkadaşa, koştuğu yere, mesafeye uygun güçle
 export const PASS_CONE = .8;           // basılan yönden en fazla bu kadar sapan arkadaşa kilitlenir (rad, ~46°; 8 yönlü ok tuşlarında her yöne yeter)
 export const SHOT_CONE = .9;           // şut yardımı: basılan yön kaleye bu kadar yakınsa (rad, ~52°) top kale ağzına gider

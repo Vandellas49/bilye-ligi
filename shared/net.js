@@ -19,7 +19,7 @@ export function roster(S){
 
 // maçın değişmeyen bilgileri (saha, hava, takım adları ...)
 export function matchInfo(S){
-  return { arena: S.arena, weather: S.weather, specials: S.specials, teamNames: S.teamNames, kits: S.kits, timed: S.timed, diff: S.diff };
+  return { arena: S.arena, weather: S.weather, specials: S.specials, teamNames: S.teamNames, kits: S.kits, timed: S.timed, diff: S.diff, replay: !!S.settings.replay };
 }
 
 export function snapshot(S){
@@ -50,7 +50,7 @@ export function createView(rosterList, info, myUid){
   }));
   return {
     online: true, t: 0, phase: 'kickoff', score: [0, 0], timeLeft: 0, overtime: false, kickoffTeam: 0,
-    arena: info.arena, weather: info.weather, specials: info.specials, teamNames: info.teamNames, kits: matchKits(...(info.kits || [])), timed: info.timed,
+    arena: info.arena, weather: info.weather, specials: info.specials, teamNames: info.teamNames, kits: matchKits(...(info.kits || [])), timed: info.timed, replay: !!info.replay,
     players, ball: { x: W/2, y: H/2, vx: 0, vy: 0, r: 12, z: 0, fire: 0, curve: 0, spin: 0 },
     owner: null, pass: null, req: [null, null], goalInfo: null, lastTouch: null,
   };

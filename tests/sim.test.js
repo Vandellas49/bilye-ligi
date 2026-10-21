@@ -635,3 +635,26 @@ test('yanından geçen top: insan oyuncu geniş alanda alır, tuş basılıyken 
   assert.ok(run(4, 14, i => ({ kick: i < 20 })).kicked, 'çok hızlı top da atlayıp geçmemeli');
   assert.ok(!run(30, 4, () => ({})).owned, 'uzaktan geçen top alınmaz');
 });
+
+test('gol tekrarı: gol arası uzar; yalnızca golü atan takımın insanı, golden biraz sonra, vuruş tuşuyla geçer', async () => {
+  const { GOAL_PAUSE, GOAL_PAUSE_REPLAY, REPLAY_SKIP_AFTER } = await import('../shared/constants.js');
+  const setup = replay => {
+    const S = createMatch({ size: 2, seed: 2, replay, humans: [{ team: 0, ctrl: 'h1', name: 'A' }, { team: 1, ctrl: 'h2', name: 'B' }] });
+    const a = S.players.find(p => p.ctrl === 'h1'), b = S.players.find(p => p.ctrl === 'h2');
+    S.phase = 'play'; S.owner = null; S.lastTouch = a;
+    Object.assign(S.ball, { x: W_TEST - 30, y: H_TEST/2, vx: 8, vy: 0, z: 0 });
+    let i = 0; while (S.phase !== 'goal' && i++ < 30) step(S, {});
+    return { S, a, b };
+  };
+  assert.ok(setup(false).S.goalT > GOAL_PAUSE - 5 && setup(false).S.goalT <= GOAL_PAUSE);
+  const { S, a, b } = setup(true);
+  assert.equal(S.phase, 'goal'); assert.ok(S.goalT > GOAL_PAUSE_REPLAY - 5);
+  // hemen basmak geçmez; yiyen takım geçemez
+  let ev = step(S, { [a.id]: { kick: true } }); assert.ok(!ev.some(e => e.type === 'replaySkip'));
+  step(S, {});
+  for (let i = 0; i < REPLAY_SKIP_AFTER + 2; i++) step(S, {});
+  ev = step(S, { [b.id]: { kick: true } }); assert.ok(!ev.some(e => e.type === 'replaySkip'), 'yiyen takım geçemez');
+  ev = step(S, { [a.id]: { kick: true } }); assert.ok(ev.some(e => e.type === 'replaySkip'), 'atan takım geçer');
+  for (let i = 0; i < 30; i++) step(S, {});
+  assert.equal(S.phase, 'kickoff');
+});

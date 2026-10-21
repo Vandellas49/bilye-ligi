@@ -12,6 +12,7 @@ import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
 import { updateCrowd } from './crowd.js';
 import { createTutorial } from './tutorial.js';
+import { replay, recordFrame, replayEvents, updateReplay, withReplay } from './replay.js';
 import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview, setCamera, cameraYaw } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
 import { $, initMenu, initLookEditor, loadLook, cameraPick, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
@@ -58,6 +59,7 @@ function startMatch(cfg, extra = {}){
     size: +cfg.size, humans, diff: +cfg.diff, arena: cfg.arena, weather,
     minutes: +cfg.time, specials: true, seed: randomSeed(), ...localTeams(cfg, extra),
     allowSwitch: true,   // yerel maçta Q/Tab ile bot takım arkadaşına geçilebilir
+    replay: cfg.mode !== 'learn',   // gol tekrarı (öğrenmede yok)
   });
   G.online = false; G.netM = null; prevPos.clear();
   resetFx(); buildAmbient(weather);
@@ -330,6 +332,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && G.m
 /* ---------- döngü ---------- */
 function handleEvents(events){
   applyEvents(events);
+  replayEvents(G.state, events);
   for (const e of events){
     if (e.type === 'goal') updateHud(G.state);
     else if (e.type === 'end' && !G.online) endMatch();
@@ -386,6 +389,15 @@ addEventListener('keydown', e => {
   toast('Kamera: ' + CAM_NAMES[next] + (document.body.classList.contains('three') ? '' : ' (yalnızca 3B görünümde)'));
 });
 
+// tekrar etiketi: golü atan takımdaysan geçme ipucu
+function replayTag(){
+  const el = $('replayTag'), on = replay.on && G.mode === 'match';
+  el.hidden = !on;
+  if (!on) return;
+  const me = G.state.players.find(p => p.ctrl === 'h1'), mine = me && me.team === replay.team;
+  el.querySelector('.hint').textContent = mine ? 'Geçmek için vuruş tuşuna bas' : '';
+}
+
 function tick(){
   const S = G.state, inputs = {};
   savePrev(S);
@@ -393,14 +405,14 @@ function tick(){
   for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = camInput({ ...readInput(layout, { defending: !!S.owner && S.owner.team !== p.team }), assist });
   const events = step(S, inputs);
   handleEvents(events);
-  afterStep(S); updateCrowd(S);
+  afterStep(S); updateCrowd(S); recordFrame(S);
   if (G.tut) G.tut.update(S, events);
 }
 
 function netFrame(now){
   const due = updateNetMatch(G.netM, now);
   if (due.length) handleEvents(due);
-  if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); updateCrowd(G.state); }
+  if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); updateCrowd(G.state); recordFrame(G.state); }
   const me = G.state.players.find(p => p.mine);
   if (me) sendInput(G.menuOpen ? NEUTRAL_INPUT : camInput({ ...readInput(keyLayout(), { defending: !!G.state.owner && G.state.owner.team !== me.team }), assist: passAssist() }), now);
   G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${net.slow ? 'yedek bağlantı' : 'WebSocket'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;
@@ -435,7 +447,9 @@ function frame(now){
   const t1 = perf.on ? performance.now() : 0;
   // yerel maç sürerken iki fizik adımı arasındaki ara konumla çiz (duraklatınca/bitince son konum)
   const alpha = !G.online && !G.paused && G.mode !== 'end' && G.state ? acc/TICK : 1;
-  withLerp(G.state, alpha, () => render(G.state, G));
+  if (G.state && G.mode !== 'menu') updateReplay(G.state, dt/TICK, G.paused);
+  replayTag();
+  if (!withReplay(G.state, () => render(G.state, G))) withLerp(G.state, alpha, () => render(G.state, G));
   if (perf.on) perfReport(now, rawDt, t1 - t0, performance.now() - t1);
   requestAnimationFrame(frame);
 }

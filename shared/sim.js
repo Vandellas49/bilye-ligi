@@ -12,7 +12,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SHOT_KEY_MIN, SHOT_KEY_MAX, SHOT_KEY_FIRE, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE, HUMAN_REACH, HUMAN_GRAB, HUMAN_GRAB_SPEED, SHOT_WAIT } from './constants.js';
+  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE, HUMAN_REACH, HUMAN_GRAB, HUMAN_GRAB_SPEED, SHOT_WAIT, GOAL_PAUSE_REPLAY, REPLAY_SKIP_AFTER } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen, segDist } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
@@ -114,10 +114,11 @@ function resetPositions(S){
    specials  özel şutlar açık mı
    seed      RNG tohumu
    teamNames    isteğe bağlı takım adları [sol, sağ]; verilmezse TEAM_NAME
+   replay       gol tekrarı: gol arası uzar, golü atan takımın insanı vuruş tuşuyla geçer ('replaySkip')
    kits         isteğe bağlı forma kimlikleri [sol, sağ] (KITS); aynıysa ikinciye başka forma
    kickoffTeam  isteğe bağlı; verilmezse rastgele */
 export function createMatch(settings = {}){
-  const cfg = { size: 3, humans: [], diff: 1, arena: 'r', weather: 'kar', minutes: 0, specials: true, seed: 1, allowSwitch: false, ...settings };
+  const cfg = { size: 3, humans: [], diff: 1, arena: 'r', weather: 'kar', minutes: 0, specials: true, seed: 1, allowSwitch: false, replay: false, ...settings };
   const rng = createRng(cfg.seed);
   const S = {
     settings: cfg, rng, events: [], t: 0,
@@ -233,6 +234,10 @@ export function step(S, inputs = {}){
     const special = S.specials ? inp.special : null;
     p.input = { x, y, kick: inp.kick, hold: inp.hold, assist: inp.assist, kind: inp.kind };
     if (p.ctrl !== 'ai') chargeShot(S, p, inp.kick);
+    // gol tekrarı: golü atan takımın insan oyuncusu vuruş tuşuna basınca (yeni basış) tekrar geçilir
+    const press = inp.kick && !p.goalKickPrev; p.goalKickPrev = inp.kick;
+    if (press && S.phase === 'goal' && S.settings.replay && p.ctrl !== 'ai' && S.goalInfo && p.team === S.goalInfo.team
+        && S.t - S.goalInfo.t > REPLAY_SKIP_AFTER && S.goalT > 25){ S.goalT = 25; emit(S, 'replaySkip'); }
     // kayma: tuşa basıldığı an başlar (basılı tutmak yeniden kaydırmaz)
     if (p.slideCd > 0) p.slideCd--;
     if (inp.slide && !p.slidePrev) startSlide(S, p, x, y);
@@ -861,7 +866,7 @@ function celebrateInput(S, p){
 
 function goal(S, team){
   S.score[team]++;
-  S.phase = 'goal'; S.goalT = GOAL_PAUSE; S.pass = null; S.req = [null, null];
+  S.phase = 'goal'; S.goalT = S.settings.replay ? GOAL_PAUSE_REPLAY : GOAL_PAUSE; S.pass = null; S.req = [null, null];
   S.kickoffTeam = 1 - team;
   const scorer = S.lastTouch;
   // sevinç türü (golü atan yapar); kendi kalesine golde sevinç yok

@@ -57,6 +57,11 @@ canvas{display:block;border-radius:18px;touch-action:none}
 #view{position:relative}
 #toast{position:fixed;left:50%;top:76px;transform:translateX(-50%);z-index:40;pointer-events:none;background:rgba(20,12,32,.82);color:#fff;font-weight:800;font-size:15px;padding:8px 16px;border-radius:999px;opacity:0;transition:opacity .2s}
 #toast.on{opacity:1}
+#replayTag{position:fixed;left:24px;top:76px;z-index:35;pointer-events:none;display:flex;align-items:center;gap:8px;background:rgba(20,12,32,.82);color:#fff;font:900 16px Figtree,system-ui,sans-serif;letter-spacing:.08em;padding:7px 14px;border-radius:10px}
+#replayTag .dot{width:10px;height:10px;border-radius:50%;background:#ff3b4e;animation:rec 1s steps(2) infinite}
+#replayTag .hint{font-weight:600;font-size:13px;letter-spacing:0;opacity:.85}
+@keyframes rec{50%{opacity:.2}}
+@media (prefers-reduced-motion: reduce){#replayTag .dot{animation:none}}
 #tutBox{position:fixed;left:50%;top:70px;transform:translateX(-50%);z-index:30;width:min(560px,calc(100% - 24px));background:var(--panel);color:var(--ink);
   border:1px solid var(--line);border-radius:18px;padding:12px 16px;box-shadow:0 12px 40px rgba(20,10,50,.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #tutBox .tn{font-size:12px;font-weight:700;color:var(--muted)}
@@ -223,6 +228,7 @@ details[open] summary{margin-bottom:12px}
 <div id="perf" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="tutBox" hidden role="region" aria-label="Ders"></div>
+<div id="replayTag" hidden role="status"><span class="dot"></span>TEKRAR <span class="hint"></span></div>
 <div class="rotate-hint">Telefonu yan çevirirsen saha büyür.</div>
 <main id="stage">
   <div id="view">

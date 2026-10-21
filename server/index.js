@@ -362,7 +362,7 @@ function startLiveMatch(r, { sides, names, kits, diff, round = null, index = nul
   });
   const S = createMatch({
     size: s.size, humans, diff, arena: s.arena, weather: s.weather, minutes: s.minutes,
-    specials: s.specials, seed: randomSeed(), teamNames: names, kits,
+    specials: s.specials, seed: randomSeed(), teamNames: names, kits, replay: true,
   });
   for (const p of S.players) if (p.uid != null && !clients.get(p.uid).connected) p.ctrl = 'ai';
   r.match = { S, round, index, label, n: 0, pending: [] };
