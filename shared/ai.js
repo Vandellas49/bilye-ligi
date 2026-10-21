@@ -77,7 +77,9 @@ export function assignRoles(S){
     }
     const rest = ai.filter(p => p !== chaser && p !== receiver);
     rest.sort((a,c) => Math.abs(a.x - ownX) - Math.abs(c.x - ownX));
-    rest.forEach((p, i) => p.role = i === 0 ? 'defender' : 'support');
+    // kalabalık takımda (sahada 4+ bot) iki defans, kalanlar hücumda boşa çıkar
+    const defs = rest.length >= 4 ? 2 : 1;
+    rest.forEach((p, i) => p.role = i < defs ? 'defender' : 'support');
     if (chaser) chaser.role = 'chaser';
     if (receiver) receiver.role = 'receiver';
   }
@@ -194,13 +196,21 @@ function openSpot(S, p, dir, back){
   const b = S.ball, base = back ? (dir > 0 ? Math.PI : 0) : (dir > 0 ? 0 : Math.PI);
   let best = null;
   for (const da of [-1.15, -.75, -.38, 0, .38, .75, 1.15]){
-    for (const r of back ? [150, 210] : [190, 260, 330]){
+    for (const r of back ? [150, 210] : [190, 260, 330, 420]){
       const a = base + da, x = b.x + Math.cos(a)*r, y = b.y + Math.sin(a)*r;
       if (x < 50 || x > W - 50 || y < 45 || y > H - 45) continue;
+      if (!back && (x - b.x)*dir < 60) continue;   // hücumda topun önünde dur
       let near = 1e9;
       for (const o of S.players) if (o.team !== p.team) near = Math.min(near, Math.hypot(o.x - x, o.y - y));
       const open = laneOpen(S, b.x, b.y, x, y, p.team);
-      const score = (open ? 220 : 0) + Math.min(near, 220) + (back ? 0 : (x - b.x)*dir*.25) - Math.hypot(x - p.x, y - p.y)*.12;
+      // takım arkadaşlarından ve onların seçtiği yerlerden uzak (aynı boşluğa üşüşmesinler)
+      let crowd = 0;
+      for (const m of S.players){
+        if (m.team !== p.team || m === p || m.keeper || m.out > 0) continue;
+        const dm = Math.min(Math.hypot(m.x - x, m.y - y), m.spot && m.spotT > S.t ? Math.hypot(m.spot.x - x, m.spot.y - y) : 1e9);
+        if (dm < 150) crowd += (150 - dm)*1.5;
+      }
+      const score = (open ? 220 : 0) + Math.min(near, 220) + (back ? 0 : (x - b.x)*dir*.55 + ((x - W/2)*dir > 0 ? 80 : 0)) - Math.hypot(x - p.x, y - p.y)*.12 - crowd;
       if (!best || score > best.score) best = { x, y, score, back };
     }
   }
@@ -227,6 +237,7 @@ function keeperInput(S, p, D, dir, ownX, waiting){
     const aim = best ? Math.atan2(best.m.y - p.y, best.m.x - p.x) : (dir > 0 ? 0 : Math.PI);
     const da = Math.abs(Math.atan2(Math.sin(aim - p.dirA), Math.cos(aim - p.dirA)));
     if (p.keepT > 20 && da < .25) kick = true;
+    else if (p.keepT > 30){ p.dirA = aim; kick = true; }   // dönemiyorsa (direğe/duvara sıkıştı) yine de at: kaleci topu elle atar
     return { x: Math.cos(aim)*.3, y: Math.sin(aim)*.3, kick, special: null, hold: true, sprint: false };
   }
   p.keepT = 0;

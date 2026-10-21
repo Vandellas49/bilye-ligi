@@ -317,7 +317,7 @@ function cleanSettings(s){
   return {
     type: pick(s.type, ['match', 'tournament'], 'match'),
     tSize: pick(+s.tSize, [4, 8], 4),
-    size: pick(+s.size, [1, 2, 3], 3),
+    size: pick(+s.size, [1, 2, 3, 4, 5], 3),
     minutes: pick(+s.minutes, [2, 3, 5], 2),
     diff: pick(+s.diff, [0, 1, 2], 1),
     specials: s.specials !== false,

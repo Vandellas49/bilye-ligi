@@ -70,7 +70,11 @@ function buildPlayers(S, n, humans){
       d.sta = 1; d.tired = false; d.sprinting = false; d.stun = 0; d.tackleCd = 0; d.lunge = 0;
       d.charge = 0; d.shot = null; d.kickLock = false;   // şut güç barı (bkz. chargeShot)
       d.slideT = 0; d.slideCd = 0; d.slideA = 0; d.slideHit = false; d.slidePrev = false;   // kayma (bkz. startSlide)
-      d.num = h ? [10, 8, 23][i] : [7, 4, 9, 11, 5, 8, 3, 6, 14, 17][(team*3 + i + randInt(rng, 10)) % 10];
+      const NUMS = [7, 4, 9, 11, 5, 8, 3, 6, 14, 17];
+      let num = h ? [10, 8, 23, 7, 11][i] : NUMS[(team*3 + i + randInt(rng, 10)) % 10];
+      // takımda aynı numara olmasın
+      while (S.players.some(q => q.team === team && q.num === num)) num = num >= 30 ? 2 : num + 1;
+      d.num = num;
       // şapka daha seyrek: saçlar görünsün
       const accs = S.weather === 'kar' ? ['beanie','earmuffs','scarf','headband','sprout','none','none','none']
                                        : ['cap','headband','sprout','scarf','none','none','none'];
