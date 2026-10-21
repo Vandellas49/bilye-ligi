@@ -433,7 +433,7 @@ function tick(){
   const S = G.state, inputs = {};
   savePrev(S);
   const assist = passAssist(), layout = keyLayout();
-  for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = camInput({ ...readInput(layout, { defending: !!S.owner && S.owner.team !== p.team }), assist });
+  for (const p of S.players) if (p.ctrl === 'h1') inputs[p.id] = camInput({ ...readInput(layout, { defending: !!S.owner && S.owner.team !== p.team }), assist });
   const events = step(S, inputs);
   handleEvents(events);
   afterStep(S); updateCrowd(S); recordFrame(S);

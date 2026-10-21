@@ -121,6 +121,12 @@ export function applyEvents(events){
         if (e.kind !== 'kafa' && !reduceMotion) fx.shake = Math.max(fx.shake, 4);
         sfx.ooh(); break;
       }
+      case 'foul':
+        sfx.whistle();
+        pop(e.x, e.y - 40, 'Faul!', '#ffffff', 50);
+        if (e.card) pop(e.x, e.y - 70, e.card === 'kirmizi' ? '🟥 Kırmızı kart! 30 sn dışarıda' : '🟨 Sarı kart', e.card === 'kirmizi' ? '#ff5a5a' : '#ffe14d', 90);
+        break;
+      case 'return': pop(e.x, e.y - 40, 'Oyuna döndü', '#ffffff', 50); break;
       case 'call': sfx.call(); break;
       case 'swap': burst(e.x, e.y, '#ffffff', 10, 2.2, 18); sfx.call(); break;
       case 'goal':

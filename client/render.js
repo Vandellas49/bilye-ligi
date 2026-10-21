@@ -1,6 +1,7 @@
 /* ---------- çizim ----------
    Maç durumunu okur, değiştirmez. Parçacık, iz, yazı ve oyuncu animasyonları
    istemci tarafındaki efekt durumunda (fx) tutulur. */
+import { FK_DIST } from '../shared/constants.js';
 import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, SCREEN, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, KITS, kitById, keeperKit, shotInfo } from '../shared/constants.js';
 import { fx, visOf, reduceMotion, jumpOf, celeOf, flipOf } from './effects.js';
 import { shotKeyLabel } from './input.js';
@@ -881,6 +882,18 @@ function drawBanner(c){
       c.lineWidth = 6; c.strokeText(txt, 0, 74); c.fillStyle = '#ffffff'; c.fillText(txt, 0, 74);
     }
     c.restore();
+  } else if (S.phase === 'freekick' && V.mode === 'match'){
+    const fk = S.fk;
+    if (fk){
+      c.save(); c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 2; c.setLineDash([8, 8]);
+      c.beginPath(); c.arc(fk.x, fk.y, FK_DIST, 0, Math.PI*2); c.stroke(); c.restore();
+      c.font = '800 18px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      const mine = S.players.find(p => p.ctrl === 'h1');
+      const txt = mine ? (fk.team === mine.team ? 'Serbest vuruş sende' : 'Rakibin serbest vuruşu') : `Serbest vuruş: ${S.teamNames[fk.team]}`;
+      const w = c.measureText(txt).width + 26;
+      c.fillStyle = 'rgba(0,0,0,.45)'; rr(c, W/2 - w/2, H/2 + 100, w, 32, 16); c.fill();
+      c.fillStyle = '#fff'; c.fillText(txt, W/2, H/2 + 116.5);
+    }
   } else if (S.phase === 'kickoff' && V.mode === 'match'){
     c.font = '800 18px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     const mine = S.players.find(p => p.ctrl === 'h1');

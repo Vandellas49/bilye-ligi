@@ -204,7 +204,8 @@ function statsHtml(st, names){
     + row('Şut (isabetli)', `${a.sh} (${a.onT})`, `${b.sh} (${b.onT})`)
     + row('Pas (isabetli)', `${a.pa} (${a.paOk})`, `${b.pa} (${b.paOk})`)
     + row('Top kapma', a.tk, b.tk)
-    + row('Kurtarış', a.sv, b.sv) + '</table>';
+    + row('Kurtarış', a.sv, b.sv)
+    + row('Faul (kart)', `${a.fl || 0}${a.yc || a.rc ? ' (' + ['🟨'.repeat(a.yc || 0), '🟥'.repeat(a.rc || 0)].join('') + ')' : ''}`, `${b.fl || 0}${b.yc || b.rc ? ' (' + ['🟨'.repeat(b.yc || 0), '🟥'.repeat(b.rc || 0)].join('') + ')' : ''}`) + '</table>';
 }
 
 export function showEnd(S, { myTeam = 0, buttons, stats = null } = {}){

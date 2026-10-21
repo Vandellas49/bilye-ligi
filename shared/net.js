@@ -25,7 +25,7 @@ export function matchInfo(S){
 export function snapshot(S){
   const b = S.ball;
   return {
-    t: S.t, phase: S.phase, score: S.score.slice(), timeLeft: S.timeLeft, overtime: S.overtime, kickoffTeam: S.kickoffTeam,
+    t: S.t, phase: S.phase, score: S.score.slice(), timeLeft: S.timeLeft, overtime: S.overtime, kickoffTeam: S.kickoffTeam, fk: S.phase === 'freekick' && S.fk ? [S.fk.team, r2(S.fk.x), r2(S.fk.y)] : null,
     owner: S.owner ? S.owner.id : null,
     pass: S.pass ? { to: S.pass.to.id, x: r2(S.pass.x), y: r2(S.pass.y) } : null,
     req: S.req.map(q => q ? q.p.id : null),
@@ -33,7 +33,7 @@ export function snapshot(S){
     ball: [r2(b.x), r2(b.y), r2(b.vx), r2(b.vy), r2(b.z), b.fire, b.curve ? Math.sign(b.curve) : 0, r2(b.spin)],
     players: S.players.map(p => [
       r2(p.x), r2(p.y), r2(p.vx), r2(p.vy), r2(p.dirA), r2(p.sta),
-      (p.tired ? 1 : 0) | (p.sprinting ? 2 : 0) | (p.input.kick ? 4 : 0) | (p.ctrl === 'ai' ? 8 : 0) | (p.slideT > 0 ? 16 : 0),
+      (p.tired ? 1 : 0) | (p.sprinting ? 2 : 0) | (p.input.kick ? 4 : 0) | (p.ctrl === 'ai' ? 8 : 0) | (p.slideT > 0 ? 16 : 0) | (p.out > 0 ? 32 : 0),
       p.mood, p.armed ? p.armed.type : null, p.cd.falso, p.cd.fuze, p.cd.asirtma,
       p.bubble ? p.bubble.text : null, p.bubble ? p.bubble.t : 0,
       r2(p.charge || 0),   // şut güç barı
@@ -57,7 +57,7 @@ export function createView(rosterList, info, myUid){
 }
 
 export function applySnapshot(V, s){
-  V.t = s.t; V.phase = s.phase; V.score = s.score; V.timeLeft = s.timeLeft; V.overtime = s.overtime; V.kickoffTeam = s.kickoffTeam;
+  V.t = s.t; V.phase = s.phase; V.score = s.score; V.timeLeft = s.timeLeft; V.overtime = s.overtime; V.kickoffTeam = s.kickoffTeam; V.fk = s.fk ? { team: s.fk[0], x: s.fk[1], y: s.fk[2] } : null;
   const P = V.players;
   V.owner = s.owner != null ? P[s.owner] : null;
   V.pass = s.pass ? { to: P[s.pass.to], x: s.pass.x, y: s.pass.y } : null;

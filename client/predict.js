@@ -20,9 +20,9 @@ export function createPredictor(){ return { on: false, x: 0, y: 0, vx: 0, vy: 0,
    dt: geçen süre (ms), now: performance.now(), rtt: ölçülen ping (ms) */
 export function updatePrediction(P, M, V, me, raw, dt, now, rtt){
   const newest = M.snaps.length ? M.snaps[M.snaps.length - 1] : null;
-  const live = newest && (newest.phase === 'play' || newest.phase === 'kickoff') && V.phase !== 'goal';
+  const live = newest && (newest.phase === 'play' || newest.phase === 'kickoff' || newest.phase === 'freekick') && V.phase !== 'goal';
   const srv = newest && newest.players[me.id];
-  if (!live || !srv || (srv[6] & 16)){ P.on = false; return; }        // gol arası ya da kayarken: sunucuya bırak
+  if (!live || !srv || (srv[6] & 48)){ P.on = false; return; }        // gol arası, kayarken ya da kenardayken: sunucuya bırak
   if (!P.on){
     Object.assign(P, { on: true, x: srv[0], y: srv[1], vx: srv[2], vy: srv[3], sta: srv[5], tired: !!(srv[6] & 1), acc: 0, dirA: srv[4], hist: [], errX: 0, errY: 0, seenAt: M.newestAt });
   }

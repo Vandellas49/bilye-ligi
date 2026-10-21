@@ -25,6 +25,8 @@ export const SLIDE_CD = 150;           // yeniden kaymak için bekleme (~2,5 sn)
 export const SLIDE_GETUP = 16;         // topa değdiyse yerden kalkma (tick)
 export const SLIDE_MISS_GETUP = 32;    // ıskaladıysa yerden kalkma (tick)
 export const GOAL_PAUSE = 180;
+// faul: serbest vuruşta rakiplerin uzak durduğu mesafe, oyunun kendiliğinden başladığı süre; kırmızı kartta dışarıda kalma
+export const FK_DIST = 110, FK_TICKS = 300, SENDOFF_TICKS = 30*60;
 // gol tekrarı (settings.replay): golden önce/sonra kaç tick oynatılır, canlı sevinçten sonra başlar, hız
 export const REPLAY_BEFORE = 180, REPLAY_AFTER = 15, REPLAY_DELAY = 100, REPLAY_SPEED = .6;
 export const GOAL_PAUSE_REPLAY = REPLAY_DELAY + Math.ceil((REPLAY_BEFORE + REPLAY_AFTER)/REPLAY_SPEED) + 30;

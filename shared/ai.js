@@ -58,7 +58,7 @@ export function assignRoles(S){
   for (let team = 0; team < 2; team++){
     const mates = S.players.filter(p => p.team === team);
     for (const p of mates) if (p.keeper && p.ctrl === 'ai') p.role = 'keeper';
-    const ai = mates.filter(p => p.ctrl === 'ai' && !p.keeper);
+    const ai = mates.filter(p => p.ctrl === 'ai' && !p.keeper && !(p.out > 0));
     if (!ai.length) continue;
     const dist = p => Math.hypot(p.x - b.x, p.y - b.y);
     const human = mates.find(p => p.ctrl !== 'ai');

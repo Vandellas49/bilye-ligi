@@ -716,3 +716,39 @@ test('istatistikler: isabetli pas, isabetli şut, gol ve maçın oyuncusu sayıl
   assert.equal(st2.mvp.id, me.id);
   assert.ok(st2.teams[0].poss + st2.teams[1].poss >= 99);
 });
+
+test('faul: arkadan kayma faul ve serbest vuruş; ikinci sarı kırmızı, oyuncu 30 sn kenarda kalıp döner', async () => {
+  const { FK_DIST, SENDOFF_TICKS } = await import('../shared/constants.js');
+  const setup = () => {
+    const S = createMatch({ size: 2, seed: 9, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+    const me = S.players.find(p => p.ctrl === 'h1'), o = S.players.find(p => p.team === 1);
+    S.phase = 'play';
+    for (const p of S.players) if (p !== me && p !== o) Object.assign(p, { x: p.team ? 1150 : 100, y: 650, ctrl: 'h9' });
+    o.ctrl = 'h9';
+    Object.assign(o, { x: 600, y: 350, vx: 0, vy: 0, dirA: 0 });          // sağa bakıyor
+    Object.assign(S.ball, { x: 636, y: 350, vx: 0, vy: 0, z: 0 }); S.owner = o;
+    Object.assign(me, { x: 520, y: 350, vx: 0, vy: 0, dirA: 0, slideCd: 0 });   // arkasından
+    return { S, me, o };
+  };
+  let fouls = 0, cards = 0;
+  for (let k = 0; k < 6; k++){
+    const { S, me, o } = setup(); me.yellow = k % 2;   // her ikinci denemede ilk sarısı var
+    let ev = [];
+    for (let i = 0; i < 30 && !ev.some(e => e.type === 'foul'); i++) ev = step(S, { [me.id]: i === 0 ? { x: 1, y: 0, slide: true } : {} });
+    const f = ev.find(e => e.type === 'foul');
+    if (!f) continue;
+    fouls++;
+    assert.equal(S.phase, 'freekick'); assert.equal(S.fk.team, 1);
+    step(S, {});
+    for (const p of S.players.filter(p => p.team === 0 && !(p.out > 0))) assert.ok(Math.hypot(p.x - S.fk.x, p.y - S.fk.y) >= FK_DIST - 1);
+    if (f.card === 'kirmizi'){
+      cards++;
+      assert.ok(me.out > 0);
+      let back = false;
+      for (let i = 0; i < SENDOFF_TICKS + 5; i++){ const e2 = step(S, {}); if (e2.some(e => e.type === 'return' && e.id === me.id)) back = true; }
+      assert.ok(back && !(me.out > 0));
+    }
+  }
+  assert.ok(fouls >= 5, `faul: ${fouls}/6`);
+  assert.ok(cards >= 1, 'ikinci sarı kırmızıya dönmeli');
+});
