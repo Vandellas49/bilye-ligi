@@ -122,6 +122,30 @@ io.on('connection', socket => {
   socket.on('disconnect', () => { if (client && client.socket === socket) disconnected(client); });
 });
 
+/* İstemci IP'si: IIS (ASP.NET Core Module) ya da ters vekil arkasında X-Forwarded-For'un ilk adresi, yoksa bağlantı adresi */
+function clientIp(socket){
+  const h = socket.handshake, xf = h.headers['x-forwarded-for'];
+  let ip = (typeof xf === 'string' && xf.split(',')[0].trim()) || h.address || '';
+  ip = ip.replace(/^::ffff:/, '');
+  if (/^\[?[0-9a-f:.]+\]?:\d+$/i.test(ip) && ip.includes('.')) ip = ip.replace(/:\d+$/, '');   // IPv4:port
+  return ip === '::1' ? '127.0.0.1' : ip.slice(0, 64);
+}
+
+/* Çevrimiçi oyuncular: bağlı herkese isim, IP ve nerede olduğu yayınlanır (değişiklikte, en fazla 0,5 sn'de bir) */
+let presenceTimer = null;
+function presenceSoon(){
+  if (presenceTimer) return;
+  presenceTimer = setTimeout(() => {
+    presenceTimer = null;
+    const users = [...clients.values()].filter(c => c.connected).map(c => {
+      const r = c.room && rooms.get(c.room);
+      const inMatch = r && r.match && r.match.S.players.some(p => p.uid === c.id);
+      return { id: c.id, name: c.name, ip: c.ip || '', room: r ? r.name : null, state: !r ? 'liste' : inMatch ? 'maçta' : r.match ? 'izliyor' : 'lobide' };
+    });
+    for (const c of clients.values()) if (c.connected) send(c, 'online', { users });
+  }, 500);
+}
+
 function hello(socket, msg, current){
   const name = cleanText(msg.name, 16, 'Oyuncu');
   let c = typeof msg.sessionKey === 'string' ? sessions.get(msg.sessionKey) : null;
@@ -135,7 +159,9 @@ function hello(socket, msg, current){
     c = { id: nextClientId++, key: crypto.randomBytes(16).toString('hex'), name, socket, connected: true, goneAt: 0, room: null, input: null, look: cleanLook(msg.look) };
     clients.set(c.id, c); sessions.set(c.key, c);
   }
+  c.ip = clientIp(socket);
   send(c, 'welcome', { id: c.id, sessionKey: c.key, name: c.name });
+  presenceSoon();
   const room = c.room && rooms.get(c.room);
   if (room){
     setControl(room, c, true);
@@ -148,6 +174,7 @@ function hello(socket, msg, current){
 
 function disconnected(c){
   c.connected = false; c.goneAt = Date.now(); c.input = null;
+  presenceSoon();
   const room = c.room && rooms.get(c.room);
   if (room){ setControl(room, c, false); broadcastRoom(room); }
 }
@@ -165,7 +192,7 @@ setInterval(() => {
 function handle(c, m){
   const room = c.room && rooms.get(c.room);
   switch (m.type){
-    case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); break;
+    case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); presenceSoon(); break;
     case 'setLook': c.look = cleanLook(m.look); break;   // sonraki maçta geçerli
     case 'listRooms': send(c, 'rooms', { rooms: roomList() }); break;
     case 'ping': if (typeof m.t === 'number' && Number.isFinite(m.t)) send(c, 'pong', { t: m.t }); break;
@@ -301,6 +328,7 @@ function roomPublic(r){
   };
 }
 function broadcastRoom(r, type = 'roomState', data){
+  presenceSoon();   // oda/maç değişimi: kim nerede
   const payload = data || { room: roomPublic(r) };
   for (const id of r.members) send(clients.get(id), type, payload);
 }
@@ -325,6 +353,7 @@ function joinRoom(c, r){
 function leaveRoom(c){
   const r = c.room && rooms.get(c.room);
   c.room = null;
+  presenceSoon();
   if (!r) return;
   r.members = r.members.filter(id => id !== c.id);
   r.teams.delete(c.id);

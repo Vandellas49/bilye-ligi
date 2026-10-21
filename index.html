@@ -59,6 +59,19 @@ canvas{display:block;border-radius:18px;touch-action:none}
 #toast.on{opacity:1}
 #replayTag{position:fixed;left:24px;top:76px;z-index:35;pointer-events:none;display:flex;align-items:center;gap:8px;background:rgba(20,12,32,.82);color:#fff;font:900 16px Figtree,system-ui,sans-serif;letter-spacing:.08em;padding:7px 14px;border-radius:10px}
 #replayTag[hidden]{display:none}
+#who{position:fixed;right:10px;top:70px;z-index:36;width:min(250px,calc(100% - 20px));background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:14px;box-shadow:0 10px 30px rgba(20,10,50,.25);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:13px;overflow:hidden}
+#who[hidden]{display:none}
+#whoHead{all:unset;box-sizing:border-box;display:block;width:100%;padding:8px 12px;font-weight:800;cursor:pointer}
+#whoHead:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+#whoList{list-style:none;margin:0;padding:0 10px 8px;max-height:min(50vh,360px);overflow:auto;display:flex;flex-direction:column;gap:4px}
+#who.closed #whoList{display:none}
+#whoList li{display:grid;grid-template-columns:auto 1fr;gap:0 7px;align-items:center;padding:4px 6px;border-radius:8px;background:var(--chip)}
+#whoList li .st{width:8px;height:8px;border-radius:50%;background:#3ccf6e;grid-row:span 2}
+#whoList li.mac .st{background:#ff9f43}
+#whoList li .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#whoList li .in{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#whoList li.me{outline:2px solid var(--accent)}
 #replayTag .dot{width:10px;height:10px;border-radius:50%;background:#ff3b4e;animation:rec 1s steps(2) infinite}
 #replayTag .hint{font-weight:600;font-size:13px;letter-spacing:0;opacity:.85}
 @keyframes rec{50%{opacity:.2}}
@@ -229,6 +242,7 @@ details[open] summary{margin-bottom:12px}
 <div id="perf" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="tutBox" hidden role="region" aria-label="Ders"></div>
+<aside id="who" hidden aria-label="Çevrimiçi oyuncular"><button type="button" id="whoHead" aria-expanded="true">👥 Çevrimiçi <b id="whoN">0</b></button><ul id="whoList"></ul></aside>
 <div id="replayTag" hidden role="status"><span class="dot"></span>TEKRAR <span class="hint"></span></div>
 <div class="rotate-hint">Telefonu yan çevirirsen saha büyür.</div>
 <main id="stage">

@@ -15,7 +15,7 @@ import { createTutorial } from './tutorial.js';
 import { replay, recordFrame, replayEvents, updateReplay, withReplay } from './replay.js';
 import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview, setCamera, cameraYaw } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
-import { $, initMenu, initLookEditor, loadLook, cameraPick, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
+import { $, esc, initMenu, initLookEditor, loadLook, cameraPick, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
   updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D, keyLayout } from './ui.js';
 
 /* istemci durumu
@@ -198,12 +198,30 @@ const STATUS = {
   off: '',
 };
 net.handlers.status = s => {
+  renderWho();
   $('netStatus').textContent = s === 'on'
     ? `Bağlandın: ${net.me.name}${net.slow ? ' · Ağın WebSocket’e izin vermiyor, yedek bağlantı kullanılıyor (gecikme olabilir).' : ''}`
     : STATUS[s];
   if (s === 'reconnecting' && G.room) $('lobbyStatus').textContent = STATUS.reconnecting;
 };
 net.handlers.welcome = () => { $('netName').value = net.me.name; };
+/* Çevrimiçi oyuncular paneli (sağda): isim, IP, nerede. Bağlıyken görünür, başlığa tıklayınca kapanır/açılır (hatırlanır). */
+let whoUsers = [];
+net.handlers.online = m => { whoUsers = Array.isArray(m.users) ? m.users : []; renderWho(); };
+function renderWho(){
+  const box = $('who'), on = net.status === 'on' && whoUsers.length > 0;
+  box.hidden = !on;
+  if (!on) return;
+  $('whoN').textContent = whoUsers.length;
+  const where = u => u.state === 'liste' ? 'oda listesinde' : `${u.room} · ${u.state}`;
+  $('whoList').innerHTML = whoUsers.map(u => `<li class="${u.state === 'maçta' ? 'mac' : ''}${net.me && u.id === net.me.id ? ' me' : ''}"><span class="st"></span><span class="nm">${esc(u.name)}${net.me && u.id === net.me.id ? ' (sen)' : ''}</span><span class="in">${esc(u.ip)} · ${esc(where(u))}</span></li>`).join('');
+}
+{
+  let closed = false; try { closed = localStorage.getItem('bilye-who') === '0'; } catch(e){}
+  const apply = () => { $('who').classList.toggle('closed', closed); $('whoHead').setAttribute('aria-expanded', String(!closed)); };
+  $('whoHead').onclick = () => { closed = !closed; try { localStorage.setItem('bilye-who', closed ? '0' : '1'); } catch(e){} apply(); };
+  apply();
+}
 net.handlers.rooms = m => renderRooms(m.rooms, (roomId, password) => send('joinRoom', { roomId, password }));
 net.handlers.error = m => {
   const el = currentOverlay() === 'lobbyOv' ? $('lobbyStatus') : $('netStatus');

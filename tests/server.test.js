@@ -255,3 +255,17 @@ test('oda sahibi lobide bot seviyesini değiştirir, diğerleri değiştiremez',
   await b.wait(m => m.type === 'roomState' && [0, 1, 2].includes(m.room.settings.diff) && m.room.settings.diff !== 2);
   a.close(); b.close();
 });
+
+test('çevrimiçi oyuncular: bağlı herkes isim, IP ve nerede olduğuyla yayınlanır', async () => {
+  const a = client('Kerem'), b = client('Leyla');
+  await a.ready; await b.ready;
+  const m = await a.wait(x => x.type === 'online' && ['Kerem', 'Leyla'].every(n => x.users.some(u => u.name === n)));
+  const k = m.users.find(u => u.name === 'Kerem');
+  assert.equal(k.ip, '127.0.0.1'); assert.equal(k.state, 'liste'); assert.equal(k.room, null);
+  a.send('createRoom', { name: 'Görünürlük', settings: { type: 'match', size: 1 } });
+  const m2 = await b.wait(x => x.type === 'online' && x.users.some(u => u.name === 'Kerem' && u.room === 'Görünürlük'));
+  assert.equal(m2.users.find(u => u.name === 'Kerem').state, 'lobide');
+  b.close();
+  await a.wait(x => x.type === 'online' && !x.users.some(u => u.name === 'Leyla'));
+  a.close();
+});
