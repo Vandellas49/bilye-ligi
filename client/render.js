@@ -359,11 +359,11 @@ function drawPlayerArt(c, p, r){
   c.strokeStyle = kicking ? '#ffffff' : kit.pat === 'duz' ? shade(dark, -25) : kit.dark;
   c.beginPath(); c.arc(0, 0, r, 0, Math.PI*2); c.stroke();
   c.restore();
-  if (p.ctrl !== 'ai'){
+  if (p.ctrl === 'h1'){
     c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 2; c.setLineDash([4, 5]);
     c.beginPath(); c.arc(p.x, y0, r + 6, 0, Math.PI*2); c.stroke(); c.setLineDash([]);
   }
-  if (p.ctrl !== 'ai' || S.owner === p){
+  if (p.ctrl === 'h1' || S.owner === p){
     const ax = p.x + Math.cos(p.dirA)*(r + 11), ay = y0 + Math.sin(p.dirA)*(r + 11);
     c.save(); c.translate(ax, ay); c.rotate(p.dirA);
     c.fillStyle = S.owner === p ? '#ffffff' : 'rgba(255,255,255,.55)';
@@ -732,7 +732,7 @@ function drawLabel(c, p){
   c.textAlign = 'center'; c.textBaseline = 'middle';
   const w = c.measureText(p.name).width + 10, y = q.y + q.r + 11;
   c.fillStyle = 'rgba(0,0,0,.45)'; rr(c, q.x - w/2, y - 7, w, 14, 7); c.fill();
-  c.fillStyle = p.ctrl !== 'ai' ? '#ffffff' : 'rgba(255,255,255,.82)';
+  c.fillStyle = p.ctrl === 'h1' ? '#ffffff' : 'rgba(255,255,255,.82)';
   c.fillText(p.name, q.x, y + .5);
 }
 
@@ -950,6 +950,7 @@ export function render(state, view){
   ctx.translate(sx/(scale*dpr), sy/(scale*dpr));
   drawRays(ctx, ARENAS[S.arena]);
   drawCrowd2D(ctx, S, V);
+  drawTutTarget(ctx);
   if (!S.players.length) return;
   const sorted = S.players.slice().sort((a, b) => a.y - b.y);
   for (const p of sorted) drawPlayer(ctx, p);
@@ -963,6 +964,17 @@ export function render(state, view){
   drawShotHud(ctx);
   drawBanner(ctx);
   drawNetInfo(ctx);
+}
+
+// öğrenme modu: gidilecek yer (nabız gibi atan yeşil halka)
+function drawTutTarget(c){
+  const t = S.tutTarget;
+  if (!t) return;
+  const k = reduceMotion ? 0 : Math.sin(S.t*.12)*.12;
+  c.save(); c.strokeStyle = 'rgba(80,255,140,.9)'; c.lineWidth = 4; c.setLineDash([10, 8]);
+  c.beginPath(); c.arc(t.x, t.y, t.r*(1 + k), 0, Math.PI*2); c.stroke(); c.setLineDash([]);
+  c.fillStyle = 'rgba(80,255,140,.16)'; c.beginPath(); c.arc(t.x, t.y, t.r*(1 + k), 0, Math.PI*2); c.fill();
+  c.restore();
 }
 
 // çevrimiçi maçta bağlantı bilgisi (sahanın üst kenarında, küçük)

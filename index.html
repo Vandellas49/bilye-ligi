@@ -57,6 +57,13 @@ canvas{display:block;border-radius:18px;touch-action:none}
 #view{position:relative}
 #toast{position:fixed;left:50%;top:76px;transform:translateX(-50%);z-index:40;pointer-events:none;background:rgba(20,12,32,.82);color:#fff;font-weight:800;font-size:15px;padding:8px 16px;border-radius:999px;opacity:0;transition:opacity .2s}
 #toast.on{opacity:1}
+#tutBox{position:fixed;left:50%;top:70px;transform:translateX(-50%);z-index:30;width:min(560px,calc(100% - 24px));background:var(--panel);color:var(--ink);
+  border:1px solid var(--line);border-radius:18px;padding:12px 16px;box-shadow:0 12px 40px rgba(20,10,50,.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#tutBox .tn{font-size:12px;font-weight:700;color:var(--muted)}
+#tutBox .tt{font-family:"Bagel Fat One",Figtree,system-ui,sans-serif;font-size:22px;line-height:1.1;margin:2px 0 4px}
+#tutBox .tx{font-size:15px;line-height:1.45}
+#tutBox .tb{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+#tutBox kbd{font:700 12px Figtree,system-ui,sans-serif;background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 #perf{position:fixed;left:8px;bottom:8px;z-index:50;pointer-events:none;font:600 12px/1.3 ui-monospace,Consolas,monospace;
   background:rgba(0,0,0,.7);color:#fff;padding:5px 8px;border-radius:8px}
 #cv3{display:none}
@@ -215,6 +222,7 @@ details[open] summary{margin-bottom:12px}
 </header>
 <div id="perf" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="tutBox" hidden role="region" aria-label="Ders"></div>
 <div class="rotate-hint">Telefonu yan çevirirsen saha büyür.</div>
 <main id="stage">
   <div id="view">
@@ -243,6 +251,7 @@ details[open] summary{margin-bottom:12px}
         <div class="seg">
           <input type="radio" name="mode" id="m1" value="match" checked><label for="m1">Tek maç</label>
           <input type="radio" name="mode" id="m2" value="tour"><label for="m2">Turnuva</label>
+          <input type="radio" name="mode" id="m3" value="learn"><label for="m3">Öğrenme</label>
         </div>
       </fieldset>
 
@@ -253,6 +262,7 @@ details[open] summary{margin-bottom:12px}
           <input type="radio" name="tsize" id="ts8" value="8"><label for="ts8">8 takım</label>
         </div>
       </fieldset>
+      <div class="note" id="learnNote" hidden>Yeni başlayanlar için adım adım dersler: hareket, depar, top sürme, pas, ara pas, şut, kafa, özel şutlar, savunma.</div>
       <div class="note" id="tourNote" hidden>Eleme usulü. Rakipler her turda zorlaşır, beraberlikte altın gol.</div>
 
       <fieldset>

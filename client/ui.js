@@ -52,10 +52,10 @@ export function initMenu(){
 
   // turnuva seçilince rakip ve bot seviyesi gizlenir (rakipler her turda zorlaşır)
   const syncMode = () => {
-    const tour = radio('mode') === 'tour';
-    $('tourField').hidden = !tour; $('tourNote').hidden = !tour;
-    $('diffField').hidden = tour;
-    $('startBtn').textContent = tour ? 'Turnuvaya başla' : 'Maça başla';
+    const tour = radio('mode') === 'tour', learn = radio('mode') === 'learn';
+    $('tourField').hidden = !tour; $('tourNote').hidden = !tour; $('learnNote').hidden = !learn;
+    $('diffField').hidden = tour || learn;
+    $('startBtn').textContent = tour ? 'Turnuvaya başla' : learn ? 'Derslere başla' : 'Maça başla';
   };
   document.querySelectorAll('input[name="mode"]').forEach(el => el.addEventListener('change', syncMode));
   syncMode();
@@ -165,7 +165,8 @@ export function updateHud(S){
     el.style.backgroundImage = url ? `url(${url})` : '';
   }
   const c = $('clock');
-  if (S.overtime){ c.textContent = 'Altın gol'; c.classList.add('ot'); }
+  if (!S.timed && !S.overtime){ c.textContent = 'Ders'; c.classList.remove('ot'); }   // süresiz (öğrenme modu)
+  else if (S.overtime){ c.textContent = 'Altın gol'; c.classList.add('ot'); }
   else {
     const s = Math.ceil(S.timeLeft/60), m = Math.floor(s/60);
     c.textContent = `${m}:${String(s%60).padStart(2,'0')}`; c.classList.remove('ot');

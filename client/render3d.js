@@ -200,6 +200,9 @@ function buildStadium(){
     return { cv, tex, m };
   });
   G3.flareTeam = -1; G3.flareFans = []; G3.smoke = [];
+  // öğrenme modu hedef halkası
+  G3.tutRing = new T.Mesh(new T.RingGeometry(.86, 1, 48), new T.MeshBasicMaterial({ color: 0x50ff8c, transparent: true, opacity: .85, depthWrite: false, side: T.DoubleSide }));
+  G3.tutRing.rotation.x = -Math.PI/2; G3.tutRing.visible = false; G3.scene.add(G3.tutRing);
   // projektör direkleri
   G3.lampMat = new T.MeshBasicMaterial({ color: 0xfff6d8 });
   const poleMat = new T.MeshStandardMaterial({ color: 0x55505e, roughness: .6, metalness: .3 });
@@ -548,6 +551,9 @@ function applyKits(){
 function updateScene(){
   syncPlayers();
   applyKits();
+  const tt = S.tutTarget;
+  G3.tutRing.visible = !!tt;
+  if (tt){ const k = tt.r*(1 + (reduceMotion ? 0 : Math.sin(S.t*.12)*.12)); G3.tutRing.position.set(tt.x - W/2, 1.2, tt.y - H/2); G3.tutRing.scale.set(k, k, k); }
   const cam = G3.camera, paused = V.paused, move = !paused && V.mode !== 'end';
   const tp = tmp(), camDir = tp.a, camUp = tp.up.set(0, 1, 0).applyQuaternion(cam.quaternion);
   G3.frame = (G3.frame || 0) + 1;
@@ -586,10 +592,10 @@ function updateScene(){
       o.halo.material.color.set(info ? info.color : TEAM_COL[p.team]);
       o.halo.material.opacity = .45 + .25*Math.sin(S.t*.25);
     }
-    o.human.visible = p.ctrl !== 'ai'; o.human.rotation.z = S.t*.01;
+    o.human.visible = p.ctrl === 'h1'; o.human.rotation.z = S.t*.01;
     o.recv.visible = !!(S.pass && S.pass.to === p && S.phase !== 'goal');
     if (o.recv.visible){ o.recv.rotation.z = -S.t*.03; o.recv.userData.mat.opacity = .5 + .4*Math.sin(S.t*.3); }
-    o.arrowPivot.visible = (p.ctrl !== 'ai' || own) && !goalPhase;
+    o.arrowPivot.visible = (p.ctrl === 'h1' || own) && !goalPhase;
     o.arrowPivot.rotation.y = -p.dirA; o.arrow.position.x = PR + 12;
     o.arrow.material.opacity = own ? .95 : .55;
     const showG = p.sprinting && sp > 2.4 && !reduceMotion;  // depar yansımaları

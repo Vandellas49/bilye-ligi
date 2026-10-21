@@ -11,6 +11,7 @@ import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
 import { updateCrowd } from './crowd.js';
+import { createTutorial } from './tutorial.js';
 import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview, setCamera, cameraYaw } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
 import { $, initMenu, initLookEditor, loadLook, cameraPick, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
@@ -69,7 +70,25 @@ function startMatch(cfg, extra = {}){
   ensureAudio(); sfx.whistle();
 }
 
+/* ---------- öğrenme modu ---------- */
+function startTutorial(cfg){
+  startMatch({ ...cfg, size: 2, diff: 0, time: 0 });
+  G.tut = createTutorial(keyLayout());
+  G.tut.ok = title => toast('✓ ' + title + ' tamam!');
+  G.tut.retry = () => toast('Gol yedin, tekrar dene');
+  G.tut.begin(G.state);
+}
+function endTutorial(){ G.tut = null; $('tutBox').hidden = true; if (G.state) G.state.tutTarget = null; }
+$('tutBox').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tut]');
+  if (!b || !G.tut) return;
+  if (b.dataset.tut === 'skip') G.tut.skip(G.state);
+  else { endTutorial(); startDemo(); showOverlay('menu'); }
+  b.blur();
+});
+
 function startDemo(){
+  endTutorial();
   setMode('menu');
   G.online = false; G.netM = null; G.paused = false; G.menuOpen = false; G.tourMatch = null; prevPos.clear();
   const weather = (G.cfg && G.cfg.weather) || (saved && saved.weather) || 'kar';
@@ -279,7 +298,7 @@ $('muteBtn').onclick = () => {
 };
 $('startBtn').onclick = () => {
   const cfg = readCfg(); saveCfg({ ...(loadCfg() || {}), ...cfg });   // menüde ayrıca kaydedilenler (görünüm) silinmesin
-  if (cfg.mode === 'tour') startTournament(cfg); else startMatch(cfg);
+  if (cfg.mode === 'tour') startTournament(cfg); else if (cfg.mode === 'learn') startTutorial(cfg); else startMatch(cfg);
 };
 $('onlineBtn').onclick = openOnline;
 $('pauseBtn').onclick = togglePause;
@@ -375,6 +394,7 @@ function tick(){
   const events = step(S, inputs);
   handleEvents(events);
   afterStep(S); updateCrowd(S);
+  if (G.tut) G.tut.update(S, events);
 }
 
 function netFrame(now){
