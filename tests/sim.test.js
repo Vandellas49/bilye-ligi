@@ -799,3 +799,27 @@ test('serbest vuruş: düdükten sonra herkes durur, top sabit; yalnızca atıc�
   const hum = run(true);
   assert.equal(hum.S.phase, 'freekick', 'insan atıcı vurana kadar beklenir');
 });
+
+test('kırmızı kart gören oyuncuya pas atılmaz (pas isteği ve planlar iptal olur, alıcı seçilmez)', () => {
+  let toOut = 0, passes = 0;
+  for (const seed of [1, 2, 3, 4]){
+    const S = createMatch({ size: 3, seed, diff: 2, minutes: 2, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+    const me = S.players.find(p => p.ctrl === 'h1');
+    step(S, { [me.id]: { call: true } });              // pas iste, sonra kırmızı
+    me.yellow = 1;
+    const o = S.players.find(p => p.team === 1); S.phase = 'play'; S.owner = o;
+    S.req[0] = { p: me, t: 330 };
+    // sendOff'u faul yoluyla tetikle: arkadan kayma
+    Object.assign(o, { x: 600, y: 350, vx: 0, vy: 0, dirA: 0 }); Object.assign(S.ball, { x: 636, y: 350, vx: 0, vy: 0, z: 0 });
+    Object.assign(me, { x: 520, y: 350, vx: 0, vy: 0, dirA: 0, slideCd: 0 });
+    for (let i = 0; i < 30 && !(me.out > 0); i++) step(S, { [me.id]: i === 0 ? { x: 1, y: 0, slide: true } : {} });
+    if (!(me.out > 0)) continue;
+    assert.ok(!S.req[0] || S.req[0].p !== me);
+    for (let i = 0; i < 1500; i++){
+      const ev = step(S, {});
+      for (const e of ev) if (e.type === 'kick' && S.players[e.id].team === 0){ passes++; if (S.pass && S.pass.to === me) toOut++; }
+      if (!(me.out > 0)) break;
+    }
+  }
+  assert.ok(passes > 0); assert.equal(toOut, 0);
+});

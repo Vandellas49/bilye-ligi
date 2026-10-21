@@ -29,7 +29,7 @@ export function registerKick(S, p){
   const b = S.ball, pts = simBall(b.x, b.y, b.vx, b.vy, 120);
   let best = null;
   for (const m of S.players){
-    if (m.team !== p.team || m === p) continue;
+    if (m.team !== p.team || m === p || m.out > 0) continue;   // kenardaki pası alamaz
     const it = interceptFor(m, pts);
     if (it && (!best || it.i < best.i)) best = { ...it, m };
   }
@@ -55,5 +55,5 @@ export function segDist(px, py, ax, ay, bx, by){
 }
 
 export function laneOpen(S, ax, ay, bx, by, team){
-  return !S.players.some(o => o.team !== team && segDist(o.x, o.y, ax, ay, bx, by) < PR + BR + 6);
+  return !S.players.some(o => o.team !== team && !(o.out > 0) && segDist(o.x, o.y, ax, ay, bx, by) < PR + BR + 6);
 }

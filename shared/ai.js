@@ -27,7 +27,7 @@ function makePlan(S, p, D, oppX){
   const b = S.ball, dir = p.team === 0 ? 1 : -1;
   const goalDist = Math.hypot(oppX - b.x, H/2 - b.y);
   const req = S.req[p.team];
-  if (req && req.p !== p){
+  if (req && req.p !== p && !(req.p.out > 0)){
     const pl = passPlan(S, p, req.p, 14);
     if (pl) return pl;
     // yol kapalı: isteyen arkadaşa doğru sür, açı bulunca at
@@ -39,7 +39,7 @@ function makePlan(S, p, D, oppX){
   if (goalDist < D.range && openY !== undefined) return { kind: 'shoot', x: oppX, y: openY + p.aimOff*.35 };
   const pressured = S.players.some(o => o.team !== p.team && Math.hypot(o.x - b.x, o.y - b.y) < 75);
   if (random(S.rng) < D.pass + (pressured ? .25 : 0)){
-    const cands = S.players.filter(m => m.team === p.team && m !== p)
+    const cands = S.players.filter(m => m.team === p.team && m !== p && !(m.out > 0))   // kenardaki (kırmızı kart) değil
       .map(m => ({ m, adv: (m.x - b.x)*dir, d: Math.hypot(m.x - b.x, m.y - b.y) }))
       .filter(c => c.d > 90 && c.d < 775 && c.adv > -70)
       .sort((a, c) => c.adv - a.adv);
@@ -217,7 +217,7 @@ function keeperInput(S, p, D, dir, ownX, waiting){
   if (S.owner === p){
     // dağıt: öndeki, yolu açık arkadaş; yoksa ileri uzun
     p.keepT = (p.keepT || 0) + 1;
-    const mates = S.players.filter(m => m.team === p.team && m !== p);
+    const mates = S.players.filter(m => m.team === p.team && m !== p && !(m.out > 0));
     let best = null;
     for (const m of mates){
       const open = laneOpen(S, b.x, b.y, m.x, m.y, p.team), fwd = (m.x - p.x)*dir;
@@ -274,6 +274,7 @@ function aiOwnerInput(S, p, D, oppX){
   const b = S.ball;
   p.aiSprint = false;
   const req = S.req[p.team];
+  if (p.plan && p.plan.m && p.plan.m.out > 0) p.plan = null;   // planlanan alıcı kırmızı kart gördü
   if (!p.plan || --p.planT <= 0 || (req && req.p !== p && p.plan.m !== req.p)){
     p.plan = makePlan(S, p, D, oppX); p.planT = req ? (p.plan.toMate ? 10 : 200) : 45;
   }
@@ -334,7 +335,7 @@ export function aiCalls(S){
     if (Math.hypot(b.x - h.x, b.y - h.y) - PR - BR > 30) continue;
     const dir = h.team === 0 ? 1 : -1;
     for (const m of S.players){
-      if (m.team !== h.team || m.ctrl !== 'ai' || m.callCd > 0) continue;
+      if (m.team !== h.team || m.ctrl !== 'ai' || m.callCd > 0 || m.out > 0) continue;
       if ((m.x - b.x)*dir < 60 || random(S.rng) > .012) continue;
       if (!laneOpen(S, b.x, b.y, m.x, m.y, h.team)) continue;
       m.bubble = { text: 'Pas!', t: 70 }; m.callCd = 260;

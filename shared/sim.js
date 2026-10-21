@@ -264,6 +264,9 @@ function sendOff(S, p){
   if (S.owner === p) S.owner = null;
   Object.assign(p, { out: SENDOFF_TICKS, vx: 0, vy: 0, slideT: 0, lunge: 0, stun: 0, charge: 0, shot: null, armed: null, kickLock: false, sprinting: false, mood: 'sad', moodT: 90 });
   p.x = W/2 + (p.team === 0 ? -1 : 1)*(90 + p.slot*50); p.y = VIEW.y + p.r;
+  // bekleyen pas isteği ve ona giden pas iptal (botlar kenardakine pas atmasın)
+  if (S.req[p.team] && S.req[p.team].p === p) S.req[p.team] = null;
+  if (S.pass && S.pass.to === p) S.pass = null;
   emit(S, 'sentOff', { id: p.id, team: p.team });
 }
 function benchTick(S, p){
