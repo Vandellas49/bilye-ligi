@@ -613,3 +613,25 @@ test('orta (A) rakip kale önündeki arkadaşa kafa yüksekliğinde gelir; tuşa
   }
   assert.ok(heads >= 5, `kafa: ${heads}/6`);
 });
+
+test('yanından geçen top: insan oyuncu geniş alanda alır, tuş basılıyken tek vuruşla vurur, hızlı top atlayıp geçmez', () => {
+  const run = (gap, speed, inp) => {
+    const S = createMatch({ size: 1, seed: 4, humans: [{ team: 0, ctrl: 'h1', name: 'Sen' }] });
+    const me = S.players.find(p => p.ctrl === 'h1'), op = S.players.find(p => p !== me);
+    S.phase = 'play'; Object.assign(op, { x: 100, y: 100, ctrl: 'h9' });
+    Object.assign(me, { x: 600, y: 350, vx: 0, vy: 0, dirA: 0 });
+    // top soldan sağa, oyuncunun altından 'gap' boşlukla geçer
+    Object.assign(S.ball, { x: 450, y: 350 + me.r + S.ball.r + gap, vx: speed, vy: 0, z: 0 }); S.owner = null;
+    let kicked = false;
+    for (let i = 0; i < 60; i++){
+      const ev = step(S, { [me.id]: inp(i) });
+      if (ev.some(e => e.type === 'kick' && e.id === me.id)) kicked = true;
+      if (S.owner === me || kicked) break;
+    }
+    return { owned: S.owner === me, kicked };
+  };
+  assert.ok(run(9, 4, () => ({})).owned, 'yavaş geçen top alınmalı');
+  assert.ok(run(9, 9, i => ({ kick: i < 20 })).kicked, 'tuş basılıyken hızlı top vurulmalı');
+  assert.ok(run(4, 14, i => ({ kick: i < 20 })).kicked, 'çok hızlı top da atlayıp geçmemeli');
+  assert.ok(!run(30, 4, () => ({})).owned, 'uzaktan geçen top alınmaz');
+});

@@ -40,6 +40,8 @@ export const LOB_CONE = 1.2, THROUGH_CONE = 1.0;
 export const AIR_MIN = 12, AIR_MAX = 48, AIR_HEAD = 24, AIR_REACH = 12;
 export const CROSS_ZONE = 420;   // orta: hedef rakip kaleye bu kadar yakınsa top arkadaşa kafa yüksekliğinde gelir   // orta ve ara paste arkadaş arama açısı (daha geniş)
 // şut güç barı (insan oyuncu): şut tuşu basılı tutuldukça dolar, bırakınca vurur
+// insan oyuncu için daha geniş erişim: vurma ve top alma mesafesi (yüzeyler arası), hız sınırı, bırakınca vuruşun bekleme süresi
+export const HUMAN_REACH = 12, HUMAN_GRAB = 11, HUMAN_GRAB_SPEED = 7.5, SHOT_WAIT = 16;
 export const CHARGE_TICKS = 28;                 // boştan tam güce ~0,47 sn (baskı altında da vurulabilsin)
 export const KICK_MIN = .75, KICK_MAX = 1.35;   // KICK çarpanı: kısa dokunuş .. tam bar
 // şut tuşu (FIFA D): füze gibi sert; tam barda füzeye yakın hız (füze 1.95), bar bu eşiği geçince top alevlenir

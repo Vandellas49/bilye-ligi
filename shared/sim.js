@@ -12,9 +12,9 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CHARGE_TICKS, KICK_MIN, KICK_MAX, AI_KICK_POWER, SHOT_KEY_MIN, SHOT_KEY_MAX, SHOT_KEY_FIRE, SPRINT_DRAIN, SPRINT_DRAIN_BALL,
   SLIDE_SPEED, SLIDE_TICKS, SLIDE_REACH, SLIDE_POKE, SLIDE_CD, SLIDE_GETUP, SLIDE_MISS_GETUP,
   PASS_CONE, SHOT_CONE, SHOT_CONE_WIDE, SHOT_RANGE, PASS_ARRIVE, PASS_POWER_MIX, SHOT_OVERRIDE, GOAL_PAUSE, THROUGH_LEAD,
-  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE } from './constants.js';
+  CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE, HUMAN_REACH, HUMAN_GRAB, HUMAN_GRAB_SPEED, SHOT_WAIT } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
-import { registerKick, updatePass, laneOpen } from './pass.js';
+import { registerKick, updatePass, laneOpen, segDist } from './pass.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
 export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, kind: 'pass', special: null, call: false, hold: false, sprint: false, slide: false, assist: true, swap: false, press: false });
@@ -328,8 +328,12 @@ export function step(S, inputs = {}){
     }
     // insan: güç barından bekleyen vuruş; bot: tuşa basıldığı an sabit güç
     const human = p.ctrl !== 'ai';
+    // tek vuruş: tuş basılıyken (bar doluyor) hızlı top yanından geçerse hemen o güçle vurulur
+    if (human && !p.shot && p.charge > 0 && S.owner !== p && p.kickCd <= 0 && Math.hypot(b.vx, b.vy) > 2.5 && ballGap(b, p) < HUMAN_REACH){
+      p.shot = { power: Math.max(.35, p.charge), t: 1 }; p.charge = 0; p.kickLock = true;
+    }
     if ((human ? !p.shot : !p.input.kick) || p.kickCd > 0) continue;
-    if (d - p.r - b.r < KICK_RANGE){
+    if ((human ? ballGap(b, p) : d - p.r - b.r) < (human ? HUMAN_REACH : KICK_RANGE)){
       const power = human ? p.shot.power : AI_KICK_POWER;
       // şut tuşu (kind: shot) daha sert vurur
       const hard = human && (p.input.kind === 'shot' || p.input.kind === 'lobshot');
@@ -456,13 +460,13 @@ function chargeShot(S, p, held){
   if (p.shot && --p.shot.t <= 0) p.shot = null;
   const tackling = S.owner && S.owner.team !== p.team;
   if (!held){
-    if (p.charge > 0 && !p.kickLock && !tackling) p.shot = { power: p.charge, t: 10 };
+    if (p.charge > 0 && !p.kickLock && !tackling) p.shot = { power: p.charge, t: SHOT_WAIT };
     p.charge = 0; p.kickLock = false;
     return;
   }
   if (tackling || p.kickLock || S.phase === 'goal'){ p.charge = 0; return; }
   p.charge = Math.min(1, p.charge + 1/CHARGE_TICKS);
-  if (p.charge >= 1 - 1e-9){ p.shot = { power: 1, t: 10 }; p.charge = 0; p.kickLock = true; }   // kayan nokta: 28 × 1/28 tam 1 etmeyebilir
+  if (p.charge >= 1 - 1e-9){ p.shot = { power: 1, t: SHOT_WAIT }; p.charge = 0; p.kickLock = true; }   // kayan nokta: 28 × 1/28 tam 1 etmeyebilir
 }
 
 /* Kayarak müdahale: oyuncu baktığı/bastığı yöne hızla kayar, kayarken yönünü değiştiremez.
@@ -546,6 +550,14 @@ function releaseBall(S, kicker){
   S.owner = null;
 }
 
+/* Top ile oyuncu arasındaki en küçük boşluk (yüzeyler arası): şimdiki yer ve bu tick içinde geçtiği yol.
+   Hızlı top bir tickte erişim alanının üstünden atlayıp geçmesin. */
+function ballGap(b, p){
+  const now = Math.hypot(b.x - p.x, b.y - p.y);
+  const path = Math.hypot(b.vx, b.vy) > 1 ? segDist(p.x, p.y, b.x - b.vx, b.y - b.vy, b.x, b.y) : now;
+  return Math.min(now, path) - p.r - b.r;
+}
+
 function updateOwner(S){
   const b = S.ball;
   if (S.phase === 'goal' || b.z > 8){ S.owner = null; return; }
@@ -576,9 +588,11 @@ function updateOwner(S){
     let best = null, bd = 1e9;
     for (const p of S.players){
       if (p.noGrab > 0 || p.kickCd > 0) continue;
-      const g = gapOf(p);
+      // insan oyuncu daha geniş alanda ve daha hızlı topu alır (yanından geçen top kaçmasın)
+      const human = p.ctrl !== 'ai', g = human ? ballGap(b, p) : gapOf(p);
       const hold = p.input && p.input.hold;
-      if (g > (hold ? 12 : 5) || Math.hypot(b.vx - p.vx, b.vy - p.vy) > (hold ? 9 : 5)) continue;
+      const maxG = human ? (hold ? 18 : HUMAN_GRAB) : (hold ? 12 : 5), maxV = human ? (hold ? 11 : HUMAN_GRAB_SPEED) : (hold ? 9 : 5);
+      if (g > maxG || Math.hypot(b.vx - p.vx, b.vy - p.vy) > maxV) continue;
       if (g < bd){ bd = g; best = p; }
     }
     if (best){
