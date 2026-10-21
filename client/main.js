@@ -10,6 +10,7 @@ import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, ro
 import { ensureAudio, setSoundActive, toggleMute, sfx } from './audio.js';
 import { initInput, readInput, clearKeys } from './input.js';
 import { fx, resetFx, applyEvents, afterStep, buildAmbient } from './effects.js';
+import { updateCrowd } from './crowd.js';
 import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
 import { $, initMenu, initLookEditor, loadLook, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
@@ -346,13 +347,13 @@ function tick(){
   for (const p of S.players) if (p.ctrl !== 'ai') inputs[p.id] = { ...readInput(layout, { defending: !!S.owner && S.owner.team !== p.team }), assist };
   const events = step(S, inputs);
   handleEvents(events);
-  afterStep(S);
+  afterStep(S); updateCrowd(S);
 }
 
 function netFrame(now){
   const due = updateNetMatch(G.netM, now);
   if (due.length) handleEvents(due);
-  if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); }
+  if (G.state.t !== G.lastT){ G.lastT = G.state.t; afterStep(G.state); updateCrowd(G.state); }
   const me = G.state.players.find(p => p.mine);
   if (me) sendInput(G.menuOpen ? NEUTRAL_INPUT : { ...readInput(keyLayout(), { defending: !!G.state.owner && G.state.owner.team !== me.team }), assist: passAssist() }, now);
   G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${net.slow ? 'yedek bağlantı' : 'WebSocket'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;

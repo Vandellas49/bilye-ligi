@@ -6,6 +6,7 @@
 import { W, H, GH, GD, TOP, BOT, PR, BR, VIEW, TEAM_COL, TEAM_DARK, ARENAS, shotInfo, SKINS, KITS, kitById } from '../shared/constants.js';
 import { visOf, reduceMotion, jumpOf, flipOf } from './effects.js';
 import { isTouch } from './ui.js';
+import { crowd } from './crowd.js';
 
 const kitOf = (S, t) => kitById(S && S.kits ? S.kits[t] : null) || KITS[t];   // maçın formaları
 
@@ -545,8 +546,11 @@ function updateScene(){
   if (G3.frame % 2 === 0 && G3.fanMesh.visible) G3.fans.forEach((f, i) => {
     let y = f.y, up = 0;
     if (!reduceMotion){
-      y += Math.abs(Math.sin(S.t*.05*f.sp + f.ph))*1.5;
+      y += Math.abs(Math.sin(S.t*.05*f.sp + f.ph))*(1.5 + crowd.ex[f.team]*7);
       if (f.team === cheer) y += Math.abs(Math.sin(S.t*.22*f.sp + f.ph))*14;
+      else if (cheer >= 0) y -= 3;                                                    // gol yiyen tribün çöker
+      if (crowd.ooh > 0 && crowd.oohTeam === f.team) y += 6;                          // kaçan pozisyonda ayağa kalkar
+      if (crowd.oleT[f.team] > 0) y += Math.sin((40 - crowd.oleT[f.team])/40*Math.PI)*9;   // olé: hep birlikte
       if (waving){ const d = Math.abs(f.u - wave)/WAVE_W; if (d < 1){ up = (1 - d*d); y += up*16; } }
     }
     dm.position.set(f.x, y + 2, f.z); dm.scale.set(1, 1 + up*.5, 1); dm.updateMatrix(); G3.fanMesh.setMatrixAt(i, dm.matrix);

@@ -7,7 +7,10 @@ export const CENTER_R = 100;              // orta yuvarlak (başlama vuruşunda 
 export const TOP = H/2 - GH/2, BOT = H/2 + GH/2;
 export const PR = 22, BR = 12, POST_R = 7;
 export const MARGIN = 38;
-export const VIEW = { x: -GD - MARGIN, y: -MARGIN, w: W + 2*(GD + MARGIN), h: H + 2*MARGIN };
+export const VIEW = { x: -GD - MARGIN, y: -MARGIN, w: W + 2*(GD + MARGIN), h: H + 2*MARGIN };   // oyuncuların gidebildiği alan
+// 2B çizim alanı: VIEW + üstte ve altta seyirci tribünü (yalnızca istemci çizimi; simülasyon VIEW kullanır)
+export const STAND = 34;
+export const SCREEN = { x: VIEW.x, y: VIEW.y - STAND, w: VIEW.w, h: VIEW.h + 2*STAND };
 export const P_ACC = 0.135, P_ACC_KICK = 0.09, P_DAMP = 0.96, B_DAMP = 0.99;
 export const KICK = 6.4, KICK_RANGE = 5, WALL_REST = .7;
 // depar: tick başına dayanıklılık harcaması (1/değer = tam dolu bardan tükenene kadar tick)

@@ -1,7 +1,7 @@
 /* ---------- efektler ----------
    Simülasyonun döndürdüğü olayları parçacık, yazı, sarsıntı ve sese çevirir.
    Buradaki her şey yalnızca istemcide yaşar; maç durumuna (S) yazılmaz. */
-import { W, H, VIEW, TEAM_COL, TEAM_DARK, shotInfo } from '../shared/constants.js';
+import { W, H, SCREEN, TEAM_COL, TEAM_DARK, shotInfo } from '../shared/constants.js';
 import { sfx } from './audio.js';
 
 export const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -169,7 +169,7 @@ export function buildAmbient(kind){
   const n = kind === 'kar' ? (reduceMotion ? 60 : 170) : kind === 'parilti' ? (reduceMotion ? 30 : 80) : 0;
   for (let i = 0; i < n; i++){
     fx.ambient.push({
-      x: VIEW.x + Math.random()*VIEW.w, y: VIEW.y + Math.random()*VIEW.h,
+      x: SCREEN.x + Math.random()*SCREEN.w, y: SCREEN.y + Math.random()*SCREEN.h,
       r: kind === 'kar' ? .8 + Math.random()*2.6 : 1.2 + Math.random()*2.4,
       vy: kind === 'kar' ? .35 + Math.random()*.9 : -(.05 + Math.random()*.25),
       ph: Math.random()*6.283, a: .35 + Math.random()*.55,

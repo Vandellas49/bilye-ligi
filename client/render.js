@@ -1,9 +1,10 @@
 /* ---------- çizim ----------
    Maç durumunu okur, değiştirmez. Parçacık, iz, yazı ve oyuncu animasyonları
    istemci tarafındaki efekt durumunda (fx) tutulur. */
-import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, KITS, kitById, shotInfo } from '../shared/constants.js';
+import { W, H, GH, GD, TOP, BOT, PR, CENTER_R, POST_R, MARGIN, VIEW, SCREEN, TEAM_COL, TEAM_DARK, SHOTS, SHOT_TYPES, POSTS, ARENAS, SKINS, KITS, kitById, shotInfo } from '../shared/constants.js';
 import { fx, visOf, reduceMotion, jumpOf, celeOf, flipOf } from './effects.js';
 import { shotKeyLabel } from './input.js';
+import { drawCrowd2D } from './crowd.js';
 import { isTouch, keyLayout, drawCrest } from './ui.js';
 
 const ART_R = 19; // karakter çizimi bu ölçüde yapılıp fizik yarıçapına büyütülür
@@ -65,9 +66,9 @@ export const viewInfo = () => use3D && R3 ? '3B, kalite ' + R3.quality3D() : '2B
 export function resize(){
   const r = stage.getBoundingClientRect();
   const aw = Math.max(200, r.width - 20), ah = Math.max(150, r.height - 10);
-  scale = Math.min(aw/VIEW.w, ah/VIEW.h);
+  scale = Math.min(aw/SCREEN.w, ah/SCREEN.h);
   dpr = Math.min(2, window.devicePixelRatio || 1);
-  const cw = Math.floor(VIEW.w*scale), ch = Math.floor(VIEW.h*scale);
+  const cw = Math.floor(SCREEN.w*scale), ch = Math.floor(SCREEN.h*scale);
   cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
   cv.width = Math.floor(cw*dpr); cv.height = Math.floor(ch*dpr);
   if (use3D && R3){ cv3.style.width = cw + 'px'; cv3.style.height = ch + 'px'; R3.resize3D(cw, ch, dpr); }
@@ -75,7 +76,7 @@ export function resize(){
 }
 function worldTransform(c){
   const k = scale*dpr;
-  c.setTransform(k, 0, 0, k, -VIEW.x*k, -VIEW.y*k);
+  c.setTransform(k, 0, 0, k, -SCREEN.x*k, -SCREEN.y*k);
 }
 function rr(c, x, y, w, h, r){ c.beginPath(); c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h); }
 
@@ -101,7 +102,7 @@ export function renderBg(state){
   c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,bg.width,bg.height);
   worldTransform(c);
   // dış alan
-  c.fillStyle = A.outer; c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+  c.fillStyle = A.outer; c.fillRect(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h);
   decorateOuter(c, A);
   // saha zemini
   c.save(); rr(c, -6, -6, W + 12, H + 12, 22); c.clip();
@@ -173,7 +174,7 @@ export function renderBg(state){
 }
 
 function decorateOuter(c, A){
-  const x0 = VIEW.x, x1 = VIEW.x + VIEW.w, y0 = VIEW.y, y1 = VIEW.y + VIEW.h;
+  const x0 = SCREEN.x, x1 = SCREEN.x + SCREEN.w, y0 = SCREEN.y, y1 = SCREEN.y + SCREEN.h;
   if (A.id === 'gece'){
     // tuğla duvar ve ışıklar
     for (const [ya, yb] of [[y0, -8], [H + 8, y1]]){
@@ -190,7 +191,7 @@ function decorateOuter(c, A){
     }
   } else if (A.id === 'kil'){
     c.fillStyle = '#c9c2b6';
-    c.fillRect(x0, H + 14, VIEW.w, 4); c.fillRect(x0, -18, VIEW.w, 4);
+    c.fillRect(x0, H + 14, SCREEN.w, 4); c.fillRect(x0, -18, SCREEN.w, 4);
     for (let x = 30; x < W; x += 110){
       for (const y of [H + 28, -28]){
         c.fillStyle = '#4f8d45'; c.beginPath(); c.arc(x, y, 9, 0, Math.PI*2); c.arc(x + 9, y + 2, 7, 0, Math.PI*2); c.arc(x - 8, y + 3, 6, 0, Math.PI*2); c.fill();
@@ -198,7 +199,7 @@ function decorateOuter(c, A){
     }
   } else if (A.id === 'cim'){
     for (let i = 0; i < 140; i++){
-      const x = x0 + Math.random()*VIEW.w, y = Math.random() < .5 ? y0 + Math.random()*28 : y1 - Math.random()*28;
+      const x = x0 + Math.random()*SCREEN.w, y = Math.random() < .5 ? y0 + Math.random()*28 : y1 - Math.random()*28;
       c.fillStyle = ['#f6d2e4','#fff3b0','#ffffff'][i%3]; c.globalAlpha = .7;
       c.beginPath(); c.arc(x, y, 1.6 + Math.random()*1.4, 0, Math.PI*2); c.fill();
     }
@@ -206,7 +207,7 @@ function decorateOuter(c, A){
   } else {
     const g = c.createLinearGradient(0, y0, 0, y1);
     g.addColorStop(0, '#5a2f63'); g.addColorStop(1, '#25183f');
-    c.fillStyle = g; c.fillRect(x0, y0, VIEW.w, VIEW.h);
+    c.fillStyle = g; c.fillRect(x0, y0, SCREEN.w, SCREEN.h);
   }
 }
 
@@ -218,9 +219,9 @@ function drawAmbient(c){
     if (move){
       f.y += f.vy*(reduceMotion ? .4 : 1) * (kar ? f.r/2 : 1);
       f.x += Math.sin(t*.018 + f.ph)*(kar ? .4 : .15) + (kar ? .12 : 0);
-      if (f.y > VIEW.y + VIEW.h + 6){ f.y = VIEW.y - 6; f.x = VIEW.x + Math.random()*VIEW.w; }
-      if (f.y < VIEW.y - 6){ f.y = VIEW.y + VIEW.h + 6; f.x = VIEW.x + Math.random()*VIEW.w; }
-      if (f.x > VIEW.x + VIEW.w + 6) f.x = VIEW.x - 6;
+      if (f.y > SCREEN.y + SCREEN.h + 6){ f.y = SCREEN.y - 6; f.x = SCREEN.x + Math.random()*SCREEN.w; }
+      if (f.y < SCREEN.y - 6){ f.y = SCREEN.y + SCREEN.h + 6; f.x = SCREEN.x + Math.random()*SCREEN.w; }
+      if (f.x > SCREEN.x + SCREEN.w + 6) f.x = SCREEN.x - 6;
     }
     if (kar){
       if (f.r > 2.4){ c.fillStyle = `rgba(255,255,255,${f.a*.18})`; c.beginPath(); c.arc(f.x, f.y, f.r*2.2, 0, Math.PI*2); c.fill(); }
@@ -908,7 +909,7 @@ function render3DFrame(){
   ctx.clearRect(0, 0, cv.width, cv.height);
   worldTransform(ctx);
   if (!S.players.length) return;
-  const toWorld = (x, y, h) => { const s = R3.project(x, y, h); return { x: s.x/scale + VIEW.x, y: s.y/scale + VIEW.y }; };
+  const toWorld = (x, y, h) => { const s = R3.project(x, y, h); return { x: s.x/scale + SCREEN.x, y: s.y/scale + SCREEN.y }; };
   const proj = new Map();
   for (const p of S.players){
     const j = jumpOf(S, p);
@@ -940,6 +941,7 @@ export function render(state, view){
   worldTransform(ctx);
   ctx.translate(sx/(scale*dpr), sy/(scale*dpr));
   drawRays(ctx, ARENAS[S.arena]);
+  drawCrowd2D(ctx, S, V);
   if (!S.players.length) return;
   const sorted = S.players.slice().sort((a, b) => a.y - b.y);
   for (const p of sorted) drawPlayer(ctx, p);
