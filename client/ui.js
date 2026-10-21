@@ -175,7 +175,7 @@ export function updateHud(S){
   }
 }
 
-const OVERLAYS = ['menu', 'pauseOv', 'endOv', 'tourOv', 'onlineOv', 'lobbyOv'];
+const OVERLAYS = ['menu', 'pauseOv', 'endOv', 'tourOv', 'onlineOv', 'lobbyOv', 'leagueOv'];
 export function currentOverlay(){ return OVERLAYS.find(o => $(o).classList.contains('on')) || null; }
 export function showOverlay(id){
   for (const o of OVERLAYS) $(o).classList.toggle('on', o === id);
@@ -366,6 +366,14 @@ export function crestUrl(kit){
 }
 // forma örneği: armalı kulüpte arma, diğerlerinde desen
 const kitSw = k => k.crest ? `<span class="kitsw crest" style="background-image:url(${crestUrl(k)})"></span>` : `<span class="kitsw" style="background:${kitCss(k)}"></span>`;
+
+// lig tablosu: sıra, ad, O G B M, A:Y, AV, gol, maçın oyuncusu, puan
+export function renderLeague(rows, myName){
+  if (!rows || !rows.length){ $('leagueTable').innerHTML = '<p class="note">Henüz çevrimiçi maç oynanmadı.</p>'; return; }
+  const me = (myName || '').toLocaleLowerCase('tr');
+  $('leagueTable').innerHTML = '<table><tr><th>#</th><th style="text-align:left">Oyuncu</th><th title="Oynanan">O</th><th title="Galibiyet">G</th><th title="Beraberlik">B</th><th title="Mağlubiyet">M</th><th title="Atılan:Yenen">A:Y</th><th title="Averaj">AV</th><th title="Kendi golleri">Gol</th><th title="Maçın oyuncusu">⭐</th><th>Puan</th></tr>'
+    + rows.map((r, i) => `<tr class="${r.name.toLocaleLowerCase('tr') === me ? 'me' : ''}"><td>${i + 1}</td><td class="nm">${esc(r.name)}</td><td>${r.o}</td><td>${r.g}</td><td>${r.b}</td><td>${r.m}</td><td>${r.ag}:${r.yg}</td><td>${r.av > 0 ? '+' : ''}${r.av}</td><td>${r.gol}</td><td>${r.mvp}</td><td class="pt">${r.puan}</td></tr>`).join('') + '</table>';
+}
 
 // formanın CSS önizlemesi (yuvarlak örnek)
 export function kitCss(k){

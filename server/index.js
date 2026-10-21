@@ -15,6 +15,7 @@ import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
 import { roster, snapshot, matchInfo } from '../shared/net.js';
 import { statSummary } from '../shared/stats.js';
+import { createLeague, recordLeague, leagueRows } from './league.js';
 import { createTournament, nextMatch, recordResult, simulateMatch, roundName, TOUR_TEAMS , tourKit } from '../shared/tournament.js';
 
 // IIS (ASP.NET Core Module ya da HttpPlatformHandler) portu kendi değişkeniyle verir
@@ -22,6 +23,8 @@ const PORT = +(process.env.PORT || process.env.ASPNETCORE_PORT || process.env.HT
 // alt adreste çalışırken önek (ör. IIS'te /bilye-ligi uygulaması); kökte boş
 const BASE = (process.env.BASE_PATH ?? process.env.ASPNETCORE_APPL_PATH ?? '').replace(/\/+$/, '');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// lig tablosu dosyası (BILYE_DATA ile değiştirilebilir; IIS'te bu klasöre yazma izni gerekir)
+const league = createLeague(process.env.BILYE_DATA || path.join(ROOT, 'data', 'lig.json'));
 const SIO_PATH = '/canli';          // oyun bağlantısının adresi (önek temizlendikten sonra, bkz. stripBase)
 const SIO_CLIENT = path.join(ROOT, 'node_modules', 'socket.io', 'client-dist', 'socket.io.min.js');
 const SNAP_EVERY = 2;            // her 2 tick'te bir anlık görüntü (30 Hz)
@@ -207,6 +210,7 @@ function handle(c, m){
   const room = c.room && rooms.get(c.room);
   switch (m.type){
     case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); noteVisitor(c); presenceSoon(); break;
+    case 'league': send(c, 'league', { rows: leagueRows(league) }); break;
     case 'setActivity': c.act = Object.hasOwn(ACTS, m.act) ? m.act : 'menu'; presenceSoon(); break;
     case 'setLook': c.look = cleanLook(m.look); break;   // sonraki maçta geçerli
     case 'listRooms': send(c, 'rooms', { rooms: roomList() }); break;
@@ -441,7 +445,9 @@ function finishMatch(r){
   const m = r.match, S = m.S;
   r.match = null;
   r.lastResult = { names: S.teamNames, score: S.score.slice(), label: m.label };
-  broadcastRoom(r, 'matchEnd', { names: S.teamNames, score: S.score.slice(), label: m.label, tournament: !!r.tour, stats: statSummary(S), pen: S.penScore || null });
+  const summary = statSummary(S);
+  recordLeague(league, S, summary, uid => (clients.get(uid) || {}).ip);
+  broadcastRoom(r, 'matchEnd', { names: S.teamNames, score: S.score.slice(), label: m.label, tournament: !!r.tour, stats: summary, pen: S.penScore || null });
   if (r.tour && m.round !== null){
     recordResult(r.tour, m.round, m.index, S.score[0], S.score[1], S.penScore || null);
     if (r.tour.champion !== null) r.phase = 'done';

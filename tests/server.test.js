@@ -273,3 +273,27 @@ test('çevrimiçi oyuncular: bağlı herkes isim, IP ve nerede olduğuyla yayın
   assert.ok(m3.recent.some(u => u.name === 'Leyla' && u.ip === '127.0.0.1'));
   a.close();
 });
+
+test('lig tablosu: maç sonucu oyuncu adına göre birikir, sıralanır ve dosyaya yazılır', async () => {
+  const os = await import('node:os'), fsm = await import('node:fs'), pathm = await import('node:path');
+  const { createLeague, recordLeague, leagueRows } = await import('../server/league.js');
+  const { createMatch } = await import('../shared/sim.js');
+  const { statSummary } = await import('../shared/stats.js');
+  const file = pathm.join(os.tmpdir(), 'bilye-lig-' + process.pid + '.json');
+  try { fsm.unlinkSync(file); } catch(e){}
+  const L = createLeague(file);
+  const S = createMatch({ size: 2, seed: 1, humans: [{ team: 0, ctrl: 'net', name: 'Ayşe', uid: 1 }, { team: 1, ctrl: 'net', name: 'Bora', uid: 2 }] });
+  S.score = [3, 1];
+  const sum = statSummary(S); sum.players[S.players.find(p => p.uid === 1).id].g = 2; sum.mvp = { id: S.players.find(p => p.uid === 1).id };
+  recordLeague(L, S, sum, uid => '10.0.0.' + uid);
+  S.score = [2, 2]; S.penScore = [3, 4];   // Bora penaltıyla kazanır
+  const sum2 = statSummary(S); sum2.mvp = { id: S.players.find(p => p.uid === 2).id };
+  recordLeague(L, S, sum2);
+  const rows = leagueRows(createLeague(file));   // dosyadan yeniden okunur
+  const ay = rows.find(r => r.name === 'Ayşe'), bo = rows.find(r => r.name === 'Bora');
+  assert.deepEqual([ay.o, ay.g, ay.b, ay.m, ay.ag, ay.yg, ay.gol, ay.mvp, ay.puan], [2, 1, 0, 1, 5, 3, 2, 1, 3]);
+  assert.deepEqual([bo.o, bo.g, bo.m, bo.puan], [2, 1, 1, 3]);
+  assert.equal(rows[0].name, 'Ayşe');   // eşit puanda averaj
+  assert.equal(ay.ip, '10.0.0.1');
+  fsm.unlinkSync(file);
+});

@@ -59,6 +59,13 @@ canvas{display:block;border-radius:18px;touch-action:none}
 #toast.on{opacity:1}
 #replayTag{position:fixed;left:24px;top:76px;z-index:35;pointer-events:none;display:flex;align-items:center;gap:8px;background:rgba(20,12,32,.82);color:#fff;font:900 16px Figtree,system-ui,sans-serif;letter-spacing:.08em;padding:7px 14px;border-radius:10px}
 #replayTag[hidden]{display:none}
+#leagueTable{overflow:auto;max-height:60vh}
+#leagueTable table{width:100%;border-collapse:collapse;font-size:14px}
+#leagueTable th{font-size:12px;color:var(--muted);text-align:center;padding:4px;position:sticky;top:0;background:var(--panel)}
+#leagueTable td{padding:5px 4px;text-align:center;border-bottom:1px solid var(--line)}
+#leagueTable td.nm{text-align:left;font-weight:700}
+#leagueTable tr.me td{background:var(--chip)}
+#leagueTable td.pt{font-weight:800}
 #endStats table{width:100%;border-collapse:collapse;margin:4px 0 12px;font-size:14px}
 #endStats td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:center}
 #endStats td:nth-child(2){color:var(--muted);font-size:13px}
@@ -410,6 +417,7 @@ details[open] summary{margin-bottom:12px}
       <div class="actions">
         <button class="btn" id="startBtn" type="button">Maça başla</button>
         <button class="btn ghost" id="onlineBtn" type="button">Çevrimiçi oyna</button>
+        <button class="btn ghost" id="leagueBtn" type="button">🏆 Lig tablosu</button>
       </div>
       <div class="keys" id="keysHelp"></div>
     </form>
@@ -450,6 +458,15 @@ details[open] summary{margin-bottom:12px}
     </div>
   </div>
 
+  <div class="overlay" id="leagueOv">
+    <div class="panel wide">
+      <h2>🏆 Lig tablosu</h2>
+      <p class="note">Çevrimiçi maçlar oyuncu adına göre sayılır. Galibiyet 3, beraberlik 1 puan; penaltıyla kazanan galip sayılır.</p>
+      <div id="leagueTable"><p class="note">Yükleniyor…</p></div>
+      <div class="actions"><button class="btn" id="leagueBack" type="button">Geri</button></div>
+    </div>
+  </div>
+
   <div class="overlay" id="onlineOv">
     <div class="panel wide">
       <h2>Çevrimiçi</h2>
@@ -457,7 +474,7 @@ details[open] summary{margin-bottom:12px}
       <label class="field">Adın
         <input id="netName" maxlength="16" autocomplete="nickname" placeholder="Oyuncu">
       </label>
-      <div class="row-head"><h3>Odalar</h3><button class="btn ghost small" id="refreshRooms" type="button">Yenile</button></div>
+      <div class="row-head"><h3>Odalar</h3><span><button class="btn ghost small" id="leagueBtn2" type="button">🏆 Lig</button> <button class="btn ghost small" id="refreshRooms" type="button">Yenile</button></span></div>
       <div id="roomList" class="rooms"></div>
 
       <details id="createBox">

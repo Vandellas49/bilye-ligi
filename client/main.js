@@ -18,7 +18,7 @@ const pred = createPredictor();
 const NO_PREDICT = new URLSearchParams(location.search).has('tahminyok');   // karşılaştırma ve test için tahmini kapatır
 import { initRender, resize, renderBg, render, setView3D, viewInfo, setFallbackHandler, drawLookPreview, setCamera, cameraYaw } from './render.js';
 import { net, connect, disconnect, send, setName, sendInput, createNetMatch, pushSnap, updateNetMatch, flushNetMatch } from './net.js';
-import { $, esc, initMenu, initLookEditor, loadLook, cameraPick, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
+import { $, esc, renderLeague, initMenu, initLookEditor, loadLook, cameraPick, readCfg, readCreate, saveCfg, loadCfg, showOverlay, currentOverlay, updateHud, setPlaying, showEnd,
   updateTouchCooldowns, bracketHtml, renderRooms, renderLobby, passAssist, want3D, keyLayout } from './ui.js';
 
 /* istemci durumu
@@ -336,6 +336,17 @@ $('startBtn').onclick = () => {
   if (cfg.mode === 'tour') startTournament(cfg); else if (cfg.mode === 'learn') startTutorial(cfg); else startMatch(cfg);
 };
 $('onlineBtn').onclick = openOnline;
+// lig tablosu: sunucudan istenir; geri dönünce açıldığı ekrana
+let leagueFrom = 'menu';
+function openLeague(){
+  leagueFrom = currentOverlay() || 'menu';
+  showOverlay('leagueOv');
+  if (net.status === 'on') send('league');
+  else $('leagueTable').innerHTML = '<p class="note">Lig tablosu için sunucuya bağlı olmak gerekir.</p>';
+}
+net.handlers.league = m => renderLeague(m.rows, net.name || (net.me && net.me.name));
+$('leagueBtn').onclick = openLeague; $('leagueBtn2').onclick = openLeague;
+$('leagueBack').onclick = () => showOverlay(leagueFrom === 'leagueOv' ? 'menu' : leagueFrom);
 $('pauseBtn').onclick = togglePause;
 $('resumeBtn').onclick = togglePause;
 $('quitBtn').onclick = () => {
