@@ -406,7 +406,7 @@ function startLiveMatch(r, { sides, names, kits, diff, round = null, index = nul
   });
   const S = createMatch({
     size: s.size, humans, diff, arena: s.arena, weather: s.weather, minutes: s.minutes,
-    specials: s.specials, seed: randomSeed(), teamNames: names, kits, replay: true, keepers: true,
+    specials: s.specials, seed: randomSeed(), teamNames: names, kits, replay: true, keepers: true, tiebreak: 'penalti',
   });
   for (const p of S.players) if (p.uid != null && !clients.get(p.uid).connected) p.ctrl = 'ai';
   r.match = { S, round, index, label, n: 0, pending: [] };
@@ -441,9 +441,9 @@ function finishMatch(r){
   const m = r.match, S = m.S;
   r.match = null;
   r.lastResult = { names: S.teamNames, score: S.score.slice(), label: m.label };
-  broadcastRoom(r, 'matchEnd', { names: S.teamNames, score: S.score.slice(), label: m.label, tournament: !!r.tour, stats: statSummary(S) });
+  broadcastRoom(r, 'matchEnd', { names: S.teamNames, score: S.score.slice(), label: m.label, tournament: !!r.tour, stats: statSummary(S), pen: S.penScore || null });
   if (r.tour && m.round !== null){
-    recordResult(r.tour, m.round, m.index, S.score[0], S.score[1]);
+    recordResult(r.tour, m.round, m.index, S.score[0], S.score[1], S.penScore || null);
     if (r.tour.champion !== null) r.phase = 'done';
     else {
       r.phase = 'between'; r.nextAt = Date.now() + BETWEEN_MS;

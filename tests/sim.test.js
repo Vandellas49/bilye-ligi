@@ -752,3 +752,23 @@ test('faul: arkadan kayma faul ve serbest vuruş; ikinci sarı kırmızı, oyunc
   assert.ok(fouls >= 5, `faul: ${fouls}/6`);
   assert.ok(cards >= 1, 'ikinci sarı kırmızıya dönmeli');
 });
+
+test('penaltı atışları: beraberlikte başlar, seri kurala göre biter, sonuç ve kazanan belli olur', () => {
+  for (const seed of [1, 2, 3]){
+    const S = createMatch({ size: 3, diff: 1, minutes: 1, seed, keepers: true, tiebreak: 'penalti' });
+    S.phase = 'play'; S.score = [2, 2]; S.timeLeft = 2;
+    let end = null, started = false;
+    for (let i = 0; i < 30000 && !end; i++){ const ev = step(S, {}); if (ev.some(e => e.type === 'penaltyStart')) started = true; end = ev.find(e => e.type === 'end') || null; }
+    assert.ok(started && end, 'seri başlayıp bitmeli');
+    const [a, b] = end.pen, [ka, kb] = S.pens.kicks;
+    assert.notEqual(a, b);
+    assert.equal(a, ka.filter(Boolean).length); assert.equal(b, kb.filter(Boolean).length);
+    assert.ok(Math.abs(ka.length - kb.length) <= 1);
+    assert.deepEqual(S.score, [2, 2]);   // maç skoru değişmez
+  }
+  // altın gol seçiliyse penaltı yok
+  const G = createMatch({ size: 2, seed: 1, minutes: 1, tiebreak: 'altin' });
+  G.phase = 'play'; G.score = [0, 0]; G.timeLeft = 2;
+  for (let i = 0; i < 5; i++) step(G, {});
+  assert.equal(G.overtime, true); assert.notEqual(G.phase, 'penalty');
+});

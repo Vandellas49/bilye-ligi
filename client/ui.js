@@ -47,7 +47,7 @@ export function initMenu(){
   if (saved) {
     const setR = (name, v) => { const el = document.querySelector(`input[name="${name}"][value="${v}"]`); if (el && !el.disabled) el.checked = true; };
     setR('mode', saved.mode); setR('tsize', saved.tsize);
-    setR('kit', saved.kit); setR('okit', saved.okit); setR('keeper', saved.keeper); if (typeof saved.teamName === 'string') $('teamName').value = saved.teamName;
+    setR('kit', saved.kit); setR('okit', saved.okit); setR('keeper', saved.keeper); setR('tie', saved.tie); if (typeof saved.teamName === 'string') $('teamName').value = saved.teamName;
     setR('size', saved.size); setR('keys', saved.keys); setR('diff', saved.diff); setR('arena', saved.arena); setR('time', saved.time); setR('weather', saved.weather); setR('assist', saved.assist); setR('view', saved.view); setR('cam', saved.cam);
   }
 
@@ -139,7 +139,7 @@ export const want3D = () => radio('view') === '3';
 export const cameraPick = () => radio('cam') || 'genis';
 
 export function readCfg(){
-  return { keeper: radio('keeper'), kit: radio('kit'), okit: radio('okit'), teamName: $('teamName').value.trim().slice(0, 16), view: radio('view'), keys: radio('keys'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), diff: radio('diff'),
+  return { tie: radio('tie'), keeper: radio('keeper'), kit: radio('kit'), okit: radio('okit'), teamName: $('teamName').value.trim().slice(0, 16), view: radio('view'), keys: radio('keys'), assist: radio('assist'), mode: radio('mode'), tsize: radio('tsize'), size: radio('size'), diff: radio('diff'),
     arena: radio('arena'), time: radio('time'), weather: radio('weather') };
 }
 
@@ -166,7 +166,8 @@ export function updateHud(S){
     el.style.backgroundImage = url ? `url(${url})` : '';
   }
   const c = $('clock');
-  if (!S.timed && !S.overtime){ c.textContent = 'Ders'; c.classList.remove('ot'); }   // süresiz (öğrenme modu)
+  if (S.phase === 'penalty'){ c.textContent = 'Penaltı'; c.classList.add('ot'); }
+  else if (!S.timed && !S.overtime){ c.textContent = 'Ders'; c.classList.remove('ot'); }   // süresiz (öğrenme modu)
   else if (S.overtime){ c.textContent = 'Altın gol'; c.classList.add('ot'); }
   else {
     const s = Math.ceil(S.timeLeft/60), m = Math.floor(s/60);
@@ -208,12 +209,14 @@ function statsHtml(st, names){
     + row('Faul (kart)', `${a.fl || 0}${a.yc || a.rc ? ' (' + ['🟨'.repeat(a.yc || 0), '🟥'.repeat(a.rc || 0)].join('') + ')' : ''}`, `${b.fl || 0}${b.yc || b.rc ? ' (' + ['🟨'.repeat(b.yc || 0), '🟥'.repeat(b.rc || 0)].join('') + ')' : ''}`) + '</table>';
 }
 
-export function showEnd(S, { myTeam = 0, buttons, stats = null } = {}){
+export function showEnd(S, { myTeam = 0, buttons, stats = null, pen: penIn = null } = {}){
   const [a, c] = S.score, names = S.teamNames || TEAM_NAME;
   let title, text = `${names[0]} ${a} – ${c} ${names[1]}`;
-  if (a === c){ title = 'Berabere'; text = `${a} – ${c}. Kimse kazanamadı.`; }
+  const pen = S.penScore || penIn;
+  if (pen) text += ` (penaltılar ${pen[0]} – ${pen[1]})`;
+  if (a === c && !pen){ title = 'Berabere'; text = `${a} – ${c}. Kimse kazanamadı.`; }
   else {
-    const w = a > c ? 0 : 1;
+    const w = a !== c ? (a > c ? 0 : 1) : (pen[0] > pen[1] ? 0 : 1);
     if (myTeam === null) title = `${names[w]} kazandı`;
     else title = w === myTeam ? 'Kazandın!' : 'Bu sefer olmadı';
   }

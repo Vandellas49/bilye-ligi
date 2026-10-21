@@ -16,6 +16,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen, segDist } from './pass.js';
 import { initStats, statKick, statOwner, statStep } from './stats.js';
+import { startPenalties, penaltyInput, penaltyStep } from './penalty.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
 export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, kind: 'pass', special: null, call: false, hold: false, sprint: false, slide: false, assist: true, swap: false, press: false });
@@ -116,12 +117,13 @@ function resetPositions(S){
    specials  özel şutlar açık mı
    seed      RNG tohumu
    teamNames    isteğe bağlı takım adları [sol, sağ]; verilmezse TEAM_NAME
+   tiebreak     süre bitince beraberlikte: 'altin' (altın gol) | 'penalti' (penaltı atışları, shared/penalty.js)
    keepers      kaleci: 3'e 3'te her takımın en arka botu (son yer) kaleci olur
    replay       gol tekrarı: gol arası uzar, golü atan takımın insanı vuruş tuşuyla geçer ('replaySkip')
    kits         isteğe bağlı forma kimlikleri [sol, sağ] (KITS); aynıysa ikinciye başka forma
    kickoffTeam  isteğe bağlı; verilmezse rastgele */
 export function createMatch(settings = {}){
-  const cfg = { size: 3, humans: [], diff: 1, arena: 'r', weather: 'kar', minutes: 0, specials: true, seed: 1, allowSwitch: false, replay: false, keepers: false, ...settings };
+  const cfg = { size: 3, humans: [], diff: 1, arena: 'r', weather: 'kar', minutes: 0, specials: true, seed: 1, allowSwitch: false, replay: false, keepers: false, tiebreak: 'altin', ...settings };
   const rng = createRng(cfg.seed);
   const S = {
     settings: cfg, rng, events: [], t: 0,
@@ -289,13 +291,13 @@ export function step(S, inputs = {}){
   const events = S.events = [];
   S.t++;
   const b = S.ball;
-  const live = S.phase === 'kickoff' || S.phase === 'play' || S.phase === 'goal' || S.phase === 'freekick';
+  const live = S.phase === 'kickoff' || S.phase === 'play' || S.phase === 'goal' || S.phase === 'freekick' || S.phase === 'penalty';
   if (!live) return events;
 
   assignRoles(S);
   for (const p of S.players){
     if (p.out > 0){ benchTick(S, p); continue; }   // kırmızı kart: kenarda bekler
-    let inp = sanitizeInput(p.ctrl === 'ai' ? aiInput(S, p) : inputs[p.id]);
+    let inp = sanitizeInput(S.phase === 'penalty' ? (p.ctrl === 'ai' ? penaltyInput(S, p) : inputs[p.id]) : p.ctrl === 'ai' ? aiInput(S, p) : inputs[p.id]);
     if (S.phase === 'goal' && p.ctrl === 'ai') inp = sanitizeInput(celebrateInput(S, p));   // gol sevinci
     if (inp.press && p.ctrl !== 'ai' && S.phase === 'play'){ const v = pressDir(S, p); if (v) inp = { ...inp, x: v.x, y: v.y }; }
     const { x, y } = inp;
@@ -381,7 +383,7 @@ export function step(S, inputs = {}){
   // havadaki topa vuruş (insan: herhangi bir vuruş tuşu basılıyken, bot: aiInput kararı)
   if (S.phase !== 'goal' && b.z > AIR_MIN && b.z < AIR_MAX){
     for (const p of S.players){
-      if (p.slideT > 0 || p.stun > 0 || p.kickCd > 0 || p.out > 0) continue;
+      if (p.slideT > 0 || p.stun > 0 || p.kickCd > 0 || p.out > 0 || S.phase === 'penalty') continue;
       if (!(p.ctrl === 'ai' ? p.input.kick : (p.input.kick || p.shot))) continue;
       if (Math.hypot(b.x - p.x, b.y - p.y) - p.r - b.r > AIR_REACH) continue;
       aerialKick(S, p);
@@ -392,6 +394,7 @@ export function step(S, inputs = {}){
   // şutlar
   for (const p of S.players){
     if (S.phase === 'goal' || b.z > 12 || p.slideT > 0 || p.out > 0) continue;   // kayan oyuncu şut atmaz
+    if (S.phase === 'penalty' && (p.id !== S.pens.shooter || S.pens.state !== 'ready')) continue;   // penaltıda yalnızca atan
     const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy);
     // özel şut hazırsa top menzildeyken atılır; kombo için ikinci tuş beklenirken normal vuruş da yapılmaz
     if (p.armed && d - p.r - b.r < KICK_RANGE + 3){ if (p.armed.wait <= 0) specialKick(S, p, p.armed.type); continue; }
@@ -410,7 +413,7 @@ export function step(S, inputs = {}){
       const power = human ? p.shot.power : AI_KICK_POWER;
       // şut tuşu (kind: shot) daha sert vurur
       const hard = human && (p.input.kind === 'shot' || p.input.kind === 'lobshot');
-      const kick = hard ? KICK*(SHOT_KEY_MIN + (SHOT_KEY_MAX - SHOT_KEY_MIN)*power) : KICK*(KICK_MIN + (KICK_MAX - KICK_MIN)*power);
+      const kick = (hard ? KICK*(SHOT_KEY_MIN + (SHOT_KEY_MAX - SHOT_KEY_MIN)*power) : KICK*(KICK_MIN + (KICK_MAX - KICK_MIN)*power))*(S.phase === 'penalty' && !human ? 1.5 : 1);   // penaltıda bot sert vurur
       p.shot = null;
       const owned = S.owner === p;
       releaseBall(S, p);
@@ -425,7 +428,7 @@ export function step(S, inputs = {}){
         // gelen topa tek vuruşta topun arkasından çok sapamaz (en fazla ~100°)
         const canTurn = owned || angDiff(base, contact) < 1.75, kind = p.input.kind || 'pass';
         if (canTurn && (kind === 'through' || kind === 'lob')) pass = passTarget(S, p, base, kind, power);   // her zaman yardımlı
-        else if (canTurn && kind === 'pass' && p.input.assist && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
+        else if (canTurn && kind === 'pass' && p.input.assist && S.phase !== 'penalty' && !(power >= SHOT_OVERRIDE && aimsAtGoal(S, p, base))) pass = passTarget(S, p, base);
         // havadan pas için uygun arkadaş yoksa top basılan yöne havalanır
         if (!pass && kind === 'lob') pass = { a: base, nx: Math.cos(base), ny: Math.sin(base), speed: KICK*(.75 + .75*power), vz: 4 + 2.6*power, mix: 0 };
         // pas yoksa şut yardımı: kaleye yaklaşık nişan alındıysa top kale ağzına gider
@@ -505,12 +508,13 @@ export function step(S, inputs = {}){
   updateOwner(S);
 
   // gol
-  if (S.phase !== 'goal'){
+  if (S.phase !== 'goal' && S.phase !== 'penalty'){
     if (b.x < -b.r) goal(S, 1);
     else if (b.x > W + b.r) goal(S, 0);
   }
 
   statStep(S);
+  if (S.phase === 'penalty'){ penaltyStep(S, emit, endMatch); return events; }
   if (S.phase === 'freekick' && --S.fk.t <= 0) S.phase = 'play';   // serbest vuruş kullanılmazsa oyun kendiliğinden başlar
 
   // süre
@@ -518,7 +522,10 @@ export function step(S, inputs = {}){
     S.timeLeft--;
     if (S.timeLeft <= 0){
       S.timeLeft = 0;
-      if (S.score[0] === S.score[1]){ S.overtime = true; emit(S, 'overtime'); }
+      if (S.score[0] === S.score[1]){
+        if (S.settings.tiebreak === 'penalti'){ startPenalties(S, emit, S.kickoffTeam); return events; }
+        S.overtime = true; emit(S, 'overtime');
+      }
       else { endMatch(S); return events; }
     }
   }
@@ -551,7 +558,7 @@ function chargeShot(S, p, held){
    Topa değerse topu kayma yönüne iter; top rakipteyse önce kapma şansı hesaplanır.
    Kayma bitince yerden kalkar (stun); ıskaladıysa daha uzun sürer. */
 function startSlide(S, p, x, y){
-  if (p.slideCd > 0 || p.slideT > 0 || p.stun > 0 || S.owner === p || S.phase === 'goal') return;
+  if (p.slideCd > 0 || p.slideT > 0 || p.stun > 0 || S.owner === p || S.phase === 'goal' || S.phase === 'penalty') return;
   const a = Math.hypot(x, y) > .2 ? Math.atan2(y, x) : p.dirA;
   p.dirA = p.slideA = a; p.slideT = SLIDE_TICKS; p.slideCd = SLIDE_CD; p.slideHit = false;
   p.vx = Math.cos(a)*SLIDE_SPEED; p.vy = Math.sin(a)*SLIDE_SPEED;
@@ -639,6 +646,7 @@ function ballGap(b, p){
 
 function updateOwner(S){
   const b = S.ball;
+  if (S.phase === 'penalty'){ S.owner = null; return; }   // penaltıda top kimseye yapışmaz (kurtarış penaltyStep'te)
   if (S.phase === 'goal' || b.z > 8){ S.owner = null; return; }
   const gapOf = p => Math.hypot(b.x - p.x, b.y - p.y) - PR - BR;
   let o = S.owner;

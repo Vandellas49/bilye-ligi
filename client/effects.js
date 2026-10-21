@@ -127,6 +127,12 @@ export function applyEvents(events){
         if (e.card) pop(e.x, e.y - 70, e.card === 'kirmizi' ? '🟥 Kırmızı kart! 30 sn dışarıda' : '🟨 Sarı kart', e.card === 'kirmizi' ? '#ff5a5a' : '#ffe14d', 90);
         break;
       case 'return': pop(e.x, e.y - 40, 'Oyuna döndü', '#ffffff', 50); break;
+      case 'penaltyStart': sfx.whistle(); break;
+      case 'penaltyKick':
+        if (e.kind === 'gol'){ sfx.goal(); burst(e.x, e.y, TEAM_COL[e.team], 40, 6, 50); }
+        else { sfx.ooh(); }
+        pop(e.x < W/2 ? 220 : W - 220, H/2 - 120, e.kind === 'gol' ? 'GOL!' : e.kind === 'kurtaris' ? 'Kurtardı!' : 'Kaçtı!', e.kind === 'gol' ? TEAM_COL[e.team] : '#ffffff', 80);
+        break;
       case 'call': sfx.call(); break;
       case 'swap': burst(e.x, e.y, '#ffffff', 10, 2.2, 18); sfx.call(); break;
       case 'goal':

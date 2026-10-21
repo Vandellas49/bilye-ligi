@@ -65,6 +65,7 @@ function startMatch(cfg, extra = {}){
     allowSwitch: true,   // yerel maçta Q/Tab ile bot takım arkadaşına geçilebilir
     replay: cfg.mode !== 'learn',   // gol tekrarı (öğrenmede yok)
     keepers: cfg.mode !== 'learn' && cfg.keeper !== '0',
+    tiebreak: cfg.tie === 'altin' ? 'altin' : 'penalti',
   });
   G.online = false; G.netM = null; prevPos.clear();
   resetFx(); buildAmbient(weather);
@@ -185,13 +186,14 @@ function endTourMatch(){
   const nm = G.tourMatch, { T, me } = G.tour;
   G.tourMatch = null;
   const [mine, theirs] = G.state.score, meA = nm.a === me;
-  recordResult(T, nm.round, nm.index, meA ? mine : theirs, meA ? theirs : mine);
+  const ps = G.state.penScore;
+  recordResult(T, nm.round, nm.index, meA ? mine : theirs, meA ? theirs : mine, ps ? (meA ? ps : [ps[1], ps[0]]) : null);
   $('pauseBtn').hidden = true; $('touch').classList.remove('on');
   updateHud(G.state);
   const names = G.state.teamNames, score = `${names[0]} ${mine} – ${theirs} ${names[1]}.`;
   if (T.champion === me) showTour('Şampiyon oldun!', `${score} Kupa senin!`);
   else if (T.champion !== null) showTour('Finalde kaybettin', `${score} İkinci oldun. Şampiyon: ${T.teams[T.champion].name}.`);
-  else if (mine > theirs) showTour('Kazandın!', `${score} Sıradaki tur: ${roundName(T, nm.round + 1)}.`);
+  else if (mine > theirs || (ps && ps[0] > ps[1])) showTour('Kazandın!', `${score} Sıradaki tur: ${roundName(T, nm.round + 1)}.`);
   else showTour('Elendin', `${score} İstersen kalan maçları oynatıp şampiyonu görebilirsin.`);
 }
 
@@ -270,7 +272,7 @@ net.handlers.matchEnd = m => {
     handleEvents(flushNetMatch(G.netM));
     setMode('end');
     const mine = G.state.players.find(p => p.mine);
-    showEnd(G.state, { myTeam: mine ? mine.team : null, buttons: { again: '', menu: 'Lobiye dön' }, stats: m && m.stats });
+    showEnd(G.state, { myTeam: mine ? mine.team : null, buttons: { again: '', menu: 'Lobiye dön' }, stats: m && m.stats, pen: m && m.pen });
   }, 150);
 };
 

@@ -882,6 +882,28 @@ function drawBanner(c){
       c.lineWidth = 6; c.strokeText(txt, 0, 74); c.fillStyle = '#ffffff'; c.fillText(txt, 0, 74);
     }
     c.restore();
+  } else if (S.phase === 'penalty' && S.pens && V.mode === 'match'){
+    const P = S.pens, mine = S.players.find(p => p.ctrl === 'h1');
+    c.save(); c.textAlign = 'center'; c.textBaseline = 'middle';
+    const w = 360, x0 = W/2 - w/2, y0 = 24;
+    c.fillStyle = 'rgba(15,10,25,.72)'; rr(c, x0, y0, w, 66, 16); c.fill();
+    c.font = '800 13px Figtree, system-ui, sans-serif'; c.fillStyle = '#fff';
+    c.fillText('PENALTILAR', W/2, y0 + 12);
+    for (const t of [0, 1]){
+      const ks = P.kicks[t], y = y0 + 32 + t*20, n = Math.max(5, ks.length + (P.turn === t && P.state === 'ready' ? 1 : 0));
+      c.textAlign = 'right'; c.fillStyle = TEAM_COL[t]; c.font = '800 13px Figtree, system-ui, sans-serif';
+      c.fillText(S.teamNames[t], x0 + 120, y);
+      for (let i = 0; i < n; i++){
+        const cx = x0 + 140 + i*20, k = ks[i];
+        c.beginPath(); c.arc(cx, y, 7, 0, Math.PI*2);
+        c.fillStyle = k === undefined ? 'rgba(255,255,255,.18)' : k ? '#3ccf6e' : '#ff4d5e'; c.fill();
+      }
+    }
+    if (mine && P.state === 'ready'){
+      const txt = P.shooter === mine.id ? 'Penaltı sende: yön seç, vur' : P.keeper === mine.id ? 'Kaleyi koru: yön tuşları, depar ile atıl' : '';
+      if (txt){ c.font = '800 18px Figtree, system-ui, sans-serif'; const tw = c.measureText(txt).width + 26; c.fillStyle = 'rgba(0,0,0,.45)'; rr(c, W/2 - tw/2, H - 70, tw, 32, 16); c.fill(); c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText(txt, W/2, H - 53.5); }
+    }
+    c.restore();
   } else if (S.phase === 'freekick' && V.mode === 'match'){
     const fk = S.fk;
     if (fk){
