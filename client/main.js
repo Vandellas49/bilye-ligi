@@ -262,7 +262,7 @@ net.handlers.matchStart = m => {
   ensureAudio(); sfx.whistle();
 };
 net.handlers.snap = m => { if (G.netM) pushSnap(G.netM, m.s, m.ev, performance.now()); };
-net.handlers.matchEnd = () => {
+net.handlers.matchEnd = m => {
   if (!G.netM) return;
   // çizim ~100 ms geriden geliyor: son görüntü ekrana gelince bitir
   setTimeout(() => {
@@ -270,7 +270,7 @@ net.handlers.matchEnd = () => {
     handleEvents(flushNetMatch(G.netM));
     setMode('end');
     const mine = G.state.players.find(p => p.mine);
-    showEnd(G.state, { myTeam: mine ? mine.team : null, buttons: { again: '', menu: 'Lobiye dön' } });
+    showEnd(G.state, { myTeam: mine ? mine.team : null, buttons: { again: '', menu: 'Lobiye dön' }, stats: m && m.stats });
   }, 150);
 };
 

@@ -59,6 +59,12 @@ canvas{display:block;border-radius:18px;touch-action:none}
 #toast.on{opacity:1}
 #replayTag{position:fixed;left:24px;top:76px;z-index:35;pointer-events:none;display:flex;align-items:center;gap:8px;background:rgba(20,12,32,.82);color:#fff;font:900 16px Figtree,system-ui,sans-serif;letter-spacing:.08em;padding:7px 14px;border-radius:10px}
 #replayTag[hidden]{display:none}
+#endStats table{width:100%;border-collapse:collapse;margin:4px 0 12px;font-size:14px}
+#endStats td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:center}
+#endStats td:nth-child(2){color:var(--muted);font-size:13px}
+#endStats th{font-size:13px;padding:2px 6px}
+#endStats .mvp{background:var(--chip);border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:12px;font-size:14px}
+#endStats .mvp b{font-size:16px}
 #who{position:fixed;right:10px;top:70px;z-index:36;width:min(250px,calc(100% - 20px));background:var(--panel);color:var(--ink);border:1px solid var(--line);
   border-radius:14px;box-shadow:0 10px 30px rgba(20,10,50,.25);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:13px;overflow:hidden}
 #who[hidden]{display:none}
@@ -416,6 +422,7 @@ details[open] summary{margin-bottom:12px}
     <div class="panel" style="width:min(420px,100%)">
       <h2 id="endTitle">Maç bitti</h2>
       <p id="endText"></p>
+      <div id="endStats"></div>
       <div class="actions">
         <button class="btn" id="againBtn">Bir maç daha</button>
         <button class="btn ghost" id="menuBtn">Ayarları değiştir</button>

@@ -14,6 +14,7 @@ import { TICK, ARENAS, TEAM_NAME, cleanLook, kitById } from '../shared/constants
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
 import { roster, snapshot, matchInfo } from '../shared/net.js';
+import { statSummary } from '../shared/stats.js';
 import { createTournament, nextMatch, recordResult, simulateMatch, roundName, TOUR_TEAMS , tourKit } from '../shared/tournament.js';
 
 // IIS (ASP.NET Core Module ya da HttpPlatformHandler) portu kendi değişkeniyle verir
@@ -440,7 +441,7 @@ function finishMatch(r){
   const m = r.match, S = m.S;
   r.match = null;
   r.lastResult = { names: S.teamNames, score: S.score.slice(), label: m.label };
-  broadcastRoom(r, 'matchEnd', { names: S.teamNames, score: S.score.slice(), label: m.label, tournament: !!r.tour });
+  broadcastRoom(r, 'matchEnd', { names: S.teamNames, score: S.score.slice(), label: m.label, tournament: !!r.tour, stats: statSummary(S) });
   if (r.tour && m.round !== null){
     recordResult(r.tour, m.round, m.index, S.score[0], S.score[1]);
     if (r.tour.champion !== null) r.phase = 'done';

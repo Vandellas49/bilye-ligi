@@ -699,3 +699,20 @@ test('kalecinin değip kurtaramadığı şut, şutu atana yazılır (kendi kales
   for (let i = 0; i < 20 && S.phase !== 'goal'; i++) step(S, {});
   assert.equal(S.phase, 'goal'); assert.equal(S.goalInfo.scorer, me); assert.equal(S.goalInfo.own, false);
 });
+
+test('istatistikler: isabetli pas, isabetli şut, gol ve maçın oyuncusu sayılır', async () => {
+  const { statSummary } = await import('../shared/stats.js');
+  const s = passSetup(), { S, me, mate } = s;
+  passRun(s, { ...toward(me, mate), kind: 'pass' }, 3);
+  const st = statSummary(S);
+  assert.equal(st.players[me.id].pa, 1); assert.equal(st.players[me.id].paOk, 1);
+  // şut: kale önünden kaleye
+  S.phase = 'play'; Object.assign(me, { x: W_TEST - 300, y: H_TEST/2, vx: 0, vy: 0, dirA: 0, kickCd: 0 }); S.owner = me;
+  for (const o of S.players.filter(p => p.team === 1)) Object.assign(o, { x: 100, y: o.slot ? 650 : 50 });
+  Object.assign(S.ball, { x: me.x + 36, y: me.y, vx: 0, vy: 0, z: 0 });
+  for (let i = 0; i < 80 && S.phase !== 'goal'; i++) step(S, { [me.id]: i < CHARGE_TICKS + 1 ? { x: 1, y: 0, kick: true, kind: 'shot' } : {} });
+  const st2 = statSummary(S);
+  assert.equal(st2.players[me.id].sh, 1); assert.equal(st2.players[me.id].onT, 1); assert.equal(st2.players[me.id].g, 1);
+  assert.equal(st2.mvp.id, me.id);
+  assert.ok(st2.teams[0].poss + st2.teams[1].poss >= 99);
+});

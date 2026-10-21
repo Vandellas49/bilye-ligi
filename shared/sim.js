@@ -15,6 +15,7 @@ import { W, H, GH, GD, TOP, BOT, PR, BR, POST_R, VIEW, P_ACC, P_ACC_KICK, P_DAMP
   CENTER_R, matchKits, SKINS, HAIRS, HAIR_COLS, TATTOOS, CELEBRATIONS, cleanLook, BOT_NAMES, TEAM_NAME, SHOTS, SHOT_TYPES, SHOT_PHYS, normShot, COMBO_WAIT, FACES, POSTS, ARENAS, DIFF, formation, THROUGH_BAR, LOB_CONE, THROUGH_CONE, AIR_MIN, AIR_MAX, AIR_HEAD, AIR_REACH, CROSS_ZONE, HUMAN_REACH, HUMAN_GRAB, HUMAN_GRAB_SPEED, SHOT_WAIT, GOAL_PAUSE_REPLAY, REPLAY_SKIP_AFTER, KEEPER_OUT, KEEPER_GRAB_SPEED, KEEPER_BOX } from './constants.js';
 import { createRng, random, randInt, shuffle } from './rng.js';
 import { registerKick, updatePass, laneOpen, segDist } from './pass.js';
+import { initStats, statKick, statOwner, statStep } from './stats.js';
 import { assignRoles, aiInput, aiCalls } from './ai.js';
 
 export const NEUTRAL_INPUT = Object.freeze({ x: 0, y: 0, kick: false, kind: 'pass', special: null, call: false, hold: false, sprint: false, slide: false, assist: true, swap: false, press: false });
@@ -135,6 +136,7 @@ export function createMatch(settings = {}){
     lastTouch: null, pass: null, req: [null, null], owner: null,
   };
   buildPlayers(S, +cfg.size, cfg.humans);
+  initStats(S);
   S.kickoffTeam = cfg.kickoffTeam ?? (random(rng) < .5 ? 0 : 1);
   resetPositions(S);
   S.events = [];
@@ -407,7 +409,7 @@ export function step(S, inputs = {}){
       if (human && p.input.kind === 'lobshot' && !pass){ b.vz = 3.2 + 1.4*power; b.z = .5; b.curve = 0; }
       if (hard && !pass && power >= SHOT_KEY_FIRE){ b.fire = 35; emit(S, 'hardShot', { id: p.id, x: b.x, y: b.y }); }   // sert şut füze gibi alevlenir
       b.grace = 8;
-      p.kickCd = 14; p.mood = 'kick'; p.moodT = 14; S.lastTouch = p; S.lastKick = { p, t: S.t };
+      p.kickCd = 14; p.mood = 'kick'; p.moodT = 14; S.lastTouch = p; S.lastKick = { p, t: S.t }; statKick(S, p);
       emit(S, 'kick', { id: p.id, x: b.x - nx*b.r, y: b.y - ny*b.r });
       p.plan = null;
       registerKick(S, p);
@@ -457,6 +459,8 @@ export function step(S, inputs = {}){
     if (b.x < -b.r) goal(S, 1);
     else if (b.x > W + b.r) goal(S, 0);
   }
+
+  statStep(S);
 
   // süre
   if (S.timed && S.phase === 'play' && !S.overtime){
@@ -624,7 +628,7 @@ function updateOwner(S){
       if (g < bd){ bd = g; best = p; }
     }
     if (best){
-      S.owner = best; S.lastTouch = best; best.plan = null;
+      S.owner = best; S.lastTouch = best; best.plan = null; statOwner(S, best);
       if (S.req[best.team] && S.req[best.team].p === best) S.req[best.team] = null;
       best.dirA = Math.atan2(b.y - best.y, b.x - best.x);
       if (S.phase === 'kickoff') S.phase = 'play';
@@ -673,7 +677,7 @@ function aerialKick(S, p){
   base += (random(S.rng)*2 - 1)*(type === 'kafa' ? .1 : type === 'vole' ? .13 : .17);
   const sp = KICK*(type === 'kafa' ? 1.15 : type === 'vole' ? 1.5 : 1.6);
   b.vx = Math.cos(base)*sp; b.vy = Math.sin(base)*sp; b.vz = type === 'kafa' ? -1.2 : .6;
-  b.curve = 0; b.grace = 8; S.owner = null; S.lastTouch = p; S.lastKick = { p, t: S.t };
+  b.curve = 0; b.grace = 8; S.owner = null; S.lastTouch = p; S.lastKick = { p, t: S.t }; statKick(S, p);
   p.kickCd = 20; p.charge = 0; p.shot = null; if (human) p.kickLock = true;
   p.dirA = base; p.mood = 'kick'; p.moodT = 14; p.plan = null;
   emit(S, 'kick', { id: p.id, x: b.x, y: b.y });
@@ -860,6 +864,7 @@ function specialKick(S, p, type){
   if (ph.vz){ b.vz = ph.vz; b.z = .5; }
   if (ph.fire) b.fire = ph.fire;
   emit(S, 'special', { id: p.id, shot: type, x: b.x, y: b.y, px: p.x, py: p.y });
+  statKick(S, p);
   p.plan = null;
   registerKick(S, p);
   if (S.phase === 'kickoff') S.phase = 'play';

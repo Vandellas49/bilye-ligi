@@ -1,6 +1,7 @@
 /* ---------- menü, HUD ve ekranlar ---------- */
 import { ARENAS, SHOTS, SHOT_TYPES, TEAM_NAME, KITS, kitById, SKINS, HAIRS, HAIR_COLS, TATTOOS, FACES, ACCS, cleanLook } from '../shared/constants.js';
 import { roundName, TOUR_TEAMS } from '../shared/tournament.js';
+import { statSummary } from '../shared/stats.js';
 
 export const $ = id => document.getElementById(id);
 // kullanıcıdan gelen metni HTML'e güvenle yaz
@@ -191,7 +192,22 @@ export function setPlaying(on, touch = on){
 /* maç sonu ekranı
    myTeam: oyuncunun tarafı (0/1) ya da izleyiciyse null
    buttons: { again, menu } düğme yazıları (again boşsa gizlenir) */
-export function showEnd(S, { myTeam = 0, buttons } = {}){
+// maç sonu istatistikleri: maçın oyuncusu ve iki takımın karşılaştırması
+function statsHtml(st, names){
+  if (!st) return '';
+  const [a, b] = st.teams, m = st.mvp;
+  const row = (label, x, y) => `<tr><td><b>${x}</b></td><td>${label}</td><td><b>${y}</b></td></tr>`;
+  const why = m ? [m.g && m.g + ' gol', m.onT && m.onT + ' isabetli şut', m.paOk && m.paOk + ' isabetli pas', m.tk && m.tk + ' top kapma', m.sv && m.sv + ' kurtarış'].filter(Boolean).join(', ') : '';
+  return (m ? `<div class="mvp">⭐ Maçın oyuncusu: <b>${esc(m.name)}</b> (${esc(names[m.team])})${why ? '<br>' + why : ''}</div>` : '')
+    + `<table><tr><th>${esc(names[0])}</th><th></th><th>${esc(names[1])}</th></tr>`
+    + row('Topa sahip olma', a.poss + '%', b.poss + '%')
+    + row('Şut (isabetli)', `${a.sh} (${a.onT})`, `${b.sh} (${b.onT})`)
+    + row('Pas (isabetli)', `${a.pa} (${a.paOk})`, `${b.pa} (${b.paOk})`)
+    + row('Top kapma', a.tk, b.tk)
+    + row('Kurtarış', a.sv, b.sv) + '</table>';
+}
+
+export function showEnd(S, { myTeam = 0, buttons, stats = null } = {}){
   const [a, c] = S.score, names = S.teamNames || TEAM_NAME;
   let title, text = `${names[0]} ${a} – ${c} ${names[1]}`;
   if (a === c){ title = 'Berabere'; text = `${a} – ${c}. Kimse kazanamadı.`; }
@@ -201,6 +217,7 @@ export function showEnd(S, { myTeam = 0, buttons } = {}){
     else title = w === myTeam ? 'Kazandın!' : 'Bu sefer olmadı';
   }
   $('endTitle').textContent = title; $('endText').textContent = text;
+  $('endStats').innerHTML = statsHtml(stats || statSummary(S), names);
   const b = buttons || { again: 'Bir maç daha', menu: 'Ayarları değiştir' };
   $('againBtn').hidden = !b.again; if (b.again) $('againBtn').textContent = b.again;
   $('menuBtn').textContent = b.menu;
