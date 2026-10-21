@@ -10,7 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
-import { TICK, ARENAS, TEAM_NAME, cleanLook, kitById } from '../shared/constants.js';
+import { TICK, ARENAS, TEAM_NAME, QUICK_CHAT, cleanLook, kitById } from '../shared/constants.js';
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, sanitizeInput } from '../shared/sim.js';
 import { roster, snapshot, matchInfo } from '../shared/net.js';
@@ -210,6 +210,16 @@ function handle(c, m){
   const room = c.room && rooms.get(c.room);
   switch (m.type){
     case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); noteVisitor(c); presenceSoon(); break;
+    case 'chat': {
+      // hazır mesaj: odadakilere; maçtaysa oyuncunun üstünde balon (en fazla 1,2 sn'de bir)
+      const i = Math.floor(+m.i), now = Date.now();
+      if (!room || !(i >= 0 && i < QUICK_CHAT.length) || now - (c.chatAt || 0) < 1200) return;
+      c.chatAt = now;
+      const p = room.match && room.match.S.players.find(q => q.uid === c.id);
+      if (p) p.bubble = { text: QUICK_CHAT[i], t: 110 };
+      broadcastRoom(room, 'chat', { from: c.name, text: QUICK_CHAT[i] });
+      break;
+    }
     case 'league': send(c, 'league', { rows: leagueRows(league) }); break;
     case 'setActivity': c.act = Object.hasOwn(ACTS, m.act) ? m.act : 'menu'; presenceSoon(); break;
     case 'setLook': c.look = cleanLook(m.look); break;   // sonraki maçta geçerli

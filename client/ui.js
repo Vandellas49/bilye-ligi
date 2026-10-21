@@ -123,13 +123,14 @@ function keysHelpHtml(layout){
     `Hareket: ${kbd('W')}${kbd('A')}${kbd('S')}${kbd('D')} ya da ok tuşları. Şut / pas: ${kbd('Boşluk')}; basılı tuttukça güç barı dolar, bırakınca vurursun. Pas yardımı açıksa bastığın yöndeki arkadaşına gider.`,
     `Depar: ${kbd('Shift')}. Topu koru: ${kbd('C')}. Pas iste: ${kbd('F')}. Oyuncu değiştir: ${kbd('Tab')} (topa en yakın arkadaşına geçersin). Kamera (3B): ${kbd('K')}.`,
     `Rakip toptayken ${kbd('Boşluk')} müdahale, ${kbd('V')} kayarak müdahale.`,
+    `Hazır mesaj (balon): ${kbd('1')}–${kbd('6')}.`,
     `Özel şutlar: ${kbd('Q')} falso, ${kbd('E')} füze, ${kbd('R')} aşırtma; birlikte basınca kombo (${kbd('Q')}+${kbd('E')}, ${kbd('E')}+${kbd('R')}, ${kbd('Q')}+${kbd('R')}, üçü birden).`,
     `Duraklat: ${kbd('Esc')}.`].join('<br>');
   return [
     `<b>FIFA düzeni.</b> Hareket: ok tuşları. Depar: ${kbd('E')}. Topu koru: ${kbd('Shift')}.`,
     `Topu sürerken: ${kbd('S')} pas (arkadaşına), ${kbd('D')} sert şut (bar dolunca alevli), ${kbd('A')}+${kbd('D')} havadan sert şut, ${kbd('W')} ara pas (arkadaşının önüne), ${kbd('A')} havadan pas / orta. Basılı tuttukça güç barı dolar, bırakınca vurursun.`,
     `Rakip toptayken: ${kbd('S')} basılı: baskı (oyuncun topu tutana kendiliğinden kapanır, ${kbd('E')} ile depar), ${kbd('D')} ayak koyma (topu almak için müdahale), ${kbd('A')} kayarak müdahale.`,
-    `Oyuncu değiştir: ${kbd('Q')} (topa en yakın arkadaşına geçersin). Pas iste: ${kbd('F')}. Kamera (3B): ${kbd('K')}.`,
+    `Oyuncu değiştir: ${kbd('Q')} (topa en yakın arkadaşına geçersin). Pas iste: ${kbd('F')}. Kamera (3B): ${kbd('K')}. Hazır mesaj (balon): ${kbd('1')}–${kbd('6')}.`,
     `Özel şutlar: ${kbd('Z')} falso, ${kbd('X')} füze, ${kbd('C')} aşırtma; birlikte basınca kombo (${kbd('Z')}+${kbd('X')}, ${kbd('X')}+${kbd('C')}, ${kbd('Z')}+${kbd('C')}, üçü birden).`,
     `Duraklat: ${kbd('Esc')}.`].join('<br>');
 }

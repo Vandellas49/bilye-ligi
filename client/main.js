@@ -3,7 +3,7 @@
    - tek maç: simülasyon tarayıcıda çalışır (bota karşı ya da aynı klavyede iki kişi)
    - turnuva: tek kişilik eleme tablosu; senin maçların tarayıcıda, diğerleri ekransız simüle edilir
    - çevrimiçi: maç sunucuda çalışır; bu istemci girdisini gönderir, gelen anlık görüntüleri çizer */
-import { TICK, W, H, KITS, kitById } from '../shared/constants.js';
+import { TICK, W, H, KITS, kitById, QUICK_CHAT } from '../shared/constants.js';
 import { randomSeed } from '../shared/rng.js';
 import { createMatch, step, NEUTRAL_INPUT } from '../shared/sim.js';
 import { createTournament, nextMatch, recordResult, simulateMatch, roundDiff, roundName, alive, tourKit } from '../shared/tournament.js';
@@ -344,6 +344,19 @@ function openLeague(){
   if (net.status === 'on') send('league');
   else $('leagueTable').innerHTML = '<p class="note">Lig tablosu için sunucuya bağlı olmak gerekir.</p>';
 }
+/* Hazır mesajlar: 1–6. Çevrimiçinde sunucuya (odaya ve balona), yerel maçta kendi oyuncunun balonu. */
+const chatLog = [];
+net.handlers.chat = m => {
+  chatLog.push({ from: String(m.from || ''), text: String(m.text || '') }); if (chatLog.length > 6) chatLog.shift();
+  $('lobbyChat').innerHTML = chatLog.map(l => `<div><b>${esc(l.from)}</b>${esc(l.text)}</div>`).join('');
+};
+addEventListener('keydown', e => {
+  const i = /^Digit([1-6])$/.exec(e.code);
+  if (!i || e.repeat || (document.activeElement && document.activeElement.tagName === 'INPUT')) return;
+  const n = +i[1] - 1;
+  if (net.status === 'on' && G.room) send('chat', { i: n });
+  else if (G.mode === 'match' && !G.online && G.state){ const me = G.state.players.find(p => p.ctrl === 'h1'); if (me) me.bubble = { text: QUICK_CHAT[n], t: 110 }; }
+});
 net.handlers.league = m => renderLeague(m.rows, net.name || (net.me && net.me.name));
 $('leagueBtn').onclick = openLeague; $('leagueBtn2').onclick = openLeague;
 $('leagueBack').onclick = () => showOverlay(leagueFrom === 'leagueOv' ? 'menu' : leagueFrom);

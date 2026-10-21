@@ -57,6 +57,8 @@ export const TICK = 1000/60;
 export const TEAM_COL = ['#ffcf3a', '#3fd0e8'];
 export const TEAM_DARK = ['#9a6f00', '#0f7f93'];
 export const TEAM_NAME = ['Limon', 'Buz'];
+// hazır mesajlar (1–6 tuşları): maçta oyuncunun üstünde balon, lobide sohbet
+export const QUICK_CHAT = ['Pas ver!', 'Güzel gol!', 'Hadi!', 'Geri dön!', 'Tamam', 'Pardon!'];
 /* Formalar. c1 ana renk, c2 desen rengi, dark şort/kontur, ui arayüz rengi (hale, skor, konfeti), num numara rengi.
    pat: 'duz' | 'serit' (dikey çubuk) | 'yarim' (iki renk yarım) | 'yatay' (yatay şerit).
    Üç kulüp forması adı ve armasıyla (crest: 'fb' | 'gs' | 'bjk', çizim client/ui.js drawCrest); oyun kendi aramızda oynanıyor, yayınlanmıyor.

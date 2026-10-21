@@ -801,7 +801,7 @@ function drawPassInfo(c, ring = true){
   }
   for (const p of S.players){
     if (!p.bubble) continue;
-    const k = Math.min(1, p.bubble.t/10, (70 - p.bubble.t + 1)/6);
+    const k = Math.min(1, p.bubble.t/10);
     const q = posOf(p), x = q.x + 14, y = q.y - q.r - 22;
     c.globalAlpha = k;
     c.font = '800 13px Figtree, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';

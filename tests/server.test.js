@@ -297,3 +297,19 @@ test('lig tablosu: maç sonucu oyuncu adına göre birikir, sıralanır ve dosya
   assert.equal(ay.ip, '10.0.0.1');
   fsm.unlinkSync(file);
 });
+
+test('hazır mesaj: odadakilere gider, sık gönderim yok sayılır, geçersiz numara yok sayılır', async () => {
+  const a = client('Cem'), b = client('Deniz');
+  await a.ready; await b.ready;
+  await a.wait(type('welcome')); await b.wait(type('welcome'));
+  a.send('createRoom', { name: 'Sohbet', settings: { type: 'match', size: 1 } });
+  const rs = await a.wait(m => m.type === 'roomState');
+  b.send('joinRoom', { roomId: rs.room.id });
+  await b.wait(m => m.type === 'roomState' && m.room.members.length === 2);
+  a.send('chat', { i: 0 }); a.send('chat', { i: 1 }); a.send('chat', { i: 99 });
+  const m = await b.wait(x => x.type === 'chat');
+  assert.deepEqual([m.from, m.text], ['Cem', 'Pas ver!']);
+  await new Promise(r => setTimeout(r, 300));
+  assert.equal(b.msgs.filter(x => x.type === 'chat').length, 1);   // ikincisi çok sık, üçüncüsü geçersiz
+  a.close(); b.close();
+});
