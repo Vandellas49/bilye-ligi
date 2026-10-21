@@ -42,7 +42,7 @@ export function connect(name){
     // birkaç saniyede WebSocket'e geçilemezse ağ engelliyor demektir
     const check = setTimeout(() => { if (s.connected && engine.transport.name === 'polling'){ net.slow = true; if (net.me) setStatus('on'); } }, 3000);
     engine.once('upgrade', () => { clearTimeout(check); net.slow = false; if (net.me) setStatus('on'); });
-    s.emit('m', { type: 'hello', name: net.name || 'Oyuncu', sessionKey: loadStore().key, look: net.look });
+    s.emit('m', { type: 'hello', name: net.name || 'Misafir', sessionKey: loadStore().key, look: net.look });
   });
   s.on('m', m => {
     if (!m || typeof m.type !== 'string') return;
@@ -53,7 +53,7 @@ export function connect(name){
     }
     if (m.type === 'welcome'){
       net.me = { id: m.id, name: m.name }; net.everConnected = true;
-      saveStore({ name: m.name, key: m.sessionKey });
+      saveStore({ name: net.name ? m.name : (loadStore().name || ''), key: m.sessionKey });   // ad girilmediyse 'Misafir' kaydedilmez
       setStatus('on');
     }
     const h = net.handlers[m.type];

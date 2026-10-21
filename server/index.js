@@ -133,6 +133,16 @@ function clientIp(socket){
 
 /* Çevrimiçi oyuncular: bağlı herkese isim, IP ve nerede olduğu yayınlanır (değişiklikte, en fazla 0,5 sn'de bir) */
 let presenceTimer = null;
+// sayfayı açanların geçmişi (tarayıcı oturumuna göre, bellekte; sunucu yeniden başlayınca sıfırlanır)
+const visitors = new Map();   // oturum anahtarı -> { name, ip, first, last }
+const MAX_VISITORS = 60;
+function noteVisitor(c){
+  const v = visitors.get(c.key) || { first: Date.now() };
+  Object.assign(v, { name: c.name, ip: c.ip || '', last: Date.now() });
+  visitors.delete(c.key); visitors.set(c.key, v);   // en son görülen sona
+  while (visitors.size > MAX_VISITORS) visitors.delete(visitors.keys().next().value);
+}
+const ACTS = { menu: 'menüde', match: 'tek maçta', tour: 'turnuvada', learn: 'derste', online: 'oda listesinde' };
 function presenceSoon(){
   if (presenceTimer) return;
   presenceTimer = setTimeout(() => {
@@ -140,14 +150,17 @@ function presenceSoon(){
     const users = [...clients.values()].filter(c => c.connected).map(c => {
       const r = c.room && rooms.get(c.room);
       const inMatch = r && r.match && r.match.S.players.some(p => p.uid === c.id);
-      return { id: c.id, name: c.name, ip: c.ip || '', room: r ? r.name : null, state: !r ? 'liste' : inMatch ? 'maçta' : r.match ? 'izliyor' : 'lobide' };
+      return { id: c.id, name: c.name, ip: c.ip || '', room: r ? r.name : null, state: !r ? (ACTS[c.act] || ACTS.menu) : inMatch ? 'maçta' : r.match ? 'izliyor' : 'lobide' };
     });
-    for (const c of clients.values()) if (c.connected) send(c, 'online', { users });
+    const live = new Set([...clients.values()].filter(c => c.connected).map(c => c.key)), now = Date.now();
+    const recent = [...visitors].filter(([k]) => !live.has(k)).reverse().slice(0, 30)
+      .map(([, v]) => ({ name: v.name, ip: v.ip, ago: Math.round((now - v.last)/1000) }));
+    for (const c of clients.values()) if (c.connected) send(c, 'online', { users, recent });
   }, 500);
 }
 
 function hello(socket, msg, current){
-  const name = cleanText(msg.name, 16, 'Oyuncu');
+  const name = cleanText(msg.name, 16, 'Misafir');
   let c = typeof msg.sessionKey === 'string' ? sessions.get(msg.sessionKey) : null;
   if (c){
     // aynı oturumla geri dönüş: eski bağlantıyı bırak
@@ -159,7 +172,7 @@ function hello(socket, msg, current){
     c = { id: nextClientId++, key: crypto.randomBytes(16).toString('hex'), name, socket, connected: true, goneAt: 0, room: null, input: null, look: cleanLook(msg.look) };
     clients.set(c.id, c); sessions.set(c.key, c);
   }
-  c.ip = clientIp(socket);
+  c.ip = clientIp(socket); noteVisitor(c);
   send(c, 'welcome', { id: c.id, sessionKey: c.key, name: c.name });
   presenceSoon();
   const room = c.room && rooms.get(c.room);
@@ -174,7 +187,7 @@ function hello(socket, msg, current){
 
 function disconnected(c){
   c.connected = false; c.goneAt = Date.now(); c.input = null;
-  presenceSoon();
+  noteVisitor(c); presenceSoon();
   const room = c.room && rooms.get(c.room);
   if (room){ setControl(room, c, false); broadcastRoom(room); }
 }
@@ -192,7 +205,8 @@ setInterval(() => {
 function handle(c, m){
   const room = c.room && rooms.get(c.room);
   switch (m.type){
-    case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); presenceSoon(); break;
+    case 'setName': c.name = cleanText(m.name, 16, c.name); if (room) broadcastRoom(room); noteVisitor(c); presenceSoon(); break;
+    case 'setActivity': c.act = Object.hasOwn(ACTS, m.act) ? m.act : 'menu'; presenceSoon(); break;
     case 'setLook': c.look = cleanLook(m.look); break;   // sonraki maçta geçerli
     case 'listRooms': send(c, 'rooms', { rooms: roomList() }); break;
     case 'ping': if (typeof m.t === 'number' && Number.isFinite(m.t)) send(c, 'pong', { t: m.t }); break;

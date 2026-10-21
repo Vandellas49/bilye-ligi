@@ -261,11 +261,15 @@ test('çevrimiçi oyuncular: bağlı herkes isim, IP ve nerede olduğuyla yayın
   await a.ready; await b.ready;
   const m = await a.wait(x => x.type === 'online' && ['Kerem', 'Leyla'].every(n => x.users.some(u => u.name === n)));
   const k = m.users.find(u => u.name === 'Kerem');
-  assert.equal(k.ip, '127.0.0.1'); assert.equal(k.state, 'liste'); assert.equal(k.room, null);
+  assert.equal(k.ip, '127.0.0.1'); assert.equal(k.state, 'menüde'); assert.equal(k.room, null);
+  b.send('setActivity', { act: 'match' });
+  await a.wait(x => x.type === 'online' && x.users.some(u => u.name === 'Leyla' && u.state === 'tek maçta'));
   a.send('createRoom', { name: 'Görünürlük', settings: { type: 'match', size: 1 } });
   const m2 = await b.wait(x => x.type === 'online' && x.users.some(u => u.name === 'Kerem' && u.room === 'Görünürlük'));
   assert.equal(m2.users.find(u => u.name === 'Kerem').state, 'lobide');
   b.close();
-  await a.wait(x => x.type === 'online' && !x.users.some(u => u.name === 'Leyla'));
+  // çıkan, daha önce gelenler listesinde
+  const m3 = await a.wait(x => x.type === 'online' && !x.users.some(u => u.name === 'Leyla'));
+  assert.ok(m3.recent.some(u => u.name === 'Leyla' && u.ip === '127.0.0.1'));
   a.close();
 });

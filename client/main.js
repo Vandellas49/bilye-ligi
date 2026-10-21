@@ -38,6 +38,7 @@ initLookEditor(look => {
 
 function setMode(mode){
   G.mode = mode;
+  setTimeout(reportActivity, 0);
   setSoundActive(mode === 'match' || mode === 'end');
 }
 
@@ -204,17 +205,19 @@ net.handlers.status = s => {
     : STATUS[s];
   if (s === 'reconnecting' && G.room) $('lobbyStatus').textContent = STATUS.reconnecting;
 };
-net.handlers.welcome = () => { $('netName').value = net.me.name; };
+net.handlers.welcome = () => { $('netName').value = net.name; lastAct = ''; reportActivity(); };
 /* Çevrimiçi oyuncular paneli (sağda): isim, IP, nerede. Bağlıyken görünür, başlığa tıklayınca kapanır/açılır (hatırlanır). */
-let whoUsers = [];
-net.handlers.online = m => { whoUsers = Array.isArray(m.users) ? m.users : []; renderWho(); };
+let whoUsers = [], whoRecent = [];
+net.handlers.online = m => { whoUsers = Array.isArray(m.users) ? m.users : []; whoRecent = Array.isArray(m.recent) ? m.recent : []; renderWho(); };
 function renderWho(){
   const box = $('who'), on = net.status === 'on' && whoUsers.length > 0;
   box.hidden = !on;
   if (!on) return;
   $('whoN').textContent = whoUsers.length;
-  const where = u => u.state === 'liste' ? 'oda listesinde' : `${u.room} · ${u.state}`;
-  $('whoList').innerHTML = whoUsers.map(u => `<li class="${u.state === 'maçta' ? 'mac' : ''}${net.me && u.id === net.me.id ? ' me' : ''}"><span class="st"></span><span class="nm">${esc(u.name)}${net.me && u.id === net.me.id ? ' (sen)' : ''}</span><span class="in">${esc(u.ip)} · ${esc(where(u))}</span></li>`).join('');
+  const where = u => u.room ? `${u.room} · ${u.state}` : u.state;
+  const ago = s => s < 60 ? 'az önce' : s < 3600 ? Math.round(s/60) + ' dk önce' : Math.round(s/3600) + ' sa önce';
+  $('whoList').innerHTML = whoUsers.map(u => `<li class="${u.state === 'maçta' ? 'mac' : ''}${net.me && u.id === net.me.id ? ' me' : ''}"><span class="st"></span><span class="nm">${esc(u.name)}${net.me && u.id === net.me.id ? ' (sen)' : ''}</span><span class="in">${esc(u.ip)} · ${esc(where(u))}</span></li>`).join('')
+    + (whoRecent.length ? '<li class="sep">Daha önce gelenler</li>' + whoRecent.map(u => `<li class="old"><span class="st"></span><span class="nm">${esc(u.name)}</span><span class="in">${esc(u.ip)} · ${ago(u.ago)}</span></li>`).join('') : '');
 }
 {
   let closed = false; try { closed = localStorage.getItem('bilye-who') === '0'; } catch(e){}
@@ -281,10 +284,10 @@ function backToLobby(){
 }
 
 function openOnline(){
-  showOverlay('onlineOv');
+  showOverlay('onlineOv'); reportActivity();
   $('netName').value = net.name;
   if (net.status === 'on') send('listRooms');
-  else connect($('netName').value.trim() || 'Oyuncu');
+  else connect($('netName').value.trim() || 'Misafir');
 }
 
 /* ---------- girdi ve arayüz bağlantıları ---------- */
@@ -477,6 +480,18 @@ if (new URLSearchParams(location.search).has('debug')){
   window.__G = G; window.__fx = fx; window.__net = net;
   Object.defineProperty(window, '__S', { get: () => G.state, configurable: true });
 }
+
+/* Sayfayı açan herkes sunucuya bağlanır (oynamasa da "Çevrimiçi" panelinde görünsün). Sunucu yoksa (statik
+   yayın) sessizce bağlanılmaz. Ne yaptığı (menü, tek maç, turnuva, ders, oda listesi) değişince bildirilir. */
+let lastAct = '';
+function reportActivity(){
+  if (net.status !== 'on') return;
+  const act = G.room ? 'online' : currentOverlay() === 'onlineOv' ? 'online' : G.mode === 'match' ? (G.tut ? 'learn' : G.tour ? 'tour' : G.online ? 'online' : 'match') : 'menu';
+  if (act === lastAct) return;
+  lastAct = act; send('setActivity', { act });
+}
+setInterval(reportActivity, 2000);
+if (typeof io === 'function') connect(net.name || '');
 
 new ResizeObserver(resize).observe($('stage'));
 addEventListener('resize', resize);
