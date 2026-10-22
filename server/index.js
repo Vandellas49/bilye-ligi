@@ -27,7 +27,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const league = createLeague(process.env.BILYE_DATA || path.join(ROOT, 'data', 'lig.json'));
 const SIO_PATH = '/canli';          // oyun bağlantısının adresi (önek temizlendikten sonra, bkz. stripBase)
 const SIO_CLIENT = path.join(ROOT, 'node_modules', 'socket.io', 'client-dist', 'socket.io.min.js');
-const SNAP_EVERY = 2;            // her 2 tick'te bir anlık görüntü (30 Hz)
+const SNAP_EVERY = 3;            // her 3 tick'te bir anlık görüntü (20 Hz; istemci arayı enterpole eder)
 const RECONNECT_MS = 60_000;     // kopan oyuncunun geri dönmesi için süre
 const BETWEEN_MS = 7_000;        // turnuvada maçlar arası bekleme
 const MAX_ROOMS = 100;
@@ -107,6 +107,8 @@ const io = new Server(server, {
   pingInterval: 15_000, pingTimeout: 20_000,
   serveClient: false,             // istemci dosyası /lib/sio.min.js olarak yukarıda verilir
   cors: { origin: false },
+  // WebSocket mesajları sıkıştırılır (256 bayttan büyükler; hızlı seviye). Polling'de httpCompression zaten açık.
+  perMessageDeflate: { threshold: 256, zlibDeflateOptions: { level: 3 } },
 });
 // Socket.IO kendi dinleyicisini sunucuya ekledi; önek temizliği ondan önce çalışsın
 server.prependListener('request', stripBase);
