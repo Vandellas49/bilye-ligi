@@ -115,6 +115,7 @@ server.prependListener('request', stripBase);
 server.prependListener('upgrade', stripBase);
 io.on('connection', socket => {
   let client = null;
+  socket.conn.once('upgrade', () => presenceSoon());   // polling -> WebSocket geçişi panelde görünsün
   const rate = { n: 0, t: Date.now() };
   socket.on('m', msg => {
     const now = Date.now();
@@ -156,7 +157,8 @@ function presenceSoon(){
     const users = [...clients.values()].filter(c => c.connected).map(c => {
       const r = c.room && rooms.get(c.room);
       const inMatch = r && r.match && r.match.S.players.some(p => p.uid === c.id);
-      return { id: c.id, name: c.name, ip: c.ip || '', room: r ? r.name : null, state: !r ? (ACTS[c.act] || ACTS.menu) : inMatch ? 'maçta' : r.match ? 'izliyor' : 'lobide' };
+      const tr = c.socket && c.socket.conn && c.socket.conn.transport ? c.socket.conn.transport.name : '';   // 'websocket' | 'polling'
+      return { id: c.id, name: c.name, ip: c.ip || '', tr, room: r ? r.name : null, state: !r ? (ACTS[c.act] || ACTS.menu) : inMatch ? 'maçta' : r.match ? 'izliyor' : 'lobide' };
     });
     const live = new Set([...clients.values()].filter(c => c.connected).map(c => c.key)), now = Date.now();
     const recent = [...visitors].filter(([k]) => !live.has(k)).reverse().slice(0, 30)

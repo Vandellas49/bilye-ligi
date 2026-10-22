@@ -208,7 +208,7 @@ const STATUS = {
 net.handlers.status = s => {
   renderWho();
   $('netStatus').textContent = s === 'on'
-    ? `Bağlandın: ${net.me.name}${net.slow ? ' · Ağın WebSocket’e izin vermiyor, yedek bağlantı kullanılıyor (gecikme olabilir).' : ''}`
+    ? `Bağlandın: ${net.me.name} · Bağlantı: ${myTransport() === 'websocket' ? 'WebSocket' : 'HTTP (polling)'}${net.slow ? ' · Ağın WebSocket’e izin vermiyor, yedek bağlantı kullanılıyor (gecikme olabilir).' : ''}`
     : STATUS[s];
   if (s === 'reconnecting' && G.room) $('lobbyStatus').textContent = STATUS.reconnecting;
 };
@@ -216,14 +216,19 @@ net.handlers.welcome = () => { $('netName').value = net.name; lastAct = ''; repo
 /* Çevrimiçi oyuncular paneli (sağda): isim, IP, nerede. Bağlıyken görünür, başlığa tıklayınca kapanır/açılır (hatırlanır). */
 let whoUsers = [], whoRecent = [];
 net.handlers.online = m => { whoUsers = Array.isArray(m.users) ? m.users : []; whoRecent = Array.isArray(m.recent) ? m.recent : []; renderWho(); };
+// bağlantı türü: WebSocket (hızlı) ya da HTTP uzun sorgulama (polling; ağ WebSocket'e izin vermiyor)
+const myTransport = () => { try { return net.socket.io.engine.transport.name; } catch(e){ return ''; } };
+const trLabel = (t, short) => t === 'websocket' ? (short ? '⚡ WS' : '⚡ WebSocket') : t === 'polling' ? (short ? '🐢 HTTP' : '🐢 HTTP (polling)') : '';
 function renderWho(){
   const box = $('who'), on = net.status === 'on' && whoUsers.length > 0;
   box.hidden = !on;
   if (!on) return;
   $('whoN').textContent = whoUsers.length;
+  $('whoTr').textContent = trLabel(myTransport());
+  $('whoTr').className = 'tr ' + (myTransport() === 'websocket' ? 'ws' : 'poll');
   const where = u => u.room ? `${u.room} · ${u.state}` : u.state;
   const ago = s => s < 60 ? 'az önce' : s < 3600 ? Math.round(s/60) + ' dk önce' : Math.round(s/3600) + ' sa önce';
-  $('whoList').innerHTML = whoUsers.map(u => `<li class="${u.state === 'maçta' ? 'mac' : ''}${net.me && u.id === net.me.id ? ' me' : ''}"><span class="st"></span><span class="nm">${esc(u.name)}${net.me && u.id === net.me.id ? ' (sen)' : ''}</span><span class="in">${esc(u.ip)} · ${esc(where(u))}</span></li>`).join('')
+  $('whoList').innerHTML = whoUsers.map(u => `<li class="${u.state === 'maçta' ? 'mac' : ''}${net.me && u.id === net.me.id ? ' me' : ''}"><span class="st"></span><span class="nm">${esc(u.name)}${net.me && u.id === net.me.id ? ' (sen)' : ''}</span><span class="in">${esc(u.ip)} · ${esc(where(u))} · <span class="tr ${u.tr === 'websocket' ? 'ws' : 'poll'}">${trLabel(u.tr, true)}</span></span></li>`).join('')
     + (whoRecent.length ? '<li class="sep">Daha önce gelenler</li>' + whoRecent.slice(0, 8).map(u => `<li class="old"><span class="st"></span><span class="nm">${esc(u.name)}</span><span class="in">${esc(u.ip)} · ${ago(u.ago)}</span></li>`).join('') : '');
 }
 {
@@ -490,7 +495,7 @@ function netFrame(now, dt){
     if (!NO_PREDICT) updatePrediction(pred, G.netM, G.state, me, inp, dt, now, net.ping);
     applyPrediction(pred, G.state, me);
   }
-  G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${net.slow ? 'yedek bağlantı' : 'WebSocket'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;
+  G.netInfo = `ping ${net.ping ? Math.round(net.ping) + ' ms' : '…'} · ${myTransport() === 'websocket' ? 'WebSocket' : 'HTTP (polling)'} · gecikme ${Math.round(G.netM.delay*TICK)} ms`;
 }
 
 let last = performance.now(), acc = 0, hudTick = 0;

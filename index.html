@@ -92,6 +92,10 @@ canvas{display:block;border-radius:18px;touch-action:none}
 #whoList li .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #whoList li .in{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #whoList li.me{outline:2px solid var(--accent)}
+#who .tr{font-weight:700;font-size:12px}
+#who .tr.ws{color:#2fa860}
+#who .tr.poll{color:#d9822b}
+#whoHead .tr{margin-left:4px}
 #whoList li.sep{display:block;background:none;padding:6px 2px 0;font-weight:800;font-size:12px;color:var(--muted)}
 #whoList li.old{opacity:.75}
 #whoList li.old .st{background:#9a94a8}
@@ -265,7 +269,7 @@ details[open] summary{margin-bottom:12px}
 <div id="perf" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="tutBox" hidden role="region" aria-label="Ders"></div>
-<aside id="who" hidden aria-label="Çevrimiçi oyuncular"><button type="button" id="whoHead" aria-expanded="true">👥 Çevrimiçi <b id="whoN">0</b></button><ul id="whoList"></ul></aside>
+<aside id="who" hidden aria-label="Çevrimiçi oyuncular"><button type="button" id="whoHead" aria-expanded="true">👥 Çevrimiçi <b id="whoN">0</b> <span id="whoTr" class="tr"></span></button><ul id="whoList"></ul></aside>
 <div id="replayTag" hidden role="status"><span class="dot"></span>TEKRAR <span class="hint"></span></div>
 <div class="rotate-hint">Telefonu yan çevirirsen saha büyür.</div>
 <main id="stage">
