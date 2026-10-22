@@ -52,7 +52,48 @@ function stripBase(req){
   if (low.startsWith(base + '/')) req.url = pth.slice(BASE.length) + rest;
 }
 
+/* İstemci IP'si. IIS (ASP.NET Core Module) ya da BILYE_GUVENILIR_VEKIL=1 iken X-Forwarded-For'un SON adresi
+   (vekilin kendisi ekler; istemcinin kendi yazdığı adresler başta kalır, taklit edilemez), yoksa bağlantı adresi. */
+const TRUST_PROXY = !!process.env.ASPNETCORE_PORT || process.env.BILYE_GUVENILIR_VEKIL === '1';
+function reqIp(req){
+  const xf = req.headers && req.headers['x-forwarded-for'];
+  let ip = (TRUST_PROXY && typeof xf === 'string' && xf.split(',').pop().trim()) || (req.socket && req.socket.remoteAddress) || '';
+  ip = ip.replace(/^::ffff:/, '');
+  if (/^[0-9.]+:\d+$/.test(ip)) ip = ip.replace(/:\d+$/, '');          // IPv4:port
+  ip = ip.replace(/^\[([^\]]+)\](:\d+)?$/, '$1');                     // [IPv6]:port
+  return ip === '::1' ? '127.0.0.1' : ip.slice(0, 64);
+}
+
+/* IP kısıtlaması (web.config: BILYE_IZINLI_IP). Boşsa herkes girer. Virgülle ayrılmış: tam adres (10.10.36.4),
+   joker (10.10.36.*) ya da aralık (10.10.36.0/24). Bu makine (127.0.0.1) her zaman girer. İzinsizler
+   BILYE_YONLENDIR adresine (boşsa sitenin kök adresine) yönlendirilir, oyun bağlantısı reddedilir. */
+const ALLOW = (process.env.BILYE_IZINLI_IP || '').split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+const REDIRECT = (process.env.BILYE_YONLENDIR || '').trim();
+const ip4 = s => { const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(s); return m ? m.slice(1).reduce((a, x) => (a*256 + (+x)) >>> 0, 0) : null; };
+function ipAllowed(ip){
+  if (!ALLOW.length || ip === '127.0.0.1') return true;
+  return ALLOW.some(rule => {
+    if (rule.includes('*')) return new RegExp('^' + rule.replace(/\./g, '\\.').replace(/\*/g, '\\d+') + '$').test(ip);
+    if (rule.includes('/')){
+      const [base, bits] = rule.split('/'), b = ip4(base), v = ip4(ip), n = +bits;
+      if (b === null || v === null || !(n >= 0 && n <= 32)) return false;
+      const mask = n === 0 ? 0 : (~0 << (32 - n)) >>> 0;
+      return ((b & mask) >>> 0) === ((v & mask) >>> 0);
+    }
+    return rule.toLowerCase() === ip.toLowerCase();
+  });
+}
+const blocked = [];   // engellenen son adresler (/tani'de; izin listesine eklemek için)
+function noteBlocked(ip){ const i = blocked.findIndex(b => b.ip === ip); if (i >= 0) blocked.splice(i, 1); blocked.unshift({ ip, at: new Date().toISOString() }); blocked.length = Math.min(blocked.length, 20); }
+function redirectTarget(req){
+  if (REDIRECT) return REDIRECT;
+  const proto = (req.headers['x-forwarded-proto'] || (TRUST_PROXY ? 'https' : 'http')).split(',')[0].trim();
+  return `${proto}://${req.headers.host || 'localhost'}/`;
+}
+
 const server = http.createServer((req, res) => {
+  const ip = reqIp(req);
+  if (!ipAllowed(ip)){ noteBlocked(ip); res.writeHead(302, { location: redirectTarget(req), 'cache-control': 'no-store' }); res.end(); return; }
   stripBase(req);
   // göreli adresler için sondaki / şart
   if (req.bare){ res.writeHead(301, { location: req.original.split('?')[0] + '/' }); res.end(); return; }
@@ -75,7 +116,11 @@ const server = http.createServer((req, res) => {
       `istekteki uzantı: ${wsStats.ext || '-'}`,
       `Node'un yanıtı: ${wsStats.reply || '-'}`,
       `bağlantı: ${wsStats.close || 'açık ya da bilgi yok'}${wsStats.err ? ' | hata: ' + wsStats.err : ''}`,
-      `motor hatası: ${wsStats.engineErr || '-'}`].join('\n'));
+      `motor hatası: ${wsStats.engineErr || '-'}`, '',
+      `IP kısıtlaması: ${ALLOW.length ? ALLOW.join(', ') : 'yok (herkes girer)'}`,
+      `yönlendirme: ${ALLOW.length ? redirectTarget(req) : '-'}`,
+      `senin IP'n: ${reqIp(req)}`,
+      `engellenen son adresler: ${blocked.length ? blocked.map(b => b.ip + ' (' + b.at + ')').join(', ') : '-'}`].join('\n'));
     return;
   }
   // Socket.IO tarayıcı istemcisi kendi adımızla verilir (adreste "socket.io" geçmesin, bkz. SIO_PATH)
@@ -118,6 +163,7 @@ const io = new Server(server, {
   pingInterval: 15_000, pingTimeout: 20_000,
   serveClient: false,             // istemci dosyası /lib/sio.min.js olarak yukarıda verilir
   cors: { origin: false },
+  allowRequest: (req, cb) => { const ip = reqIp(req); if (ipAllowed(ip)) return cb(null, true); noteBlocked(ip); cb('izin yok', false); },   // IP kısıtlaması
   // WebSocket mesajları sıkıştırılır (256 bayttan büyükler; hızlı seviye). Polling'de httpCompression zaten açık.
   // IIS (ASP.NET Core Module) arkasında varsayılan kapalı: IIS'in WebSocket katmanı uzantıyı geçirmeyebilir, bağlantı
   // WebSocket'e geçemez. BILYE_WS_DEFLATE=1 ile açılır, =0 ile her yerde kapanır.
@@ -164,13 +210,7 @@ io.on('connection', socket => {
 });
 
 /* İstemci IP'si: IIS (ASP.NET Core Module) ya da ters vekil arkasında X-Forwarded-For'un ilk adresi, yoksa bağlantı adresi */
-function clientIp(socket){
-  const h = socket.handshake, xf = h.headers['x-forwarded-for'];
-  let ip = (typeof xf === 'string' && xf.split(',')[0].trim()) || h.address || '';
-  ip = ip.replace(/^::ffff:/, '');
-  if (/^\[?[0-9a-f:.]+\]?:\d+$/i.test(ip) && ip.includes('.')) ip = ip.replace(/:\d+$/, '');   // IPv4:port
-  return ip === '::1' ? '127.0.0.1' : ip.slice(0, 64);
-}
+function clientIp(socket){ return reqIp(socket.request || { headers: socket.handshake.headers, socket: { remoteAddress: socket.handshake.address } }); }
 
 /* Çevrimiçi oyuncular: bağlı herkese isim, IP ve nerede olduğu yayınlanır (değişiklikte, en fazla 0,5 sn'de bir) */
 let presenceTimer = null;

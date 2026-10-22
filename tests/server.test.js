@@ -313,3 +313,31 @@ test('hazır mesaj: odadakilere gider, sık gönderim yok sayılır, geçersiz n
   assert.equal(b.msgs.filter(x => x.type === 'chat').length, 1);   // ikincisi çok sık, üçüncüsü geçersiz
   a.close(); b.close();
 });
+
+test('IP kısıtlaması: izinli adres girer, izinsiz ana adrese yönlenir, IP taklidi işe yaramaz, oyun bağlantısı reddedilir', async () => {
+  const port = PORT + 2;
+  const env = { ...process.env, ASPNETCORE_PORT: String(port), ASPNETCORE_APPL_PATH: '/bilye-ligi', BILYE_IZINLI_IP: '10.10.36.0/24, 192.168.1.*, 172.16.0.9' };
+  delete env.PORT;
+  const p3 = spawn(process.execPath, ['server/index.js'], { env, stdio: ['ignore', 'pipe', 'inherit'] });
+  try {
+    await new Promise((res, rej) => { p3.stdout.on('data', d => { if (String(d).includes('localhost')) res(); }); p3.on('exit', c => rej(new Error('sunucu kapandı: ' + c))); });
+    const get = xff => fetch(`http://localhost:${port}/bilye-ligi/`, { redirect: 'manual', headers: xff ? { 'x-forwarded-for': xff } : {} });
+    assert.equal((await get('10.10.36.4:51000')).status, 200);          // aralık (IIS adres:port yazar)
+    assert.equal((await get('192.168.1.77')).status, 200);              // joker
+    assert.equal((await get('172.16.0.9')).status, 200);                // tam adres
+    const no = await get('8.8.8.8:4000');
+    assert.equal(no.status, 302); assert.equal(no.headers.get('location'), 'https://localhost:' + port + '/');
+    assert.equal((await get('10.10.36.4, 8.8.8.8')).status, 302);       // taklit: istemci başa izinli adres yazar, IIS sona gerçeğini ekler
+    // oyun bağlantısı: izinsiz reddedilir, izinli bağlanır
+    const tryConnect = xff => new Promise(res => {
+      const s = io(`http://localhost:${port}`, { path: '/bilye-ligi/canli', reconnection: false, forceNew: true, transports: ['polling'], extraHeaders: { 'x-forwarded-for': xff } });
+      const t = setTimeout(() => { s.close(); res('zaman aşımı'); }, 4000);
+      s.on('connect', () => { clearTimeout(t); s.close(); res('bağlandı'); });
+      s.on('connect_error', () => { clearTimeout(t); s.close(); res('reddedildi'); });
+    });
+    assert.equal(await tryConnect('8.8.8.8'), 'reddedildi');
+    assert.equal(await tryConnect('10.10.36.20'), 'bağlandı');
+    const tani = await (await fetch(`http://localhost:${port}/bilye-ligi/tani`, { headers: { 'x-forwarded-for': '10.10.36.4' } })).text();
+    assert.ok(tani.includes('engellenen son adresler: 8.8.8.8'), tani);
+  } finally { p3.kill(); }
+});
