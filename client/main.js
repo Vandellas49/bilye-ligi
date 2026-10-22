@@ -392,7 +392,8 @@ $('netName').addEventListener('change', () => {
 });
 $('refreshRooms').onclick = () => { if (net.status === 'on') send('listRooms'); else connect(); };
 $('createBtn').onclick = () => { send('createRoom', readCreate()); $('createBox').open = false; };
-$('netBack').onclick = () => { if (G.room) send('leave'); disconnect(); G.room = null; showOverlay('menu'); };
+// geri: odadan çık ama bağlantı açık kalsın (çevrimiçi panelinde görünmeye devam)
+$('netBack').onclick = () => { if (G.room) send('leave'); G.room = null; showOverlay('menu'); };
 $('lobbyLeave').onclick = () => send('leave');
 document.addEventListener('visibilitychange', () => { if (document.hidden && G.mode === 'match' && !G.paused && !G.online) togglePause(); });
 
@@ -538,6 +539,7 @@ if (new URLSearchParams(location.search).has('debug')){
    yayın) sessizce bağlanılmaz. Ne yaptığı (menü, tek maç, turnuva, ders, oda listesi) değişince bildirilir. */
 let lastAct = '';
 function reportActivity(){
+  net.inRoom = !!G.room;   // ping yalnızca odadayken (client/net.js)
   if (net.status !== 'on') return;
   const act = G.room ? 'online' : currentOverlay() === 'onlineOv' ? 'online' : G.mode === 'match' ? (G.tut ? 'learn' : G.tour ? 'tour' : G.online ? 'online' : 'match') : 'menu';
   if (act === lastAct) return;

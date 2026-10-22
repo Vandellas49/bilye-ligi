@@ -76,7 +76,9 @@ export function connect(name){
 }
 
 // gidiş-dönüş süresi (ping) ölçümü
-setInterval(() => { if (net.me) send('ping', { t: performance.now() }); }, 2000);
+// gecikme ölçümü yalnızca odadayken (lobi ve maç): oynamayan açık sekmeler sunucuya boşuna mesaj atmasın
+// (WebSocket'i engelleyen proxy'de her mesaj bir HTTP isteği demek). main.js net.inRoom'u ayarlar.
+setInterval(() => { if (net.me && net.inRoom) send('ping', { t: performance.now() }); }, 2000);
 
 export function disconnect(){
   net.wanted = false;
