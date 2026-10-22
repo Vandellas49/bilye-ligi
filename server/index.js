@@ -65,7 +65,12 @@ const server = http.createServer((req, res) => {
   if (p === '/tani'){
     res.writeHead(200, { ...TEXT, 'cache-control': 'no-store' });
     res.end([`Bilye Ligi sunucusu çalışıyor`, `alınan adres: ${req.original}`, `temizlenmiş adres: ${req.url}`,
-      `önek: ${BASE || '(yok)'}`, `bağlantı yolu: ${SIO_PATH}`, `node: ${process.version}`].join('\n'));
+      `önek: ${BASE || '(yok)'}`, `bağlantı yolu: ${SIO_PATH}`, `node: ${process.version}`, '',
+      // WebSocket teşhisi: istek Node'a hiç gelmiyorsa engel Node'dan önce (IIS WebSocket Protocol özelliği ya da proxy)
+      `WebSocket isteği (Node'a ulaşan): ${wsStats.upgradeReq}`,
+      `WebSocket'e geçen bağlantı: ${wsStats.upgraded} / toplam bağlantı: ${wsStats.conns}`,
+      `şu an bağlı: ${wsNow('websocket')} WebSocket, ${wsNow('polling')} HTTP (polling)`,
+      `son WebSocket isteği: ${wsStats.last || '(hiç gelmedi)'}`].join('\n'));
     return;
   }
   // Socket.IO tarayıcı istemcisi kendi adımızla verilir (adreste "socket.io" geçmesin, bkz. SIO_PATH)
@@ -113,6 +118,14 @@ const io = new Server(server, {
 // Socket.IO kendi dinleyicisini sunucuya ekledi; önek temizliği ondan önce çalışsın
 server.prependListener('request', stripBase);
 server.prependListener('upgrade', stripBase);
+// WebSocket teşhis sayaçları (/tani)
+const wsStats = { upgradeReq: 0, upgraded: 0, conns: 0, last: '' };
+server.prependListener('upgrade', req => {
+  wsStats.upgradeReq++;
+  wsStats.last = new Date().toISOString() + ' ' + ['upgrade', 'connection', 'x-forwarded-for'].map(h => h + '=' + (req.headers[h] || '-')).join(', ');
+});
+const wsNow = kind => [...io.of('/').sockets.values()].filter(x => (x.conn.transport.name === 'websocket') === (kind === 'websocket')).length;
+io.engine.on('connection', conn => { wsStats.conns++; conn.once('upgrade', () => wsStats.upgraded++); });
 io.on('connection', socket => {
   let client = null;
   socket.conn.once('upgrade', () => presenceSoon());   // polling -> WebSocket geçişi panelde görünsün
