@@ -70,7 +70,12 @@ const server = http.createServer((req, res) => {
       `WebSocket isteği (Node'a ulaşan): ${wsStats.upgradeReq}`,
       `WebSocket'e geçen bağlantı: ${wsStats.upgraded} / toplam bağlantı: ${wsStats.conns}`,
       `şu an bağlı: ${wsNow('websocket')} WebSocket, ${wsNow('polling')} HTTP (polling)`,
-      `son WebSocket isteği: ${wsStats.last || '(hiç gelmedi)'}`].join('\n'));
+      `son WebSocket isteği: ${wsStats.last || '(hiç gelmedi)'}`,
+      `WebSocket sıkıştırması: ${WS_DEFLATE ? 'açık' : 'kapalı'}`,
+      `istekteki uzantı: ${wsStats.ext || '-'}`,
+      `Node'un yanıtı: ${wsStats.reply || '-'}`,
+      `bağlantı: ${wsStats.close || 'açık ya da bilgi yok'}${wsStats.err ? ' | hata: ' + wsStats.err : ''}`,
+      `motor hatası: ${wsStats.engineErr || '-'}`].join('\n'));
     return;
   }
   // Socket.IO tarayıcı istemcisi kendi adımızla verilir (adreste "socket.io" geçmesin, bkz. SIO_PATH)
@@ -106,6 +111,7 @@ function send(c, type, data = {}){
    WebSocket'e geçer. WebSocket'i engelleyen kurum proxy'lerinde polling ile devam eder.
    Yol bilerek varsayılan "/socket.io" değil: bazı IIS sunucularında "socket.io" geçen adresleri
    başka uygulamaya yönlendiren genel kurallar var. İstemci aynı yolu client/net.js'te kullanır. */
+const WS_DEFLATE = process.env.BILYE_WS_DEFLATE ? process.env.BILYE_WS_DEFLATE === '1' : !process.env.ASPNETCORE_PORT;
 const io = new Server(server, {
   path: SIO_PATH,
   maxHttpBufferSize: 4096,        // tek mesaj sınırı
@@ -113,18 +119,33 @@ const io = new Server(server, {
   serveClient: false,             // istemci dosyası /lib/sio.min.js olarak yukarıda verilir
   cors: { origin: false },
   // WebSocket mesajları sıkıştırılır (256 bayttan büyükler; hızlı seviye). Polling'de httpCompression zaten açık.
-  perMessageDeflate: { threshold: 256, zlibDeflateOptions: { level: 3 } },
+  // IIS (ASP.NET Core Module) arkasında varsayılan kapalı: IIS'in WebSocket katmanı uzantıyı geçirmeyebilir, bağlantı
+  // WebSocket'e geçemez. BILYE_WS_DEFLATE=1 ile açılır, =0 ile her yerde kapanır.
+  perMessageDeflate: WS_DEFLATE ? { threshold: 256, zlibDeflateOptions: { level: 3 } } : false,
 });
 // Socket.IO kendi dinleyicisini sunucuya ekledi; önek temizliği ondan önce çalışsın
 server.prependListener('request', stripBase);
 server.prependListener('upgrade', stripBase);
 // WebSocket teşhis sayaçları (/tani)
-const wsStats = { upgradeReq: 0, upgraded: 0, conns: 0, last: '' };
-server.prependListener('upgrade', req => {
+const wsStats = { upgradeReq: 0, upgraded: 0, conns: 0, last: '', reply: '', close: '', err: '' };
+server.prependListener('upgrade', (req, socket) => {
   wsStats.upgradeReq++;
+  // Node'un yanıtı (101 = WebSocket'e geçildi) ve bağlantının ne zaman, nasıl kapandığı
+  const t0 = Date.now(), write = socket.write.bind(socket);
+  let first = true;
+  socket.write = (chunk, ...rest) => {
+    if (first){ first = false; wsStats.reply = String(chunk).split('\r\n')[0] + ' | ' + (String(chunk).match(/sec-websocket-extensions:[^\r]*/i) || ['uzantı yok'])[0]; }
+    return write(chunk, ...rest);
+  };
+  let got = 0;
+  socket.on('data', d => { got += d.length; });
+  socket.once('close', hadErr => { wsStats.close = `${Date.now() - t0} ms sonra kapandı, gelen veri ${got} bayt${hadErr ? ', hata ile' : ''}`; });
+  socket.once('error', e => { wsStats.err = e.message; });
+  wsStats.ext = req.headers['sec-websocket-extensions'] || '-';
   wsStats.last = new Date().toISOString() + ' ' + ['upgrade', 'connection', 'x-forwarded-for'].map(h => h + '=' + (req.headers[h] || '-')).join(', ');
 });
 const wsNow = kind => [...io.of('/').sockets.values()].filter(x => (x.conn.transport.name === 'websocket') === (kind === 'websocket')).length;
+io.engine.on('connection_error', e => { wsStats.engineErr = (e.code ?? '') + ' ' + (e.message || '') + (e.context ? ' ' + JSON.stringify(e.context) : ''); });
 io.engine.on('connection', conn => { wsStats.conns++; conn.once('upgrade', () => wsStats.upgraded++); });
 io.on('connection', socket => {
   let client = null;
