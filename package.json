@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "static": "npx serve .",
-    "test": "node --test"
+    "test": "node --test",
+    "build:offline": "node scripts/build-offline.mjs"
   },
   "dependencies": {
     "socket.io": "^4.8.4"
@@ -15,6 +16,7 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "socket.io-client": "^4.8.4"
   }
 }

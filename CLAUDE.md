@@ -15,9 +15,12 @@ Bu dosya, projeye Claude Code ile devam ederken bağlam sağlamak için yazıld�
 npm install        # bağımlılık: socket.io (sunucu); testler için socket.io-client
 npm start          # node server/index.js -> http://localhost:8080 (PORT ile değiştirilebilir)
 npm test           # Node testleri
+npm run build:offline   # dist/bilye-ligi.html: sunucusuz tek dosya (çift tıklayınca açılır; çevrimiçi kısımlar gizli)
 ```
 
 Sunucu hem oyunu (`index.html`, `client/`, `shared/`) hem Socket.IO uç noktasını (`/canli`) ve tarayıcı istemcisini (`/lib/sio.min.js`) aynı portta sunar. Yol bilerek varsayılan `/socket.io` değil: kurum IIS sunucusunda `socket.io` geçen adresleri ana uygulamaya yönlendiren genel bir kural vardı (403.18). Adreslere `socket.io` kelimesini geri koymayın. Çevrimiçi mod bu sunucu olmadan çalışmaz; tek maç ve turnuva için herhangi bir statik sunucu da yeter (`npm run static`). Oyun ES modüllerinden oluştuğu için `index.html`'i doğrudan (`file://`) açmak çalışmaz; dosyadan açılırsa menüde uyarı çıkar.
+
+**Çevrimdışı tek dosya** (`scripts/build-offline.mjs`, esbuild geliştirme bağımlılığı): `client/main.js` ve bütün modüller tek betiğe paketlenir (`window.BILYE_OFFLINE = true`), Three.js gömülür, Socket.IO yok; index.html'deki file:// uyarısı çıkarılır. Çevrimiçi oyna, lig tablosu ve çevrimiçi paneli gizlenir, sunucuya bağlanılmaz. ~810 KB. `dist/` git dışında.
 
 Tek dış bağımlılık (tarayıcıda) Google Fonts (Bagel Fat One, Figtree). İnternet yoksa sistem yazı tiplerine düşer.
 

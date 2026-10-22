@@ -551,7 +551,9 @@ function reportActivity(){
   lastAct = act; send('setActivity', { act });
 }
 setInterval(reportActivity, 2000);
-if (typeof io === 'function') connect(net.name || '');
+if (typeof io === 'function' && !window.BILYE_OFFLINE) connect(net.name || '');
+// çevrimdışı tek dosya (scripts/build-offline.mjs): çevrimiçi kısımlar gizli
+if (window.BILYE_OFFLINE) for (const id of ['onlineBtn', 'leagueBtn', 'who']) $(id).hidden = true;
 
 new ResizeObserver(resize).observe($('stage'));
 addEventListener('resize', resize);
